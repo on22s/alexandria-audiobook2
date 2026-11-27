@@ -433,6 +433,34 @@ def _spine_document_media_type(archive_bytes, path):
     return None
 
 
+def _first_visible_body(root):
+    """Return ``(saw_body, body)``: the first ``<body>`` with no hidden ancestor.
+
+    ``get_xhtml_segments`` uses the first ``<body>`` in document order as the
+    segment root. A body inside a hidden ancestor must not become that root,
+    or its hidden text would be narrated; skip it and use the next visible
+    body. The shared predicate (:func:`_is_hidden_element`, the same one every
+    other read-aloud walk uses) decides hidden on the element itself and on
+    each ancestor, Rule 15.
+
+    ``saw_body`` distinguishes "this document has no ``<body>``" (segment the
+    root, as ``origin/main`` did) from "bodies exist but all are hidden"
+    (nothing may be segmented).
+    """
+    saw_body = False
+    stack = [(root, False)]
+    while stack:
+        element, hidden_ancestor = stack.pop()
+        element_hidden = hidden_ancestor or _is_hidden_element(element)
+        if _local(element.tag) == 'body':
+            saw_body = True
+            if not element_hidden:
+                return True, element
+        for child in reversed(list(element)):
+            stack.append((child, element_hidden))
+    return saw_body, None
+
+
 def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML_BYTES,
                        *, media_type=None):
     """Return (root_element, segments[{fragment, text}]) for one spine file.
@@ -489,11 +517,11 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
             seen_ids.add(element_id)
     if _is_hidden_element(root):
         return root, [], ""
-    body = None
-    for element in root.iter():
-        if _local(element.tag) == 'body':
-            body = element
-            break
+    saw_body, body = _first_visible_body(root)
+    if saw_body and body is None:
+        # Bodies exist, but every one sits inside a hidden subtree. There is
+        # no visible segment root, so there is nothing to narrate.
+        return root, [], ""
     start = body if body is not None else root
     segments = []
 

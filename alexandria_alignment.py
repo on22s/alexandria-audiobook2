@@ -337,7 +337,7 @@ class _XmlHiddenScan(NamedTuple):
     visible: str
     saw_hidden: bool
     hidden_text_removed: bool
-    document_hidden: bool
+    visible_text_remains: bool
 
 
 class XmlSubtreeCut(NamedTuple):
@@ -345,7 +345,7 @@ class XmlSubtreeCut(NamedTuple):
     omitted: bool
     saw_hidden: bool
     hidden_text_removed: bool
-    document_hidden: bool
+    visible_text_remains: bool
 
 
 _NONSPOKEN_TAGS = frozenset({'script', 'style'})
@@ -382,11 +382,16 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
 
     XML containment is the browser's rendering, so a hidden subtree is exactly
     its start tag through its matching end tag; the bytes outside it are kept
-    verbatim. ``document_hidden`` is metadata for the load path: a hidden root
-    element or a hidden ``<body>`` that is a direct child of an ``<html>``
-    element. ``hidden_text_removed`` is True only when omission suppressed
+    verbatim. ``hidden_text_removed`` is True only when omission suppressed
     non-whitespace character data outside ``script``/``style`` (which
-    extraction never narrated), so a hidden void element removes no text.
+    extraction never narrated) and outside a head ``<title>`` (which no path
+    narrates), so a hidden void element removes no text and a hidden root whose
+    only child text is its head title removes none either.
+    ``visible_text_remains`` is True when non-whitespace character data
+    survives outside every ignored subtree, ``script``/``style`` and the
+    document ``<head>``. ``load_epub`` uses it to decide "entirely hidden"
+    from the substituted XML - including flow content outside ``<body>`` that
+    ``ebooklib``'s body-only parse cannot see - rather than from that parse.
 
     Expat runs with ``DefaultHandler`` (no entity expansion, no external
     fetch). Raises ``ValueError`` for malformed XML; the message names the
@@ -408,10 +413,12 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
     ignored_self_closing = False
     in_hidden = False
     non_spoken_depth = 0
+    head_depth = 0
+    head_title_depth = 0
     omitted = False
     saw_hidden = False
     hidden_text_removed = False
-    document_hidden = False
+    visible_text_remains = False
     ns_stack = [{}]
     elements = []
     seen_root = False
@@ -442,8 +449,8 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
 
     def start_element(name, attrs):
         nonlocal cursor, ignored_depth, ignored_self_closing, in_hidden
-        nonlocal non_spoken_depth, omitted, saw_hidden, hidden_text_removed
-        nonlocal document_hidden, seen_root, pending_ignored
+        nonlocal non_spoken_depth, head_depth, head_title_depth
+        nonlocal omitted, saw_hidden, seen_root, pending_ignored
         start = parser.CurrentByteIndex
         if start < 0:
             raise ValueError('invalid XML: element position unavailable')
@@ -471,6 +478,10 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
         local = name.rpartition(':')[2].lower()
         elem_ns = current_ns.get(name.partition(':')[0] if ':' in name else '', '')
         elements.append((local, elem_ns))
+        if local == 'head':
+            head_depth += 1
+        elif local == 'title' and head_depth:
+            head_title_depth += 1
         if local in _NONSPOKEN_TAGS:
             non_spoken_depth += 1
         if ignored_depth:
@@ -494,19 +505,20 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
         if is_hidden:
             in_hidden = True
             saw_hidden = True
-            if parent is None or (
-                    local == 'body' and elem_ns == _XHTML_NS
-                    and parent == ('html', _XHTML_NS)):
-                document_hidden = True
 
     def end_element(name):
         nonlocal cursor, ignored_depth, ignored_self_closing, in_hidden
-        nonlocal non_spoken_depth, pending_ignored
+        nonlocal non_spoken_depth, head_depth, head_title_depth
+        nonlocal pending_ignored
         if len(ns_stack) > 1:
             ns_stack.pop()
         local = name.rpartition(':')[2].lower()
         if local in _NONSPOKEN_TAGS and non_spoken_depth:
             non_spoken_depth -= 1
+        if local == 'title' and head_title_depth:
+            head_title_depth -= 1
+        elif local == 'head' and head_depth:
+            head_depth -= 1
         if elements:
             elements.pop()
         if ignored_depth == 0:
@@ -533,9 +545,14 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
         cursor = end
 
     def character_data(text):
-        nonlocal hidden_text_removed
-        if ignored_depth and in_hidden and not non_spoken_depth and text.strip():
-            hidden_text_removed = True
+        nonlocal hidden_text_removed, visible_text_remains
+        if not text.strip():
+            return
+        if ignored_depth:
+            if in_hidden and not non_spoken_depth and not head_title_depth:
+                hidden_text_removed = True
+        elif not non_spoken_depth and not head_depth:
+            visible_text_remains = True
 
     parser.StartElementHandler = start_element
     parser.EndElementHandler = end_element
@@ -565,11 +582,12 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
         parser.ProcessingInstructionHandler = None
         parser.DefaultHandler = None
     if not omitted:
-        return XmlSubtreeCut(content, False, False, False, document_hidden)
+        return XmlSubtreeCut(content, False, False, False,
+                             visible_text_remains)
     candidate.extend(view[cursor:])
     visible = candidate.decode('utf-8')
     return XmlSubtreeCut(visible, True, saw_hidden, hidden_text_removed,
-                         document_hidden)
+                         visible_text_remains)
 
 
 def strip_hidden_xml(content):
@@ -596,9 +614,9 @@ def strip_hidden_xml(content):
             LookupError):
         return None
     if not cut.omitted:
-        return _XmlHiddenScan(content, False, False, False)
+        return _XmlHiddenScan(content, False, False, cut.visible_text_remains)
     return _XmlHiddenScan(cut.visible, cut.saw_hidden, cut.hidden_text_removed,
-                          cut.document_hidden)
+                          cut.visible_text_remains)
 
 
 def _extract_bs4_visible_text(soup) -> str:
@@ -717,9 +735,11 @@ def load_epub(path: str) -> str:
             media_type, xml_well_formed=hidden_scan is not None)
         item_hidden = False
         hidden_text_removed = False
+        visible_text_remains = False
         if hidden_applies and hidden_scan.saw_hidden:
             item_hidden = True
             hidden_text_removed = hidden_scan.hidden_text_removed
+            visible_text_remains = hidden_scan.visible_text_remains
             # A hidden body (or any hidden element) is just a subtree: the
             # walk already cut it, so parse the substituted document and keep
             # whatever visible text remains. A browser renders those visible
@@ -745,13 +765,17 @@ def load_epub(path: str) -> str:
         else:
             soup = BeautifulSoup(item.get_content(), 'html.parser')
             text = _extract_bs4_visible_text(soup)
-        if not (item_hidden and hidden_text_removed and not text.strip()):
+        if not (item_hidden and hidden_text_removed
+                and not visible_text_remains):
             # A document is entirely hidden only when hidden omission actually
             # removed non-whitespace text and no visible text remains after the
-            # cut. An empty visible chapter, a hidden body beside visible
-            # siblings, or a document with only hidden void elements
-            # (<br hidden/>, <img hidden/>) keeps origin/main's behavior below
-            # instead of being folded into the hidden-specific refusal.
+            # cut. "Visible" is the shared walker's answer on the substituted
+            # XML, not ebooklib's body-only text: flow content outside <body>
+            # is visible (origin/main's load just cannot narrate it) and a
+            # head <title> is not. An empty visible chapter, a hidden body
+            # beside visible siblings, or a document with only hidden void
+            # elements (<br hidden/>, <img hidden/>) keeps origin/main's
+            # behavior below instead of the hidden-specific refusal.
             every_document_entirely_hidden = False
         parts.append(text)
     if not considered_documents:

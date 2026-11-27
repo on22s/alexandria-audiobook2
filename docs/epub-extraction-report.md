@@ -29,7 +29,10 @@ or a document with no `xmlns` at all) is not an HTML element. Attribute values
 do not matter: `hidden=""`, `hidden="false"` and `hidden="until-found"` all hide
 (`until-found` hides content from linear reading until interactive
 find-in-page reveal). Hidden elements and all their descendants are omitted
-from narration. Because `hidden` is an HTML-only global attribute, it is not
+from narration. Read-aloud's segment root is the first `<body>` that has no
+hidden ancestor (a hidden `<body>` is not itself visible either); if bodies
+exist but all sit inside hidden subtrees, no segments are emitted.
+Because `hidden` is an HTML-only global attribute, it is not
 applied to SVG or MathML elements with an explicit `xmlns` (a bare
 `<svg>`/`<math>` inherits the XHTML namespace in XML and does take it); CSS
 `display:none` and `aria-hidden` are not inferred or dropped.
@@ -62,12 +65,12 @@ regions from the same raw-XML Expat walk the extraction pass uses, never from
 HTML implied-end rules). Extraction and `load_epub` therefore agree on which
 text is omitted; a hidden subtree is cut from the XML before the HTML parser
 runs, so text cannot be moved out of it. A hidden element is only a subtree:
-`load_epub` parses what remains visible around it, so a hidden `<body>` beside
-visible content keeps that visible content (the hidden body is not by itself
-"the document is hidden"). The document root's own start tag and the document
-`<body>` (the direct child of the root `<html>`) are recognized through the
-XML tree, so a `<body hidden>` nested in `<template>`, `noscript` or `textarea`
-is not mistaken for the document body. The walk Expat-parses each
+the walk cuts exactly its start tag through its matching end tag, wherever it
+sits - including a hidden `<body>`, whether it is the real document body or a
+`<body>` nested in `<template>`, `noscript` or `textarea`. `load_epub` then
+parses what remains visible around it, so a hidden `<body>` beside visible
+content keeps that visible content (the hidden body is not by itself "the
+document is hidden"). The walk Expat-parses each
 `application/xhtml+xml` spine item, which `load_epub` did not do before this
 feature; it uses the extraction pass's own configuration (no entity
 expansion, no external fetch) and is bounded by Expat's amplification limit.
@@ -75,10 +78,14 @@ expansion, no external fetch) and is bounded by Expat's amplification limit.
 hidden-free UTF-16 chapter (unchanged from before this feature); a
 hidden-bearing accepted document is substituted as UTF-8 and does load, so
 encoding support is not claimed end-to-end. A spine document is entirely
-hidden only when hidden omission actually removed non-whitespace text **and no
-visible text remains after the cut** (whatever its shape: a hidden root, a
-hidden body with nothing visible beside it, or all text inside hidden
-elements). In that case script extraction returns no chapter text (with no
+hidden only when hidden omission actually removed narrated non-whitespace text
+**and no visible text remains after the cut**. "Visible" is the shared walker's
+answer on the substituted XML, not `ebooklib`'s body-only text: flow content
+outside `<body>` counts as visible (though `load_epub`'s own text stays
+body-only, as before), a head `<title>` does not, and a body `<title>` does.
+The shape does not matter: a hidden root, a hidden body with nothing visible
+beside it, or all text inside hidden elements. In that case script extraction
+returns no chapter text (with no
 navigation target it returns `''`; a navigation entry that targets the hidden
 document still contributes its visible table-of-contents label, exactly as it
 already did for an otherwise-empty chapter), read-aloud returns no segments,

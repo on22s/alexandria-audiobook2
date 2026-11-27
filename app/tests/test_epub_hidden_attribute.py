@@ -898,28 +898,24 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         walker_cases = [
             ('template_fake_body_only',
              '<html xmlns="http://www.w3.org/1999/xhtml"><head><template>'
-             '<body hidden=""/></template></head><body><p>Visible.</p></body></html>',
-             False),
+             '<body hidden=""/></template></head><body><p>Visible.</p></body></html>'),
             ('noscript_fake_body',
              '<html xmlns="http://www.w3.org/1999/xhtml"><head><noscript>'
-             '<body hidden=""/></noscript></head><body><p>Visible.</p></body></html>',
-             False),
+             '<body hidden=""/></noscript></head><body><p>Visible.</p></body></html>'),
             ('textarea_fake_body',
              '<html xmlns="http://www.w3.org/1999/xhtml"><head><textarea>'
-             '<body hidden=""/></textarea></head><body><p>Visible.</p></body></html>',
-             False),
+             '<body hidden=""/></textarea></head><body><p>Visible.</p></body></html>'),
             ('hidden_real_body',
              '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
-             '</head><body hidden=""><p>Secret.</p></body></html>', True),
+             '</head><body hidden=""><p>Secret.</p></body></html>'),
             ('hidden_root',
              '<html xmlns="http://www.w3.org/1999/xhtml" hidden=""><body>'
-             '<p>Secret.</p></body></html>', True),
+             '<p>Secret.</p></body></html>'),
         ]
-        for name, raw_doc, expected in walker_cases:
+        for name, raw_doc in walker_cases:
             with self.subTest(case=name):
                 scan = alignment.strip_hidden_xml(raw_doc)
                 self.assertIsNotNone(scan)
-                self.assertEqual(expected, scan.document_hidden)
 
         # A fake <body hidden> in head-only content does not hide the chapter.
         for name, raw_doc in (
@@ -1008,6 +1004,84 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         with self.assertRaisesRegex(
                 ValueError, r'no readable text after omitting HTML hidden elements'):
             _load_bytes(raw_all_hidden)
+
+    def test_entirely_hidden_is_decided_from_the_substituted_xml_text(self):
+        # Review 9 finding 1: ebooklib returns only body content, so flow
+        # content after </body> was invisible to the refusal decision. The
+        # shared walker's substituted XML is the source of "visible text
+        # remains", so this chapter is not refused even though load_epub's
+        # own body-only text is empty (exactly origin/main's load output on
+        # the hidden-deleted document).
+        document = (
+            '<?xml version="1.0"?>'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '</head><body><p hidden="">SEC</p></body><p>VIS</p></html>')
+        raw = make_epub('', raw_document=document, toc_links=[])
+        self.assertEqual('VIS',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        self.assertEqual('', _normalised(_load_bytes(raw)))
+
+    def test_head_title_is_not_hidden_text_but_a_body_title_is(self):
+        # Review 9 finding 5: neither path narrates a head <title>, so a hidden
+        # root whose only text is the head title removed no narrated text and
+        # is not refused. A body <title> is narrated by origin/main's load, so
+        # hidden body-title text still counts as removed narration.
+        head_title = (
+            '<html xmlns="http://www.w3.org/1999/xhtml" hidden="">'
+            '<head><title>T</title></head><body><br/></body></html>')
+        scan = alignment.strip_hidden_xml(head_title)
+        self.assertIsNotNone(scan)
+        self.assertFalse(scan.hidden_text_removed)
+        raw_head = make_epub('', raw_document=head_title, toc_links=[])
+        self.assertEqual('', _normalised(_load_bytes(raw_head)))
+        self.assertEqual('',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw_head))
+
+        body_title = (
+            '<html xmlns="http://www.w3.org/1999/xhtml" hidden="">'
+            '<head></head><body><title>Body title</title></body></html>')
+        scan = alignment.strip_hidden_xml(body_title)
+        self.assertIsNotNone(scan)
+        self.assertTrue(scan.hidden_text_removed)
+        with self.assertRaisesRegex(
+                ValueError, r'no readable text after omitting HTML hidden elements'):
+            _load_bytes(make_epub('', raw_document=body_title, toc_links=[]))
+
+    def test_hidden_ancestor_body_is_not_a_readaloud_segment_root(self):
+        # Review 9 finding 3: read-aloud used the first <body> in document
+        # order even when a hidden ancestor contained it, narrating hidden
+        # text. A body under a hidden ancestor is not a segment root; use the
+        # next visible body.
+        both_bodies = (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '</head><div hidden=""><body><p>TB</p></body></div>'
+            '<body><p>VIS</p></body></html>')
+        raw = make_epub('', raw_document=both_bodies, toc_links=[])
+        _root, segments, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+        self.assertEqual(['VIS'], [segment['text'] for segment in segments])
+        self.assertEqual('VIS',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        self.assertEqual('VIS', _normalised(_load_bytes(raw)))
+
+        # A hidden <body> itself is not visible either; the next body wins.
+        hidden_body_first = (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '</head><body hidden=""><p>TB</p></body>'
+            '<body><p>VIS</p></body></html>')
+        raw_body = make_epub('', raw_document=hidden_body_first, toc_links=[])
+        _root, segments, _full = get_xhtml_segments(raw_body, 'OEBPS/ch1.xhtml')
+        self.assertEqual(['VIS'], [segment['text'] for segment in segments])
+
+        # No visible body exists, so nothing is segmented even though a tail
+        # outside the hidden ancestor is not reachable through a body root.
+        only_hidden_ancestor = (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '</head><div hidden=""><body><p>TB</p></body></div>'
+            '<p>TAIL</p></html>')
+        raw_hidden = make_epub('', raw_document=only_hidden_ancestor, toc_links=[])
+        _root, segments, _full = get_xhtml_segments(
+            raw_hidden, 'OEBPS/ch1.xhtml')
+        self.assertEqual([], segments)
 
     def test_bare_svg_and_math_without_xmlns_use_the_xhtml_namespace(self):
         # XHTML is XML: a bare <svg>/<math> without xmlns stays in the
