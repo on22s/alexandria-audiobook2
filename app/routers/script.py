@@ -1554,7 +1554,8 @@ def _apply_upload_selection(path, before_publication=None):
             if before_publication is not None:
                 options['before_publication'] = before_publication
             return apply_book_input_selection(DATA_DIR, path,
-                secure_filename(os.path.splitext(os.path.basename(path))[0]), **options)
+                secure_filename(os.path.splitext(os.path.basename(path))[0]),
+                saved_books_root=SCRIPTS_DIR, **options)
         except TimeoutError:
             raise HTTPException(status_code=409, detail=(
                 'Book metadata is busy; retry the selection shortly.')) from None
