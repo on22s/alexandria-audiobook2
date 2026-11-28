@@ -89,7 +89,7 @@ class EpubReadaloudTests(unittest.TestCase):
         entries = [{"index": position, "prepared_text": "Same words",
                     "start_frame": position * 24000, "end_frame": (position + 1) * 24000,
                     "sample_rate": 24000} for position in range(2)]
-        mapping, cursor = map_spine_to_chunks(segments, entries, require_full_coverage=True)
+        mapping, cursor, _consumed = map_spine_to_chunks(segments, entries, require_full_coverage=True)
         self.assertEqual([1, 3], [row["segment_index"] for row in mapping])
         self.assertEqual([[0], [1]], [row["chunk_indexes"] for row in mapping])
         self.assertEqual(2, cursor)

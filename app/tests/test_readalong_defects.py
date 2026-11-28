@@ -249,7 +249,7 @@ class ReadalongDefectsTests(unittest.TestCase):
         entries = [{"index": i, "prepared_text": w, "start_frame": i * 1000, "end_frame": (i + 1) * 1000,
                     "sample_rate": 24000} for i, w in enumerate(words)]
         spine = [{"fragment": None, "text": "alpha beta gamma delta epsilon zeta"}]
-        mapping, end = map_spine_to_chunks(spine, entries, start=0)
+        mapping, end, _consumed = map_spine_to_chunks(spine, entries, start=0)
         self.assertEqual(6, len(mapping[0]["chunk_indexes"]))
         self.assertEqual(6, end)
 
@@ -494,7 +494,7 @@ console.log('player-gate-ok');
             {"index": 0, "prepared_text": "Hello world.", "start_frame": 0, "end_frame": 1000, "sample_rate": 24000},
             {"index": 1, "prepared_text": "Hello world.", "start_frame": 1000, "end_frame": 2000, "sample_rate": 24000},
         ]
-        mapping, end = map_spine_to_chunks(spine, entries, start=0)
+        mapping, end, _consumed = map_spine_to_chunks(spine, entries, start=0)
         self.assertEqual([0], mapping[0]["chunk_indexes"])
         self.assertEqual([1], mapping[1]["chunk_indexes"])
         self.assertEqual(2, end)
@@ -502,7 +502,7 @@ console.log('player-gate-ok');
         spine2 = [{"fragment": None, "text": "alpha beta gamma delta"}]
         entries2 = [{"index": i, "prepared_text": t, "start_frame": i * 1000, "end_frame": (i + 1) * 1000,
                      "sample_rate": 24000} for i, t in enumerate(["alpha", "beta", "gamma", "delta"])]
-        mapping2, end2 = map_spine_to_chunks(spine2, entries2, start=0)
+        mapping2, end2, _consumed2 = map_spine_to_chunks(spine2, entries2, start=0)
         self.assertEqual(4, len(mapping2[0]["chunk_indexes"]))
 
 

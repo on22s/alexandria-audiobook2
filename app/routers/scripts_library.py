@@ -413,6 +413,23 @@ def _saved_repair_binding(path, old_bytes, new_bytes):
         raise HTTPException(status_code=409, detail='Saved script identity requires inspection; repair was not applied.') from error
 
 
+def _get_normalization_meta_replacement(path, new_script_bytes):
+    """Refresh a rewritten saved script's ``.meta.json`` records (Rule 15).
+
+    The companion keeps the book's other metadata; only the shared
+    normalization fields are rebound to the new script bytes. A companion that
+    is absent or cannot be parsed leaves no replacement (the read path already
+    fails closed on it), so the repair itself is not blocked. The refresh
+    reports read and parse failures through its return value and log, so this
+    repair path and the saved-review path call it the same way.
+    """
+    from readalong_export import get_refreshed_saved_script_metadata
+    meta_bytes = get_refreshed_saved_script_metadata(path, new_script_bytes)
+    if meta_bytes is None:
+        return {}
+    return {os.path.splitext(os.path.basename(path))[0] + ".meta.json": meta_bytes}
+
+
 def _publish_saved_repair(path, entries):
     if saved_script_is_active_source(DATA_DIR, path):
         raise HTTPException(status_code=409, detail=(
@@ -431,6 +448,7 @@ def _publish_saved_repair(path, entries):
     if os.path.lexists(backup):
         raise HTTPException(status_code=409, detail='Repair backup already exists; retry the repair.')
     replacements = {os.path.basename(path):new, os.path.basename(backup):old}
+    replacements.update(_get_normalization_meta_replacement(path, new))
     if binding is not None:
         replacements[os.path.basename(os.path.splitext(path)[0] + '.selection_binding.json')] = binding
     apply_book_state_locked(SCRIPTS_DIR, replacements, [])
@@ -564,6 +582,13 @@ def _save_script_sync(request):
             active_state, script_bytes, active_state.get('input_file_path'))
         if strip_front_matter is not None:
             meta['strip_front_matter'] = strip_front_matter
+        from readalong_export import (get_recorded_source_normalizations,
+                                      get_saved_script_normalization_metadata)
+        meta.update(get_saved_script_normalization_metadata(
+            get_recorded_source_normalizations(
+                SCRIPT_PATH, active_state.get('input_file_path'),
+                strip_front_matter=strip_front_matter),
+            script_bytes))
         replacements = {os.path.basename(dest): script_bytes,
             f"{safe_name}.meta.json": json.dumps(meta).encode("utf-8")}
         if binding_raw is not None:
@@ -1106,6 +1131,8 @@ def _apply_speaker_repair_sync(name: str, request: SpeakerRepairRequest):
                     os.path.basename(path): json.dumps(repair["entries"], ensure_ascii=False, indent=2).encode("utf-8"),
                     os.path.basename(backup): script_bytes,
                 }
+                replacements.update(_get_normalization_meta_replacement(
+                    path, replacements[os.path.basename(path)]))
                 binding = _saved_repair_binding(path, script_bytes, replacements[os.path.basename(path)])
                 if binding is not None:
                     replacements[os.path.basename(os.path.splitext(path)[0] + '.selection_binding.json')] = binding

@@ -2987,12 +2987,24 @@ def _snapshot_script_sync(request):
             raise HTTPException(status_code=409, detail=f'Publication provenance cannot be snapshotted: {error}') from error
         if publication is not None:
             replacements[os.path.basename(get_publication_source_path(dest))] = publication
-        replacements[os.path.basename(metadata)] = json.dumps({"book_id": book_id,
-                           "snapshot": {"entries": len(entries),
-                                        "segmented": len(checkpoint.get("segmented") or []),
-                                        "chunks_done": checkpoint.get("chunks_done"),
-                                        "stage": checkpoint.get("stage"), "taken": time.time()}},
-                          ensure_ascii=False, indent=2).encode('utf-8')
+        from readalong_export import (get_running_generation_source_normalizations,
+                                      get_saved_script_normalization_metadata)
+        snapshot_meta = {"book_id": book_id,
+                         "snapshot": {"entries": len(entries),
+                                      "segmented": len(checkpoint.get("segmented") or []),
+                                      "chunks_done": checkpoint.get("chunks_done"),
+                                      "stage": checkpoint.get("stage"), "taken": time.time()}}
+        try:
+            recorded_normalizations = get_running_generation_source_normalizations(
+                source_state.get('input_file_path'),
+                expected_source_sha256=captured.get('source_sha256'))
+        except (OSError, ValueError) as error:
+            logger.warning("Snapshot cannot read recorded source normalizations: %s", error)
+            recorded_normalizations = []
+        snapshot_meta.update(get_saved_script_normalization_metadata(
+            recorded_normalizations, script_bytes))
+        replacements[os.path.basename(metadata)] = json.dumps(
+            snapshot_meta, ensure_ascii=False, indent=2).encode('utf-8')
         apply_book_state_locked(SCRIPTS_DIR, replacements, [])
     return {"status": "saved", "name": safe_name, "entries": len(entries),
             "segmented": len(checkpoint.get("segmented") or []),

@@ -38,7 +38,7 @@ class SpanMappingTests(unittest.TestCase):
                                 SPANNING)
 
     def test_span_group_rows_carry_word_windows(self):
-        mapping, cursor = map_spine_to_chunks(
+        mapping, cursor, _consumed = map_spine_to_chunks(
             _spine("Chapter 3: River Survey (2)", "The test began at dawn."),
             SPANNING, allow_span=True, require_full_coverage=True)
         self.assertEqual(1, cursor)
@@ -53,8 +53,8 @@ class SpanMappingTests(unittest.TestCase):
                     "end_frame": 1000, "sample_rate": 1000},
                    {"index": 1, "prepared_text": "gamma delta.", "start_frame": 1000,
                     "end_frame": 2000, "sample_rate": 1000}]
-        mapping, cursor = map_spine_to_chunks(_spine("Title", "Alpha beta gamma delta."),
-                                              entries, allow_span=True)
+        mapping, cursor, _consumed = map_spine_to_chunks(_spine("Title", "Alpha beta gamma delta."),
+                                                         entries, allow_span=True)
         self.assertEqual(2, cursor)
         self.assertEqual([[0, 1], [0, 1]], [row["chunk_indexes"] for row in mapping])
         self.assertEqual([(0, 1), (1, 5)], [row["span_words"] for row in mapping])
