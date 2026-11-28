@@ -1721,7 +1721,9 @@ def get_refreshed_saved_script_metadata(script_path, script_bytes, *, cancel_che
     object, or cannot be parsed — invalid UTF-8, invalid JSON, recursion beyond
     the decoder limit, or a plain ``ValueError`` such as an oversized integer —
     is left unchanged and reported in the log, so the rewrite still proceeds and
-    the stale companion keeps failing closed at read time.
+    the stale companion keeps failing closed at read time. A parseable companion
+    is re-serialized the way Save writes it (ASCII-escaped), so a value such as
+    a hand-edited lone-surrogate escape round-trips instead of failing the write.
     """
     meta_path = os.path.splitext(script_path)[0] + ".meta.json"
     doc, error = _read_bounded_json_document(meta_path, cancel_check)
@@ -1740,7 +1742,7 @@ def get_refreshed_saved_script_metadata(script_path, script_bytes, *, cancel_che
     doc.pop("source_normalizations", None)
     doc.pop("source_normalizations_script_sha256", None)
     doc.update(get_saved_script_normalization_metadata(recorded, script_bytes))
-    return json.dumps(doc, ensure_ascii=False, indent=2).encode("utf-8")
+    return json.dumps(doc, indent=2).encode("utf-8")
 
 
 def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir):

@@ -1349,6 +1349,103 @@ class SavedScriptNormalizationWriterTests(unittest.TestCase):
                 changes,
                 readalong_export.get_recorded_source_normalizations(None, str(script_path)))
 
+    def test_saved_repair_proceeds_when_the_companion_holds_a_lone_surrogate_escape(self):
+        # L1 round 6: a companion that parses but holds a hand-edited lone
+        # surrogate (``"title": "A\\ud800B"``) used to raise UnicodeEncodeError
+        # from the refresh's own ``ensure_ascii=False`` write, so the repair
+        # failed where main completes it. The refresh now serializes the way
+        # Save writes the companion (ASCII escapes), so the surrogate round-trips
+        # and the repair applies with and without a stale digest.
+        from routers import scripts_library
+
+        _repeated, _epub, changes, entries = self._read_repro_book()
+        repaired = [dict(reversed(list(row.items()))) for row in entries]
+        for label, stale_digest in (("records", False), ("stale-digest", True)):
+            with self.subTest(companion=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                scripts_dir = root / "scripts"
+                scripts_dir.mkdir()
+                script_path, saved_bytes = _write_saved_book_with_records(
+                    scripts_dir, changes, entries)
+                meta_path = scripts_dir / "book.meta.json"
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                if stale_digest:
+                    meta["source_normalizations_script_sha256"] = "0" * 64
+                meta["title"] = "A\ud800B"
+                meta_path.write_text(json.dumps(meta), encoding="utf-8")
+                with patch.object(scripts_library, "DATA_DIR", str(root)), \
+                     patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)):
+                    scripts_library._publish_saved_repair(str(script_path), repaired)
+                self.assertEqual(
+                    json.dumps(repaired, ensure_ascii=False, indent=2).encode("utf-8"),
+                    script_path.read_bytes())
+                self.assertNotEqual(saved_bytes, script_path.read_bytes())
+                meta_text = meta_path.read_text(encoding="utf-8")
+                self.assertIn("\\ud800", meta_text)
+                rewritten = json.loads(meta_text)
+                self.assertEqual("A\ud800B", rewritten["title"])
+                if stale_digest:
+                    # The stale digest is dropped, not laundered.
+                    self.assertNotIn("source_normalizations", rewritten)
+                    self.assertNotIn("source_normalizations_script_sha256", rewritten)
+                    self.assertEqual(
+                        [],
+                        readalong_export.get_recorded_source_normalizations(
+                            None, str(script_path)))
+                else:
+                    self.assertEqual(
+                        changes,
+                        readalong_export.get_recorded_source_normalizations(
+                            None, str(script_path)))
+
+    def test_saved_review_publisher_proceeds_when_the_companion_holds_a_lone_surrogate_escape(self):
+        # L1 round 6, saved-review path: a completed review used to fail at
+        # publish time on the same ``ensure_ascii=False`` write. The publisher
+        # must complete as on main and keep the hand-edited field verbatim.
+        from script_selection_binding import publish_saved_script_edit
+
+        _repeated, _epub, changes, entries = self._read_repro_book()
+        new_bytes = json.dumps(entries, ensure_ascii=False, indent=3).encode("utf-8")
+        for label, stale_digest in (("records", False), ("stale-digest", True)):
+            with self.subTest(companion=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                scripts_dir = root / "scripts"
+                scripts_dir.mkdir()
+                script_path, old_bytes = _write_saved_book_with_records(
+                    scripts_dir, changes, entries)
+                meta_path = scripts_dir / "book.meta.json"
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                if stale_digest:
+                    meta["source_normalizations_script_sha256"] = "0" * 64
+                meta["title"] = "A\ud800B"
+                meta_path.write_text(json.dumps(meta), encoding="utf-8")
+                with patch("book_state_transaction.reuse_book_state",
+                           lambda *a, **k: contextlib.nullcontext()), \
+                     patch("book_state_transaction.ensure_saved_book_state",
+                           lambda *a, **k: contextlib.nullcontext()):
+                    publish_saved_script_edit(
+                        str(root), str(scripts_dir), str(script_path),
+                        old_bytes, new_bytes)
+                self.assertEqual(new_bytes, script_path.read_bytes())
+                meta_text = meta_path.read_text(encoding="utf-8")
+                self.assertIn("\\ud800", meta_text)
+                rewritten = json.loads(meta_text)
+                self.assertEqual("A\ud800B", rewritten["title"])
+                if stale_digest:
+                    self.assertNotIn("source_normalizations", rewritten)
+                    self.assertNotIn("source_normalizations_script_sha256", rewritten)
+                    self.assertEqual(
+                        [],
+                        readalong_export.get_recorded_source_normalizations(
+                            None, str(script_path)))
+                else:
+                    self.assertEqual(hashlib.sha256(new_bytes).hexdigest(),
+                                     rewritten["source_normalizations_script_sha256"])
+                    self.assertEqual(
+                        changes,
+                        readalong_export.get_recorded_source_normalizations(
+                            None, str(script_path)))
+
 
 class ReadaloudNormalizationPersistenceTests(unittest.TestCase):
     """Persistence from three-pass generation to build_epub_export."""
