@@ -1407,11 +1407,11 @@ _CONTINUATION_OWN_TAG_INVERTED = re.compile(
 # clause ("somebody began.", "she added afterwards,") and a participle that
 # names a character later ("fixing her eyes upon Elinor,") stay continuations.
 _CONTINUATION_OWN_TAG_VERB_FIRST = re.compile(
-    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
-    rf"(?-i:[a-z])[^\W\d_]*[ \t]+"
-    rf"(?P<subject>(?-i:[A-Z])[\w’'-]*)"
-    rf"(?:[ \t]+[\w’'-]+(?:[ \t]+[\w’'-]+){{0,2}})?"
-    rf"(?=[ \t]*[,.!?:;])")
+    r"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
+    r"(?-i:[a-z])[^\W\d_]*[ \t]+"
+    r"(?P<subject>(?-i:[A-Z])[\w’'-]*)"
+    r"(?:[ \t]+[\w’'-]+(?:[ \t]+[\w’'-]+){0,2})?"
+    r"(?=[ \t]*[,.!?:;])")
 # A period inside a title abbreviation ("Mrs. Bennet said.", "Col. Brandon
 # said.") is a character _TAG_WORD cannot cross, so the continuation guards
 # would miss the quotation's own tag or beat. This is a shape, not a second
