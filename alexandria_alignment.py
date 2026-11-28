@@ -657,6 +657,11 @@ def validate_epub_archive(path: str, *, archive_bytes: bytes | None = None) -> N
     source = io.BytesIO(archive_bytes) if archive_bytes is not None else path
     with zipfile.ZipFile(source) as archive:
         members = archive.infolist()
+        # zipfile.ZipInfo.is_dir() indexes filename[-1], so a zero-length name
+        # raises IndexError inside the preflight instead of a refusal. An EPUB
+        # has no such entry; reject the archive rather than skipping it.
+        if any(not member.filename for member in members):
+            raise ValueError("EPUB archive has an entry with an empty filename")
         if len(members) > EPUB_MAX_MEMBERS:
             raise ValueError("EPUB archive has too many entries")
         if sum(member.file_size for member in members) > EPUB_MAX_EXPANDED_BYTES:

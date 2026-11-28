@@ -290,6 +290,7 @@
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_loader_applies_the_same_whole_nav_token_rule_as_extraction"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_loader_rejects_archive_before_ebooklib_reads_it"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_preflight_counts_decompressed_bytes_not_only_zip_headers"
+    , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_preflight_rejects_an_entry_with_an_empty_filename"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_preflight_rejects_resource_exhaustion_before_parsing"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_failed_jsonl_write_preserves_prior_output"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_fresh_compare_uses_cli_threshold_for_quality_estimate"
