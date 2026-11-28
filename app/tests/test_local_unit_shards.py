@@ -1191,7 +1191,7 @@ class LocalVerifierRouteTests(unittest.TestCase):
         import verify_release
         with patch.object(verify_release, 'run_unit_test_report', return_value={}) as units:
             self.assertEqual(0, verify_release.main(['--local-units', '--shard', '2/6']))
-        self.assertEqual({}, units.call_args.kwargs)
+        self.assertEqual({'timeout': verify_release.CI_UNIT_SHARD_TIMEOUT_SECONDS}, units.call_args.kwargs)
         self.assertEqual(['--shard', '2/6'], units.call_args.args[1][-2:])
 
     def test_invalid_local_options_fail_before_running_gates(self):

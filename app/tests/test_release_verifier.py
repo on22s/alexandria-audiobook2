@@ -3,8 +3,10 @@ import contextlib
 import io
 import json
 import locale
+import math
 import os
 import re
+import time
 import unittest
 from pathlib import Path
 import subprocess
@@ -133,6 +135,31 @@ class CiEnvParityTests(unittest.TestCase):
         self.assertIn('linux_runner: ubuntu-latest', canary)
         self.assertIn('linux_only: true', canary)
         self.assertNotIn('continue-on-error', canary)
+
+    def test_ci_jobs_declare_bounded_timeouts_consistent_with_shard_gate(self):
+        import yaml
+        workflow = yaml.safe_load(self._workflow())
+        jobs = workflow["jobs"]
+        for job_name, job in jobs.items():
+            with self.subTest(job=job_name):
+                timeout_minutes = job.get("timeout-minutes")
+                self.assertIsInstance(timeout_minutes, (int, float))
+                self.assertNotIsInstance(timeout_minutes, bool)
+                self.assertTrue(math.isfinite(timeout_minutes))
+                self.assertGreater(timeout_minutes, 0)
+                self.assertLessEqual(timeout_minutes, 60)
+        unit_timeout_minutes = jobs["unit"]["timeout-minutes"]
+        gate_timeout_seconds = getattr(verify_release, "CI_UNIT_SHARD_TIMEOUT_SECONDS", None)
+        self.assertIsInstance(gate_timeout_seconds, (int, float))
+        self.assertNotIsInstance(gate_timeout_seconds, bool)
+        self.assertTrue(math.isfinite(gate_timeout_seconds))
+        self.assertGreater(gate_timeout_seconds, 0)
+        # The gate clock starts only after the job's pre-gate setup (checkout,
+        # Python and ffmpeg install, pip install: measured 1.5 min warm, more
+        # with a cold pip cache), so the job must leave at least 10 minutes
+        # beyond the gate or GitHub's own cancel can pre-empt the loud,
+        # shard-named TimeoutError.
+        self.assertGreaterEqual(unit_timeout_minutes * 60 - gate_timeout_seconds, 10 * 60)
 
     def test_timeout_probe_rejects_short_grace_and_fake_cleanup(self):
         cooperative = {"probe": "cooperative_int", "returncode": 124,
@@ -672,6 +699,134 @@ class ReleaseVerifierTests(unittest.TestCase):
         self.assertEqual("failed", report["status"])
         self.assertEqual("KeyboardInterrupt", report["failure"]["type"])
         self.assertEqual("failed", report["gates"][0]["status"])
+
+    def test_ci_shard_passes_finite_timeout_and_leaves_unsharded_default_unbounded(self):
+        recorded = []
+
+        def fake_report_command(label, command, cwd, **kwargs):
+            recorded.append((label, command, kwargs))
+            if "--test-report" in command:
+                Path(command[command.index("--test-report") + 1]).write_text(
+                    json.dumps({"test_ids": [f"test.{i}" for i in range(600)]}),
+                    encoding="utf-8",
+                )
+                return 600
+            return None
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(verify_release, "compile_python_files", return_value=None), \
+             patch.object(verify_release, "run_report_command", side_effect=fake_report_command), \
+             patch.object(verify_release, "run_api_suite", return_value={}), \
+             contextlib.redirect_stdout(io.StringIO()):
+            shard_report = Path(tmp) / "shard-report.json"
+            self.assertEqual(
+                0, verify_release.main(["--shard", "2/6", "--json-report", str(shard_report)])
+            )
+            shard_timeout = recorded[-1][2].get("timeout")
+            self.assertIsInstance(shard_timeout, (int, float))
+            self.assertNotIsInstance(shard_timeout, bool)
+            self.assertTrue(math.isfinite(shard_timeout))
+            self.assertGreater(shard_timeout, 0)
+            self.assertEqual(verify_release.CI_UNIT_SHARD_TIMEOUT_SECONDS, shard_timeout)
+            self.assertIn("shard 2/6", recorded[-1][0])
+
+            recorded.clear()
+            unsharded_report = Path(tmp) / "unsharded-report.json"
+            self.assertEqual(
+                0, verify_release.main(["--json-report", str(unsharded_report)])
+            )
+            unit_calls = [call for call in recorded if "--test-report" in call[1]]
+            self.assertEqual(1, len(unit_calls))
+            self.assertIsNone(unit_calls[0][2].get("timeout"))
+
+        with patch.object(verify_release, "compile_python_files", return_value=None), \
+             patch.object(verify_release, "run_report_command", return_value=None), \
+             patch.object(local_unit_shards, "run_local_unit_tests",
+                          return_value={"status": "passed", "tests_ran": 600}) as local_units, \
+             patch.object(verify_release, "run_api_suite", return_value={}), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(0, verify_release.main(["--local-units", "--unit-workers", "0"]))
+        self.assertIsNone(local_units.call_args.kwargs["timeout"])
+
+    def test_shard_unit_gate_timeout_fails_with_shard_named_and_stops_process_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            child_pid_file = root / "child.pid"
+            grandchild_pid_file = root / "grandchild.pid"
+            ready_file = root / "ready"
+            finished_file = root / "finished"
+            report_path = root / "report.json"
+            grandchild_code = (
+                "import pathlib, sys, time; "
+                "pathlib.Path(sys.argv[1]).write_text('ready', encoding='utf-8'); "
+                "time.sleep(15); "
+                "pathlib.Path(sys.argv[2]).write_text('done', encoding='utf-8')"
+            )
+            child_code = (
+                "import os, pathlib, subprocess, sys, time\n"
+                "child_pid, gc_pid, ready, finished, gc_code = sys.argv[1:6]\n"
+                "pathlib.Path(child_pid).write_text(str(os.getpid()), encoding='utf-8')\n"
+                "gc = subprocess.Popen([sys.executable, '-c', gc_code, ready, finished], "
+                "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+                "pathlib.Path(gc_pid).write_text(str(gc.pid), encoding='utf-8')\n"
+                "time.sleep(15)\n"
+                "pathlib.Path(finished).write_text('child-done', encoding='utf-8')\n"
+            )
+            hanging_cmd = [
+                sys.executable, "-c", child_code,
+                str(child_pid_file), str(grandchild_pid_file),
+                str(ready_file), str(finished_file), grandchild_code,
+            ]
+            real_run_report_command = verify_release.run_report_command
+
+            def swap_unit_command(label, command, cwd, **kwargs):
+                if "--test-report" in command:
+                    command = hanging_cmd
+                return real_run_report_command(label, command, cwd, **kwargs)
+
+            started = time.monotonic()
+            with patch.object(verify_release, "CI_UNIT_SHARD_TIMEOUT_SECONDS", 2.0, create=True), \
+                 patch.object(verify_release, "run_report_command", side_effect=swap_unit_command), \
+                 contextlib.redirect_stdout(io.StringIO()), \
+                 contextlib.redirect_stderr(io.StringIO()) as stderr:
+                rc = verify_release.main(["--shard", "3/6", "--json-report", str(report_path)])
+            elapsed = time.monotonic() - started
+
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(1, rc)
+            self.assertLess(elapsed, 12.0)
+            self.assertEqual("failed", report["status"])
+            self.assertEqual("3/6", report["shard"])
+            self.assertEqual("unit_tests", report["failure"]["gate"])
+            self.assertEqual("TimeoutError", report["failure"]["type"])
+            self.assertIn("shard 3/6", report["failure"]["message"])
+            self.assertIn("timed out", report["failure"]["message"].lower())
+            self.assertIn("shard 3/6", stderr.getvalue())
+            self.assertIn("timed out", stderr.getvalue().lower())
+            self.assertTrue(child_pid_file.exists(), "hanging child never started")
+            self.assertTrue(grandchild_pid_file.exists(), "hanging grandchild never started")
+            self.assertFalse(finished_file.exists(), "hanging child tree ran to completion instead of being killed")
+            for pid_file in (child_pid_file, grandchild_pid_file):
+                pid = int(pid_file.read_text(encoding="utf-8"))
+                self.assertIsNone(
+                    local_unit_shards.get_process_start_time(pid),
+                    f"process {pid} ({pid_file.name}) remained live after timeout",
+                )
+
+    def test_run_command_timeout_stops_noisy_loop_and_rejects_invalid_timeout(self):
+        for bad_timeout in (0, -1, float("nan"), float("inf"), True, False, "10"):
+            with self.subTest(timeout=bad_timeout), self.assertRaises(ValueError):
+                verify_release.run_command("invalid", [sys.executable, "-c", "pass"], ".", timeout=bad_timeout)
+        noisy = [
+            sys.executable, "-c",
+            "import time\nend = time.monotonic() + 5.0\n"
+            "while time.monotonic() < end:\n    print('tick', flush=True)\n    time.sleep(0.01)",
+        ]
+        started = time.monotonic()
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(TimeoutError, r"noisy shard 4/6.*timed out"):
+                verify_release.run_command("noisy shard 4/6", noisy, ".", timeout=0.3)
+        self.assertLess(time.monotonic() - started, 8.0)
 
 
 

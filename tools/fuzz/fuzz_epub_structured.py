@@ -19,9 +19,6 @@ from _common import (
     default_fuzz_argv,
     is_expected_epub_extract_value_error,
     is_expected_missing_member_key_error,
-    is_known_package_xml_encoding_error,
-    is_known_xhtml_encoding_error,
-    is_known_xml_toc_encoding_error,
     require_linux,
     set_headless_env,
 )
@@ -54,37 +51,17 @@ def test_one_input(data: bytes) -> None:
     except UnicodeError as exc:
         # UnicodeError subclasses ValueError; catch before _EXPECTED_REFUSALS
         # so unexpected codec errors are never swallowed as refusal ValueErrors.
-        # Excluded pending fix for #2368 (get_epub_xhtml_text).
-        if is_known_xhtml_encoding_error(exc):
-            return
         raise
     except ValueError as exc:
-        # Only the documented malformed-archive/XML/HTML refusals (plus the
-        # tracked encoding-declaration bugs) are ignored; an unexpected
-        # ValueError must crash the harness.
-        if (
-            is_expected_epub_extract_value_error(exc)
-            or is_known_xhtml_encoding_error(exc)
-            or is_known_xml_toc_encoding_error(exc)
-            or is_known_package_xml_encoding_error(exc)
-        ):
+        # Only the documented malformed-archive/XML/HTML refusals are ignored;
+        # an unexpected ValueError must crash the harness.
+        if is_expected_epub_extract_value_error(exc):
             return
         raise
     except _EXPECTED_REFUSALS:
         return
     except KeyError as exc:
         if is_expected_missing_member_key_error(exc):
-            return
-        raise
-    except LookupError as exc:
-        # Excluded pending fixes for #2368 (get_epub_xhtml_text),
-        # #2370 (_get_epub3_toc_entries / _get_epub2_toc_entries ET.fromstring),
-        # and #2375 (get_epub_package ET.fromstring on OPF / container.xml).
-        if (
-            is_known_xhtml_encoding_error(exc)
-            or is_known_xml_toc_encoding_error(exc)
-            or is_known_package_xml_encoding_error(exc)
-        ):
             return
         raise
 

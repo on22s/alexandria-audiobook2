@@ -2185,6 +2185,80 @@ class SvgFirstTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "SVG"):
                     self._build(self._source_with_svg(svg))
 
+    def test_unusable_svg_declaration_is_a_tolerated_skip(self):
+        # Expat hands punycode/idna/undefined to Python's codec, which raises
+        # UnicodeError. The streaming probe must raise the shared refusal and
+        # the SVG spine site must skip it (documented malformed-SVG tolerance),
+        # not abort the export.
+        import epub_readaloud as er
+        for codec in ('punycode', 'idna', 'undefined'):
+            with self.subTest(codec=codec):
+                svg = (f'<?xml version="1.0" encoding="{codec}"?>'
+                       '<svg xmlns="http://www.w3.org/2000/svg"><text>spoken</text></svg>')
+                with self.assertRaises(er.EpubXmlEncodingError):
+                    er._svg_has_text(io.BytesIO(svg.encode('ascii')))
+                built, _report = self._build(self._source_with_svg(svg))
+                er.validate_epub_readaloud(built)
+
+    def test_multibyte_svg_declaration_is_translated_to_the_shared_refusal(self):
+        # Gate-2 L1: shift_jis is a real codec, so the pre-parse check passes;
+        # Expat then refuses to stream it with
+        # ValueError('multi-byte encodings are not supported'). Only the SVG
+        # probe's codec-error -> refusal translation makes that the documented
+        # skip. Removing the translation lets the raw ValueError escape.
+        import epub_readaloud as er
+        svg = ('<?xml version="1.0" encoding="shift_jis"?>'
+               '<svg xmlns="http://www.w3.org/2000/svg"><text>spoken</text></svg>')
+        payload = svg.encode('shift_jis')
+        with self.assertRaises(er.EpubXmlEncodingError):
+            er._svg_has_text(io.BytesIO(payload))
+        built, _report = self._build(self._source_with_svg(payload))
+        er.validate_epub_readaloud(built)
+
+    def test_padded_unusable_svg_declarations_are_a_tolerated_skip(self):
+        # Gate-2 B1 at the SVG probe: the probe's first chunk is classified by
+        # the same whole-declaration rule, so padding cannot hide the codec.
+        import epub_readaloud as er
+        for codec in ('punycode', 'idna', 'undefined'):
+            for pad in (230, 1000, 10000):
+                with self.subTest(codec=codec, pad=pad):
+                    svg = ('<?xml version="1.0"' + ' ' * pad
+                           + f' encoding="{codec}"?>'
+                           '<svg xmlns="http://www.w3.org/2000/svg">'
+                           '<text>spoken</text></svg>')
+                    payload = svg.encode('ascii')
+                    with self.assertRaises(er.EpubXmlEncodingError):
+                        er._svg_has_text(io.BytesIO(payload))
+                    built, _report = self._build(self._source_with_svg(payload))
+                    er.validate_epub_readaloud(built)
+        # The BOM skip is the same decision on the probe's first chunk.
+        payload = (b'\xef\xbb\xbf<?xml version="1.0"' + b' ' * 10000
+                   + b' encoding="idna"?><svg xmlns="http://www.w3.org/2000/svg">'
+                   b'<text>spoken</text></svg>')
+        with self.assertRaises(er.EpubXmlEncodingError):
+            er._svg_has_text(io.BytesIO(payload))
+        built, _report = self._build(self._source_with_svg(payload))
+        er.validate_epub_readaloud(built)
+
+    def test_svg_probe_reads_the_tree_parsers_declaration_extent(self):
+        # Review 3 N4: the probe's first chunk was exactly 64 KiB while the
+        # tree parser reads 64 KiB after a UTF-8 BOM, so a BOM pushed the
+        # declaration's closing ?> a few bytes past the probe's bound. The
+        # probe now reads the shared cap plus the BOM, so both see the same
+        # extent; with the old 64 KiB chunk this valid SVG was refused as an
+        # unterminated declaration.
+        import epub_readaloud as er
+        prefix = b'\xef\xbb\xbf<?xml version="1.0"'
+        suffix = b' encoding="utf-8"?>'
+        body = (b'<svg xmlns="http://www.w3.org/2000/svg">'
+                b'<text>spoken</text></svg>')
+        pad = (er._EPUB_XML_DECL_MAX_BYTES + 2) - len(prefix) - len(suffix)
+        payload = prefix + b' ' * pad + suffix + body
+        self.assertGreater(len(prefix) + pad + len(suffix), 64 * 1024)
+        self.assertLessEqual(len(prefix) + pad + len(suffix),
+                            64 * 1024 + 3)
+        self.assertTrue(er._svg_has_text(io.BytesIO(payload)))
+
     def test_archive_budget_refused_before_svg_scan(self):
         import archive_utils
         import epub_readaloud as er
