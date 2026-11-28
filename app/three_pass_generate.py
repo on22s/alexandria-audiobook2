@@ -2535,7 +2535,8 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                     failed_pass=None, failed_chunk=None, legacy_resume=False,
                     progress=None, diagnostic_failures=None, telemetry=None,
                     model_binding=None, delivery_review=None, run_id=None,
-                    completion=None, run_spec_sha256=None):
+                    completion=None, run_spec_sha256=None,
+                    source_normalizations=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -2543,6 +2544,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
     manifest = {
         "fingerprint": fingerprint,
         "status": status,
+        "source_normalizations": list(source_normalizations or []),
         "chunks": [{"index": i + 1, "resolution": r}
                    for i, r in enumerate(resolutions)],
         "counts": _resolution_counts(resolutions),
@@ -3031,7 +3033,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    planned_calls=None, cast=None, keep_scope="line", speaker_traits=False,
                     attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0,
                     defer_final_publication=False, require_matching_checkpoint=False,
-                    run_id=None, run_spec_receipt=None):
+                    run_id=None, run_spec_receipt=None, source_normalizations=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -3343,7 +3345,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                 if a.get("response_fingerprint")}),
                         }, diagnostic_failures=diagnostic_failures, run_id=run_id,
                         completion=completion,
-                        run_spec_sha256=(run_spec_receipt or {}).get('sha256'))
+                        run_spec_sha256=(run_spec_receipt or {}).get('sha256'),
+                        source_normalizations=source_normalizations)
 
     # Pass 1 — resume from chunks_done.
     seg_start = time.time()
@@ -4347,7 +4350,8 @@ def get_three_pass_publication_blocker(manifest, *, expected_run_id=None,
 
 
 def get_prepared_source(path, strip_front_matter=True, report=lambda message: None,
-                        expected_source_sha256=None, owning_root=None):
+                        expected_source_sha256=None, owning_root=None, *,
+                        include_preprocessing=False):
     """-> (text, unicode_report): the source exactly as generation sees it.
 
     One sequence for every caller that sends the book to a model - generation
@@ -4391,6 +4395,8 @@ def get_prepared_source(path, strip_front_matter=True, report=lambda message: No
     if unicode_report["unresolved"]:
         report(f"Retained {unicode_report['unresolved']} unresolved replacement character(s); "
                "the shared source gate admits this remaining load.")
+    if include_preprocessing:
+        return book, unicode_report, preprocessing
     return book, unicode_report
 
 
@@ -4524,9 +4530,9 @@ def main(client_factory=None):
         expected_source_sha256 = (args.active_source_sha256
                                   if args.active_book_token is not None
                                   else input_source_sha256)
-        book, unicode_report = get_prepared_source(
+        book, unicode_report, preprocessing = get_prepared_source(
             args.input_file, args.strip_front_matter, report=print,
-            owning_root=owning_root,
+            owning_root=owning_root, include_preprocessing=True,
             **({'expected_source_sha256': expected_source_sha256}
                if expected_source_sha256 is not None else {}))
     except ValueError as exc:
@@ -4776,6 +4782,7 @@ def main(client_factory=None):
                                  output_path=output_path,
                                  planned_calls=planned_calls,
                                  run_id=run_id,
+                                 source_normalizations=preprocessing["source_normalizations"],
                                  **({'defer_final_publication': True}
                                     if active_run_id is not None else {}),
                                  **({'require_matching_checkpoint': True}

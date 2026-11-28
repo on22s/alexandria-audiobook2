@@ -1,6 +1,7 @@
 """Explicit, auditable normalization for known source-text corruption."""
 
 from bisect import bisect_right
+from functools import lru_cache
 import re
 import unicodedata
 
@@ -391,3 +392,101 @@ def strip_publisher_matter(text):
     start = ranges[front][0]
     end = ranges[len(ranges) - back - 1][1]
     return text[start:end], {"front_paragraphs": front, "back_paragraphs": back}
+
+
+_NORMALIZATION_STAGE_ORDER = {
+    "stripped_apostrophe": 0,
+    None: 1,
+    "illustration_caption": 2,
+    "homoglyph": 3,
+    "extreme_phrase_repetition": 4,
+}
+
+
+@lru_cache(maxsize=256)
+def _recorded_change_pattern(before_norm):
+    """Exact whitespace-flexible pattern for a recorded change's ``before`` text."""
+    parts = [re.escape(part) for part in before_norm.split(" ")]
+    pattern = r"\s+".join(parts)
+    if re.match(r"[^\W_]", before_norm[0], re.UNICODE):
+        pattern = r"(?<![^\W_])" + pattern
+    if re.match(r"[^\W_]", before_norm[-1], re.UNICODE):
+        pattern = pattern + r"(?![^\W_])"
+    return re.compile(pattern, re.UNICODE)
+
+
+def get_valid_recorded_normalizations(changes):
+    """Validate recorded source normalizations and return them in pipeline stage order.
+
+    Returns ``[(original_index, normalized_before, normalized_after), ...]``.
+    Unrecognized rules, malformed shapes, or forged entries that do not match
+    their rule's contract are rejected so an unrecorded mismatch is never
+    admitted.
+    """
+    if not isinstance(changes, (list, tuple)):
+        return []
+    ordered = []
+    for index, change in enumerate(changes):
+        if not isinstance(change, dict):
+            continue
+        rule = change.get("rule")
+        if rule not in _NORMALIZATION_STAGE_ORDER:
+            continue
+        before = change.get("before")
+        after = change.get("after")
+        if not isinstance(before, str) or not isinstance(after, str) or before == after:
+            continue
+        before_norm = " ".join(before.split())
+        if not before_norm:
+            continue
+        after_norm = " ".join(after.split()) if after else ""
+        if before_norm == after_norm:
+            continue
+        if rule is None:
+            expected = KNOWN_SOURCE_CORRUPTIONS.get(before_norm.casefold())
+            if expected is None or after_norm.casefold() != expected:
+                continue
+        elif rule == "extreme_phrase_repetition":
+            if (not after_norm.endswith("…") or len(after_norm) < 2
+                    or not before_norm.startswith(after_norm[:-1])
+                    or normalize_extreme_phrase_repetitions(before_norm)[0] != after_norm):
+                continue
+        elif rule == "homoglyph":
+            if "".join(_HOMOGLYPH_MAP.get(ch, ch) for ch in before_norm) != after_norm:
+                continue
+        elif rule == "illustration_caption":
+            if after_norm != "" or _ILLUSTRATION_CAPTION_RE.fullmatch(before_norm) is None:
+                continue
+        elif rule == "stripped_apostrophe":
+            if before_norm.count(" ") != 1 or before_norm.replace(" ", "'") != after_norm:
+                continue
+        ordered.append((_NORMALIZATION_STAGE_ORDER[rule], index, before_norm, after_norm))
+    ordered.sort(key=lambda item: (item[0], item[1]))
+    return [(index, before_norm, after_norm) for _stage, index, before_norm, after_norm in ordered]
+
+
+def apply_recorded_source_normalizations(text, changes, *, consumed=None):
+    """Map ``text`` through unconsumed recorded source normalizations.
+
+    One shared mapping helper (Rule 15) for recorded preprocessing rewrites
+    (``extreme_phrase_repetition``, ``homoglyph``, ``illustration_caption``,
+    ``stripped_apostrophe``, and known source corruptions). Each recorded
+    change matches at most once and never mutates ``consumed``; callers commit
+    the returned ``used_indices`` only once the mapped span matches.
+    """
+    if not isinstance(text, str) or not text or not changes:
+        return text, ()
+    used_already = consumed or ()
+    current = text
+    used = []
+    for index, before_norm, after_norm in get_valid_recorded_normalizations(changes):
+        if index in used_already:
+            continue
+        match = _recorded_change_pattern(before_norm).search(current)
+        if match is None:
+            continue
+        current = current[:match.start()] + after_norm + current[match.end():]
+        used.append(index)
+    if used:
+        current = " ".join(current.split())
+    return current, tuple(used)

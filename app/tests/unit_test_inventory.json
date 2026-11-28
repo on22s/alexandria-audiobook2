@@ -12807,6 +12807,21 @@
     , "tests.test_readaloud_extraction_followups.RubyTests.test_read_aloud_builds_in_both_modes"
     , "tests.test_readaloud_extraction_followups.RubyTests.test_spoken_form_rule"
   ]
+  , "test_readaloud_source_normalization": [
+    "tests.test_readaloud_source_normalization.ReadaloudNormalizationMappingTests.test_collapse_at_chapter_and_chunk_boundaries"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationMappingTests.test_map_spine_to_chunks_prefers_raw_match_before_consuming_change"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationMappingTests.test_multiple_collapses_in_one_chapter_and_one_paragraph"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationMappingTests.test_repro_builds_and_highlights_full_original_span_in_both_modes"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationMappingTests.test_single_recorded_change_cannot_authorize_second_identical_collapse"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationMappingTests.test_unrecorded_mismatch_and_wrong_spoken_text_still_fail"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationPersistenceTests.test_build_epub_export_end_to_end_uses_recorded_manifest_normalizations"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationPersistenceTests.test_get_recorded_source_normalizations_reads_complete_sources_only"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationPersistenceTests.test_save_script_preserves_recorded_normalizations_in_meta_json"
+    , "tests.test_readaloud_source_normalization.ReadaloudNormalizationPersistenceTests.test_three_pass_main_persists_source_normalizations_in_manifest"
+    , "tests.test_readaloud_source_normalization.RecordedNormalizationHelperTests.test_forged_or_unknown_normalization_records_are_refused"
+    , "tests.test_readaloud_source_normalization.RecordedNormalizationHelperTests.test_other_normalization_rules_keep_existing_behavior_and_map_when_recorded"
+    , "tests.test_readaloud_source_normalization.RecordedNormalizationHelperTests.test_valid_repetition_change_maps_once_and_does_not_mutate_consumed"
+  ]
   , "test_readaloud_sync_followups": [
     "tests.test_readaloud_sync_followups.CjkCutInsideRunTests.test_changed_character_still_refuses"
     , "tests.test_readaloud_sync_followups.CjkCutInsideRunTests.test_cut_inside_a_run_maps"

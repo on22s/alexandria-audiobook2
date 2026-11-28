@@ -1497,6 +1497,48 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
         source_file_missing=source_file_missing))
 
 
+def get_recorded_source_normalizations(script_path, source_txt=None, cancel_check=None):
+    """Read recorded preprocessing normalizations from completed generation metadata.
+
+    Checks the active three-pass manifest, the single-pass generation-quality
+    manifest, and (for a loaded saved script) its ``.meta.json`` companion,
+    using bounded no-follow reads. Absent, incomplete, or unreadable metadata
+    returns ``[]`` so callers fail closed on any unrecorded text difference.
+    """
+    from generate_script import get_generation_quality_path
+    from project_scope_files import capture_scope_file
+    from script_recovery_facts import three_pass_manifest_path
+
+    candidates = []
+    if isinstance(script_path, str) and script_path:
+        candidates.append((three_pass_manifest_path(script_path), True))
+        candidates.append((get_generation_quality_path(script_path), True))
+    if _is_saved_script_source(source_txt):
+        candidates.append((os.path.splitext(source_txt)[0] + ".meta.json", False))
+    for path, require_complete in candidates:
+        target = Path(path)
+        try:
+            _facts, raw = capture_scope_file(
+                target.parent, target.name, limit=16 * 1024**2,
+                include_bytes=True, cancel_check=cancel_check)
+        except (OSError, ValueError):
+            continue
+        if raw is None:
+            continue
+        try:
+            doc = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+            continue
+        if not isinstance(doc, dict):
+            continue
+        if require_complete and doc.get("status") != "complete":
+            continue
+        changes = doc.get("source_normalizations")
+        if isinstance(changes, list):
+            return changes
+    return []
+
+
 def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir):
     """Return (retained_bytes, source_txt_path) verifying provenance hashes.
 
@@ -1669,11 +1711,15 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                            alignment["rows"], alignment["windows"]))
             if timing_summary.get("mode") == "chunk" and progress_callback is not None:
                 progress_callback("Chunk timing selected (chunk-estimated, CPU).")
+            source_normalizations = get_recorded_source_normalizations(
+                getattr(manager, "script_path", None), captured_source,
+                cancel_check=cancel_check)
             try:
                 epub_bytes, report = build_epub_readaloud(
                     retained_epub_bytes=retained_bytes, audio_bytes=fresh_bytes,
                     audio_filename="audiobook.mp3", script_entries=script_entries,
-                    cancel_check=cancel_check, aligned_rows=aligned_rows)
+                    cancel_check=cancel_check, aligned_rows=aligned_rows,
+                    source_normalizations=source_normalizations)
             except ValueError as error:
                 if cancel_check() and "cancelled" in str(error).lower():
                     raise ExportCancelled("Export cancelled") from error

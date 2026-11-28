@@ -564,6 +564,11 @@ def _save_script_sync(request):
             active_state, script_bytes, active_state.get('input_file_path'))
         if strip_front_matter is not None:
             meta['strip_front_matter'] = strip_front_matter
+        from readalong_export import get_recorded_source_normalizations
+        recorded_normalizations = get_recorded_source_normalizations(
+            SCRIPT_PATH, active_state.get('input_file_path'))
+        if recorded_normalizations:
+            meta['source_normalizations'] = recorded_normalizations
         replacements = {os.path.basename(dest): script_bytes,
             f"{safe_name}.meta.json": json.dumps(meta).encode("utf-8")}
         if binding_raw is not None:
