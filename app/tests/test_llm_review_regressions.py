@@ -510,9 +510,10 @@ class LlmReviewTests(unittest.TestCase):
         - newline in the SECOND copy: main's strict adjacent parse returned
           None, the missing-payload path found no array, and it returned 0
           entries after 1 call at 0.0 and 4 at 0.7 (ending malformed_json).
-        - newline in the FIRST copy: main's leading span parse failed, the
-          combined span still reached raw salvage, and it accepted the
-          duplicated entries (2 entries, 1 call at both temperatures).
+        - newline in the FIRST copy: main's leading span parse failed, but
+          clean_json_string's combined array parsed on the first call and
+          accepted the duplicated entries (2 entries, 1 call at both
+          temperatures) - no raw-salvage fallback was involved.
         Both placements are pinned below, at both temperatures.
         """
         entries = [{"speaker": "NARRATOR", "text": "alpha beta gamma delta",
