@@ -663,14 +663,16 @@ def split_into_chunk_records(text, max_size=3000):
     same quotation in different chunks). When a stretch between safe cuts is
     itself longer than `max_size` the old space split applies and the record
     says so (`cut_inside_quote`)."""
-    from dialogue_spans import detect_convention, has_established_dash_convention
+    from dialogue_spans import (detect_convention,
+                                _weak_dash_dialogue_established)
     max_size = get_valid_chunk_size(max_size)
     convention = detect_convention(text)
     # Asked once on the whole book: a paragraph cannot tell `--` dialogue from
     # a `--` ToC row, and an em-dash book also detects `dash_lines`
-    # (#2447 gate 3 blocker 1).
+    # (#2447 gate 3 blocker 1). This is the one name for that question
+    # (#2447 gate 4 nit 2).
     weak_dash = (convention == "dash_lines"
-                 and has_established_dash_convention(text))
+                 and _weak_dash_dialogue_established(text))
     paragraphs = re.split(r'\n\s*\n', text)
     records = []
     current_chunk = ""

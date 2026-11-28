@@ -252,7 +252,7 @@ def _weak_dash_evidence(text):
     diary row and is not a hard-wrapped continuation — the same predicate that
     gates labelling (`_weak_dash_line_is_dialogue`). Chunk certification never
     uses this: it needs the caller's book-level `dash_lines` convention
-    instead (`has_established_dash_convention`).
+    instead (`_weak_dash_dialogue_established`).
     """
     for match in DASH_LINE.finditer(text):
         if _line_dash_mark(match.group(0))[1] != "weak":
@@ -260,6 +260,24 @@ def _weak_dash_evidence(text):
         if not _weak_dash_line_is_dialogue(text, match):
             continue
         yield match
+
+
+def _weak_dash_refused_ranges(text):
+    """-> body ranges of weak `--` lines the shared predicate refuses.
+
+    In a book whose weak `--` form IS its dialogue, a line that fails the
+    per-line predicate is dialogue-ambiguous, not narration: the model's
+    speaker is kept and the row is routed (#2447 r8 BLOCKER 1). The predicate
+    is the same one detection and labelling use, so a line can never be
+    refused here by one answer and certified there by another (Rule 15).
+    """
+    ranges = []
+    for match in DASH_LINE.finditer(text):
+        if _line_dash_mark(match.group(0))[1] != "weak":
+            continue
+        if not _weak_dash_line_is_dialogue(text, match):
+            ranges.append((match.start(1), match.end(1)))
+    return ranges
 
 
 def _weak_dash_is_anchored(body):
@@ -277,33 +295,19 @@ def _weak_dash_is_anchored(body):
 def _weak_dash_dialogue_established(text):
     """-> True when `text` is a WHOLE book that runs `--` dialogue.
 
-    ONE whole-book question (Rule 15): at least `_DASH_WEAK_FLOOR` weak lines
-    open like speech and pass every per-line filter, paired-quote spans are
-    fewer than those lines (the ratio veto), and a third of the lines carry a
-    dialogue anchor (`?`/`!` or a reporting verb from `_DASH_VERB`). Called
-    with a chunk it answers about the chunk, so the whole-book callers pass
-    their result down through `weak_dash=` (`mark_entries`,
-    `split_into_chunk_records`) instead of asking again per chunk.
-    """
-    evidence = list(_weak_dash_evidence(text))
-    if len(evidence) < _DASH_WEAK_FLOOR:
-        return False
-    if (len(_paired_spans(text)) * _DASH_PAIRED_VETO_RATIO
-            >= len(evidence)):
-        return False
-    anchored = sum(1 for match in evidence
-                   if _weak_dash_is_anchored(match.group(1)))
-    return anchored * _DASH_ANCHOR_DIVISOR >= len(evidence)
+    ONE whole-book question and ONE name for it (Rule 15, #2447 gate 4 nit 2):
+    at least `_DASH_WEAK_FLOOR` weak lines open like speech and pass every
+    per-line filter, paired-quote spans are fewer than those lines (the ratio
+    veto), and a third of the lines carry a dialogue anchor (`?`/`!` or a
+    reporting verb from `_DASH_VERB`). Called with a chunk it answers about the
+    chunk, so the whole-book callers pass their result down through
+    `weak_dash=` (`mark_entries`, `split_into_chunk_records`) instead of
+    asking again per chunk.
 
-
-def has_established_dash_convention(text):
-    """-> True when the weak `--` form carries dialogue in `text`.
-
-    ONE predicate for the weak dash question (Rule 15), asked on a WHOLE book
-    (floor, per-line filters, ratio veto, anchor). A chunk cannot see its
-    book, so this is never a certification rule for a chunk: callers pass the
-    whole-book answer down as `weak_dash=` (`mark_entries`,
-    `split_into_chunk_records`, which also checks the detected convention).
+    A book with even one strong `—`/`–` line is an em/en-dash book, and those
+    keep main's `--` behaviour: main never read `--` as dialogue in any
+    context, so three anchored `--` lines in an em book stay narration
+    (#2447 gate 4 nit 1).
 
     `detect_convention` additionally requires `MIN_CONVENTION_PAIRS` (5)
     dash lines, so the EFFECTIVE detection floor for a weak `--` book is 5:
@@ -313,7 +317,17 @@ def has_established_dash_convention(text):
     `—`/`–` never enter this predicate: they certify on strength, exactly as
     on main, in every context.
     """
-    return _weak_dash_dialogue_established(text)
+    if has_strong_dash_line(text):
+        return False
+    evidence = list(_weak_dash_evidence(text))
+    if len(evidence) < _DASH_WEAK_FLOOR:
+        return False
+    if (len(_paired_spans(text)) * _DASH_PAIRED_VETO_RATIO
+            >= len(evidence)):
+        return False
+    anchored = sum(1 for match in evidence
+                   if _weak_dash_is_anchored(match.group(1)))
+    return anchored * _DASH_ANCHOR_DIVISOR >= len(evidence)
 
 
 def iter_dash_lines(text, convention=None, weak_dash=None):
@@ -604,6 +618,19 @@ INTERIOR_DASH_TURN = re.compile(
     rf"{_DASH_MARK_PATTERN}[ \t]+\S")
 # Script form: a speaker label, a colon, then the line.
 LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
+
+
+def _label_line_ranges(text):
+    """-> body ranges of printed `NAME: …` label lines.
+
+    Main reads a book carrying these labels as `label_lines` and voices them.
+    In a book whose `--` form is its dialogue, head's `dash_lines` does not
+    voice them, so they are routed and keep the model's speaker instead of
+    becoming a confident NARRATOR (#2447 r8 BLOCKER 2). A pure read of
+    `LABEL_LINE`, which `spoken_spans` uses for the same rows.
+    """
+    return [(match.start(2), match.end(2))
+            for match in LABEL_LINE.finditer(text)]
 
 
 # Speech marked in a way the book does not mainly use. A line found inside one
@@ -2324,6 +2351,14 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
                         if convention == "dash_lines" else [])
     other_speech, no_body_openers = _other_speech_spans(
         source_text, convention, weak_dash)
+    # In a book that runs `--` dialogue, a `--` line the shared predicate
+    # refuses is dialogue-ambiguous, not narration (#2447 r8 BLOCKER 1), and a
+    # printed `NAME: …` label line is main's `label_lines` speech
+    # (#2447 r8 BLOCKER 2). Both are routed, so the model's speaker is kept
+    # and neither becomes a confident NARRATOR.
+    refused_weak = (_weak_dash_refused_ranges(source_text)
+                    if weak_dash else [])
+    label_lines = _label_line_ranges(source_text) if weak_dash else []
     # A line that straddles an unclosed opener with no paragraph body is still
     # "other convention", not narration: that was main's verdict, and this is a
     # contract fix, not a change to what reaches the audio. Those ranges are
@@ -2385,6 +2420,18 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
                                          for span_start, span_stop in other_speech):
                     # Outside the main quotes, inside speech marked another
                     # way: not established narration, so never voiced as it.
+                    row["dialogue_ambiguity"] = "other_convention"
+                elif not overlap and any(span_start < entry_end and entry_start < span_stop
+                                         for span_start, span_stop in refused_weak):
+                    # A `--` line this book's own per-line predicate refused:
+                    # dialogue-ambiguous, so keep the model's speaker rather
+                    # than claiming narration (#2447 r8 BLOCKER 1).
+                    row["dialogue_ambiguity"] = "weak_dash_ambiguity"
+                elif not overlap and any(span_start < entry_end and entry_start < span_stop
+                                         for span_start, span_stop in label_lines):
+                    # main's `label_lines` speech in the same book: route it
+                    # instead of overwriting the model with NARRATOR
+                    # (#2447 r8 BLOCKER 2).
                     row["dialogue_ambiguity"] = "other_convention"
                 else:
                     row["spoken"] = bool(overlap)

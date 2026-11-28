@@ -713,9 +713,8 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     # Only the strong `—`/`–` forms are certified here. A chunk holds no
     # whole-book convention, so the weak ASCII `--` form abstains exactly as
     # on main: whether `--` is this book's dialogue is settled once for the
-    # whole book (`dialogue_spans.has_established_dash_convention` with the
-    # caller's detected convention) and never from one chunk's shape
-    # (#2447 gate 2 blocker 2 / low 1).
+    # whole book (`dialogue_spans._weak_dash_dialogue_established`) and never
+    # from one chunk's shape (#2447 gate 2 blocker 2 / low 1).
     dash_is_dialogue = not any(mark in text for mark in QUOTE_MARKS)
     quote_positions = [i for i, c in enumerate(text) if c in _QUOTE_CHARS]
     quote_at = {i: c for i, c in enumerate(text) if c in _QUOTE_CHARS}
