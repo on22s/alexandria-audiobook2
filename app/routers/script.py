@@ -586,9 +586,26 @@ class _HTMLTextExtractor(HTMLParser):
             elif tag == RUBY_FALLBACK_TAG and self._ruby_fallback_depth:
                 self._ruby_fallback_depth -= 1
             elif tag == RUBY_TAG:
-                spoken, self._ruby, self._ruby_fallback_depth = self._ruby.get_spoken_text(), None, 0
-                if spoken:
-                    self._append_text(spoken)
+                self._flush_ruby()
+
+    def _flush_ruby(self):
+        """Emit the open ruby collector's text, if any."""
+        if self._ruby is None:
+            return
+        spoken, self._ruby, self._ruby_fallback_depth = (
+            self._ruby.get_spoken_text(), None, 0)
+        if spoken:
+            self._append_text(spoken)
+
+    def flush_unclosed_ruby(self):
+        """Emit an unterminated <ruby> collector's text at end of document.
+
+        HTMLParser never synthesizes the closing tag at EOF, so a <ruby> left
+        open dropped its base text even though a browser shows it (#2383).
+        This is deliberately not HTMLParser.close(): extraction keeps
+        feed-only semantics for every other incomplete EOF element.
+        """
+        self._flush_ruby()
 
     def handle_data(self, data):
         if self._skip_stack or self._ruby_fallback_depth:
@@ -1151,6 +1168,8 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 # close() is deliberately not called here: it would flush
                 # incomplete EOF markup (and decode buffered skipped
                 # content) into extraction, changing feed-only semantics.
+                # Ruby is the one collector that must still emit at EOF.
+                extractor.flush_unclosed_ruby()
                 text, anchor_positions = extractor.get_text_with_anchor_positions()
             except ValueError as error:
                 # Report and ordinary extraction share this path, so a

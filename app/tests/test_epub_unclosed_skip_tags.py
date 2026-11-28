@@ -64,6 +64,15 @@ def extract(raw, *, report=False):
         'synthetic.epub', archive_bytes=raw, include_report=report)
 
 
+class UnclosedRubyTests(unittest.TestCase):
+    def test_unclosed_ruby_at_eof_keeps_its_base_text(self):
+        # #2383: RubyCollector emitted only on </ruby>, so an element left open
+        # at EOF lost text a browser shows.
+        raw = make_epub('<html><body><p>Before.</p><ruby>BaseWithoutClose',
+                        middle_media_type='text/html')
+        self.assertIn('Before.BaseWithoutClose', extract(raw))
+
+
 class UnclosedSkipTagTests(unittest.TestCase):
     def test_each_unclosed_skip_tag_in_middle_raises_bytes_and_path(self):
         for tag in ('title', 'style', 'script'):
