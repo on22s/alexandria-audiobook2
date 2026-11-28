@@ -280,25 +280,93 @@ def _weak_dash_refused_ranges(text):
     return ranges
 
 
+# A printed line number can sit before a dialogue dash at the start of a line
+# in a school edition: `[25] --Sr. Caballuco--dijo…`. Only this bracketed form
+# is stripped before the dash; any other text before a `--` is narration
+# unless the dash follows `:` or a spaced sentence end. A `25. --No quiero`
+# item number is covered by the sentence-end rule (the stop and the space).
+_WEAK_DASH_PRINTED_PREFIX = re.compile(r"[ \t]*(?:\[[0-9]{1,4}\])[ \t]*")
+# A speech can open in the middle of a hard-wrapped line after a colon or a
+# finished sentence: `…le dijo: --Señora, yo no` / `…consentir. --No quiero`.
+_WEAK_DASH_SENTENCE_BEFORE = frozenset(":.!?…")
+# `--- No quiero` is a typo of the weak `--` opener. A hyphen run of three or
+# more is not in the dash table (a rule or a longer mark), so it is accepted
+# here only at a line start and only when padding and a speech body follow.
+_WEAK_DASH_RUN = re.compile(r"-{2,}")
+
+
+def _get_weak_dash_speech_body_start(text, start, end):
+    """-> offset of the speech a weak `--` opens on this line, or None.
+
+    The ONE opener question (Rule 15, #2447 r10 BLOCKER 1): a weak `--` opens
+    speech when it starts the line (after spaces and an optional printed
+    `[25]` prefix), or when it follows `:` or a spaced sentence end inside the
+    line (`25. --` is that second case). `word--word` is neither, so a
+    narration interruption never starts a route. A run of three or more
+    hyphens at a line start with a padded body is accepted as the printed typo
+    of the same opener. `start` is the first non-space character of the line
+    and `end` its end offset.
+
+    The body offset returned is where the speech itself begins (after the
+    dash, run padding removed), so a caller can route the speech and every
+    later line of its paragraph without claiming narration (#2447 r9).
+    """
+    for run in _WEAK_DASH_RUN.finditer(text, start, end):
+        index = run.start()
+        length, strength = get_dash_mark(text, index)
+        if strength != "weak":
+            if (strength is not None or len(run.group(0)) < 3
+                    or index + len(run.group(0)) >= end
+                    or text[index + len(run.group(0))] not in " \t"):
+                continue
+            length = len(run.group(0))
+        body = index + length
+        while body < end and text[body] in " \t":
+            body += 1
+        if body >= end:
+            continue
+        prefix = text[start:index]
+        if not prefix.strip(" \t") or _WEAK_DASH_PRINTED_PREFIX.fullmatch(prefix):
+            return body
+        before = prefix.rstrip(" \t")
+        if not before or before[-1] not in _WEAK_DASH_SENTENCE_BEFORE:
+            continue
+        if before[-1] == ":":
+            # `dijo:--Yo tengo…` is the ordinary Spanish no-space opener.
+            return body
+        # After a full stop, a tight `.--` is the em-dash interruption that
+        # narration and an edition's notes use (`…tranquila.--Los Aceros`,
+        # `=Rumores.--Temores=`, `journey's end--what / heart?--bearing`),
+        # not a speech. A real sentence-end opener is separated from the
+        # finished sentence by a space (`…consentir. --Señora`).
+        if prefix[-1] in " \t":
+            return body
+    return None
+
+
 def _weak_dash_continuation_ranges(text):
-    """-> body ranges of non-dash lines that continue weak `--` speech.
+    """-> body ranges of lines that carry or continue weak `--` speech.
 
-    Gutenberg plain text is hard-wrapped, and `DASH_LINE` captures only the
-    first physical line of a `--` speech. Every later line of that speech is
-    outside every span, so `mark_entries` certified it narration and
-    `apply_source_narration` overwrote the model's speaker with NARRATOR.
-    Main has no `--` convention on such a book and keeps the model's speaker,
-    so this is a confident wrong label (#2447 r9 BLOCKER 1).
+    Gutenberg plain text is hard-wrapped, and `DASH_LINE` captures only a
+    physical line that STARTS with `--`. A speech can also open after a colon
+    or a finished sentence inside a line, or behind a printed line number, and
+    every later line of that speech is outside every span. `mark_entries`
+    certified those lines narration and `apply_source_narration` overwrote the
+    model's speaker with NARRATOR. Main has no `--` convention on such a book
+    and keeps the model's speaker, so this is a confident wrong label (#2447
+    r9 BLOCKER 1, r10 BLOCKER 1).
 
-    In a book whose weak `--` form is its dialogue, every non-dash line after
-    a weak `--` line and before the paragraph break that ends that speech is
-    routed instead (dialogue ambiguity, model speaker kept), never narration.
+    In a book whose weak `--` form is its dialogue, every line that opens or
+    continues a speech before the paragraph break that ends it is routed
+    instead (dialogue ambiguity, model speaker kept), never narration.
     Paragraphs are read with the shared `_paragraph_breaks` reading, so this
     cannot disagree with the rest of the module about where a paragraph ends
-    (Rule 15). The caller asks only when `_weak_dash_dialogue_established`
-    returned True, which refuses a book with any strong `—`/`–` line
-    (`has_strong_dash_line`), so every dash line inside this reading is the
-    weak form and an em/en-dash book keeps main's behaviour.
+    (Rule 15). Openers are the one shared `_get_weak_dash_speech_body_start`
+    question, so a `word--word` interruption never starts a route. The caller
+    asks only when `_weak_dash_dialogue_established` returned True, which
+    refuses a book with any strong `—`/`–` line (`has_strong_dash_line`), so
+    every dash line inside this reading is the weak form and an em/en-dash
+    book keeps main's behaviour.
     """
     ranges = []
     paragraph_start = 0
@@ -306,15 +374,23 @@ def _weak_dash_continuation_ranges(text):
         seen_weak = False
         for line in re.finditer(r"[^\r\n]+", text[paragraph_start:at]):
             raw = line.group(0)
-            body = raw.lstrip(" \t")
-            start = paragraph_start + line.start() + len(raw) - len(body)
+            start = paragraph_start + line.start() + len(raw) - len(raw.lstrip(" \t"))
+            end = paragraph_start + line.end()
             if get_dash_mark(text, start)[0]:
                 # Weak form only (the caller's book answer guarantees it):
                 # this line opens a new speech, so what follows may continue it.
                 seen_weak = True
                 continue
             if seen_weak:
-                ranges.append((start, paragraph_start + line.end()))
+                # Already inside a speech: the whole line is its continuation.
+                ranges.append((start, end))
+                continue
+            opener = _get_weak_dash_speech_body_start(text, start, end)
+            if opener is not None:
+                # The speech opens mid-line (or behind a printed prefix), so
+                # the line is not a `DASH_LINE` and needs its own route.
+                seen_weak = True
+                ranges.append((opener, end))
         paragraph_start = after
     return ranges
 

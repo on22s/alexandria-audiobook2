@@ -2341,6 +2341,203 @@ class DashDialogueTagTests(unittest.TestCase):
                     self.assertIs(True, row["spoken"])
                     self.assertEqual([], mapped["narration_changes"])
 
+    def test_mid_line_weak_dash_opener_routes_its_wrapped_lines(self):
+        """#2447 r10 BLOCKER 1: a speech opened mid-line keeps the speaker.
+
+        A `--` speech can open after a colon or a finished sentence inside a
+        hard-wrapped line. `DASH_LINE` captures only a line that STARTS with
+        `--`, so on a quote-free `--` book main detects `None` and keeps the
+        model's speaker while head certified the wrapped lines narration. The
+        opener line and every later line of its paragraph are routed; the
+        paragraph break ends the speech.
+        """
+        base = ["--¿Vienes mañana a la feria? --preguntó Juan.",
+                "--No lo sé todavía --dijo Ana--. Depende del tiempo.",
+                "--¿Y si llueve? --insistió él.",
+                "--Entonces me quedo en casa.",
+                "--¡Qué pena! --exclamó Juan."]
+        wrapped = ("Pepe se volvió hacia su tía y le dijo: --Señora, yo no\n"
+                   "puedo consentir esto de ninguna manera.")
+        book = "\n".join(base) + "\n\n" + wrapped + "\n\n" + "\n".join(base)
+        self.assertEqual("dash_lines", detect_convention(book))
+        self.assertTrue(dialogue_spans._weak_dash_dialogue_established(book))
+        ranges = dialogue_spans._weak_dash_continuation_ranges(book)
+        self.assertEqual(["Señora, yo no",
+                          "puedo consentir esto de ninguna manera."],
+                         [book[start:stop] for start, stop in ranges])
+        mapped = apply_dialogue_map(
+            [{"speaker": "ANA", "text": "Señora, yo no"},
+             {"speaker": "ANA",
+              "text": "puedo consentir esto de ninguna manera."}], book)
+        for row in mapped["entries"]:
+            self.assertEqual("ANA", row["speaker"])
+            self.assertEqual("weak_dash_ambiguity",
+                             row["dialogue_ambiguity"])
+            self.assertNotIn("spoken", row)
+        self.assertEqual(2, mapped["ambiguous"])
+        self.assertEqual([], mapped["narration_changes"])
+        # A three-line variant: the opener sits on the second line.
+        three = ("Pepe se volvió hacia su tía y le dijo\n"
+                 "muy serio: --Señora, yo no puedo consentir\n"
+                 "esto que usted me propone.")
+        book3 = "\n".join(base) + "\n\n" + three + "\n\n" + "\n".join(base)
+        row = apply_dialogue_map(
+            [{"speaker": "ANA", "text": "esto que usted me propone."}],
+            book3)["entries"][0]
+        self.assertEqual("ANA", row["speaker"])
+        self.assertEqual("weak_dash_ambiguity", row["dialogue_ambiguity"])
+        self.assertNotIn("spoken", row)
+        # The ordinary Spanish no-space colon opener (`dijo:--Yo`) and a
+        # spaced sentence-end opener (`dudó. --Señora`) are the same question.
+        for sentence in ("Pepe dijo:--Señora, yo no",
+                         "Pepe dudó un momento. --Señora, yo no"):
+            with self.subTest(sentence=sentence):
+                opened = (sentence + "\npuedo consentir esto de ninguna manera.")
+                book4 = ("\n".join(base) + "\n\n" + opened + "\n\n"
+                         + "\n".join(base))
+                row = apply_dialogue_map(
+                    [{"speaker": "ANA",
+                      "text": "puedo consentir esto de ninguna manera."}],
+                    book4)["entries"][0]
+                self.assertEqual("ANA", row["speaker"])
+                self.assertEqual("weak_dash_ambiguity",
+                                 row["dialogue_ambiguity"])
+                self.assertNotIn("spoken", row)
+        # An em-dash book keeps main's wrapped-continuation narration: the
+        # weak-form opener route is unreachable there.
+        em_base = [line.replace("--", "—") for line in base]
+        em_book = ("\n".join(em_base) + "\n\n"
+                   + wrapped.replace("--", "—") + "\n\n" + "\n".join(em_base))
+        self.assertEqual("dash_lines", detect_convention(em_book))
+        self.assertFalse(
+            dialogue_spans._weak_dash_dialogue_established(em_book))
+        row = apply_dialogue_map(
+            [{"speaker": "ANA",
+              "text": "puedo consentir esto de ninguna manera."}],
+            em_book)["entries"][0]
+        self.assertEqual("NARRATOR", row["speaker"])
+        self.assertIs(False, row["spoken"])
+        self.assertNotIn("dialogue_ambiguity", row)
+
+    def test_printed_prefix_weak_dash_opener_routes_its_lines(self):
+        """#2447 r10 BLOCKER 1: `[25] --` and `25. --` open a speech too.
+
+        The school edition of *Doña Perfecta* prints a line number every five
+        lines, so the dialogue dash is no longer the first character of the
+        line. Main detects `None` on the quote-free text and keeps the model's
+        speaker; every line of such a paragraph must be routed, including the
+        opener line itself and the later numbered continuation lines.
+        """
+        base = ["--¿Vienes mañana a la feria? --preguntó Juan.",
+                "--No lo sé todavía --dijo Ana--. Depende del tiempo.",
+                "--¿Y si llueve? --insistió él.",
+                "--Entonces me quedo en casa.",
+                "--¡Qué pena! --exclamó Juan."]
+        numbered = ("[25] --Sr. Caballuco--dijo el canónigo,--no es mucho que\n"
+                    "[30] venga de tan lejos.\n"
+                    "[35] --¿Y qué trae? --preguntó el señor.")
+        book = "\n".join(base) + "\n\n" + numbered + "\n\n" + "\n".join(base)
+        self.assertEqual("dash_lines", detect_convention(book))
+        self.assertTrue(dialogue_spans._weak_dash_dialogue_established(book))
+        ranges = dialogue_spans._weak_dash_continuation_ranges(book)
+        self.assertEqual(
+            ["Sr. Caballuco--dijo el canónigo,--no es mucho que",
+             "[30] venga de tan lejos.",
+             "[35] --¿Y qué trae? --preguntó el señor."],
+            [book[start:stop] for start, stop in ranges])
+        for text, expected in (
+                ("Sr. Caballuco--dijo el canónigo,--no es mucho que", "ANA"),
+                ("venga de tan lejos.", "ANA"),
+                ("¿Y qué trae?", "ANA")):
+            with self.subTest(text=text):
+                row = apply_dialogue_map(
+                    [{"speaker": "ANA", "text": text}], book)["entries"][0]
+                self.assertEqual(expected, row["speaker"])
+                self.assertEqual("weak_dash_ambiguity",
+                                 row["dialogue_ambiguity"])
+                self.assertNotIn("spoken", row)
+        # `25. --` is the other printed prefix shape.
+        item = "25. --No quiero irme de aquí."
+        book2 = "\n".join(base) + "\n\n" + item + "\n\n" + "\n".join(base)
+        row = apply_dialogue_map(
+            [{"speaker": "ANA", "text": "No quiero irme de aquí."}],
+            book2)["entries"][0]
+        self.assertEqual("ANA", row["speaker"])
+        self.assertEqual("weak_dash_ambiguity", row["dialogue_ambiguity"])
+
+    def test_hyphen_run_typo_opens_a_weak_dash_route(self):
+        """#2447 r10 BLOCKER 1: `--- No quiero` is the printed typo of `--`.
+
+        A school edition prints one three-hyphen line as a dialogue opener.
+        It is not in the dash table (a rule or a longer mark), so the shared
+        opener question accepts a hyphen run of three or more only at a line
+        start, padded and with a speech body. The line and its following
+        wrapped line are routed, never narrated.
+        """
+        base = ["--¿Vienes mañana a la feria? --preguntó Juan.",
+                "--No lo sé todavía --dijo Ana--. Depende del tiempo.",
+                "--¿Y si llueve? --insistió él.",
+                "--Entonces me quedo en casa.",
+                "--¡Qué pena! --exclamó Juan."]
+        typo = "--- No quiero ir.\nSigue la voz del maestro."
+        book = "\n".join(base) + "\n\n" + typo + "\n\n" + "\n".join(base)
+        self.assertEqual("dash_lines", detect_convention(book))
+        self.assertTrue(dialogue_spans._weak_dash_dialogue_established(book))
+        self.assertEqual(
+            ["No quiero ir.", "Sigue la voz del maestro."],
+            [book[start:stop] for start, stop in
+             dialogue_spans._weak_dash_continuation_ranges(book)])
+        for text in ("No quiero ir.", "Sigue la voz del maestro."):
+            with self.subTest(text=text):
+                row = apply_dialogue_map(
+                    [{"speaker": "ANA", "text": text}], book)["entries"][0]
+                self.assertEqual("ANA", row["speaker"])
+                self.assertEqual("weak_dash_ambiguity",
+                                 row["dialogue_ambiguity"])
+                self.assertNotIn("spoken", row)
+
+    def test_word_join_interruption_never_opens_a_weak_dash_route(self):
+        """#2447 r10 BLOCKER 1: `word--word` is not a speech opener.
+
+        A dash inside a word is an interruption in narration, not dialogue.
+        The opener question must answer None there, so the line stays a
+        narration row (#2395 labels it NARRATOR as it labels all narration in
+        this book) and no following line is routed. Main keeps the model's
+        speaker on this quote-free text, so the test uses the model's own
+        NARRATOR label and both trees agree.
+        """
+        base = ["--¿Vienes mañana a la feria? --preguntó Juan.",
+                "--No lo sé todavía --dijo Ana--. Depende del tiempo.",
+                "--¿Y si llueve? --insistió él.",
+                "--Entonces me quedo en casa.",
+                "--¡Qué pena! --exclamó Juan."]
+        line = "El río crecía--y nadie lo miraba--aquella tarde."
+        # `?--` in the middle of a word chain is an interruption, not an
+        # opener: the sentence-end branch needs the space before the dash.
+        interrupted = "El viaje acababa?--seguía lloviendo."
+        book = ("\n".join(base) + "\n\n" + line + "\n" + interrupted + "\n"
+                "Seguía lloviendo.\n\n" + "\n".join(base))
+        self.assertEqual("dash_lines", detect_convention(book))
+        self.assertTrue(dialogue_spans._weak_dash_dialogue_established(book))
+        start = book.index(line)
+        self.assertIsNone(
+            dialogue_spans._get_weak_dash_speech_body_start(
+                book, start, start + len(line)))
+        start = book.index(interrupted)
+        self.assertIsNone(
+            dialogue_spans._get_weak_dash_speech_body_start(
+                book, start, start + len(interrupted)))
+        self.assertEqual([], dialogue_spans._weak_dash_continuation_ranges(book))
+        for text in (line, interrupted, "Seguía lloviendo."):
+            with self.subTest(text=text):
+                mapped = apply_dialogue_map(
+                    [{"speaker": "NARRATOR", "text": text}], book)
+                row = mapped["entries"][0]
+                self.assertEqual("NARRATOR", row["speaker"])
+                self.assertIs(False, row["spoken"])
+                self.assertNotIn("dialogue_ambiguity", row)
+                self.assertEqual([], mapped["narration_changes"])
+
     def test_hard_wrapped_em_dash_continuation_keeps_main_behaviour(self):
         """An em/en-dash book keeps main's wrapped-continuation narration.
 
