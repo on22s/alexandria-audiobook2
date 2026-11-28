@@ -6038,7 +6038,7 @@
     , "tests.test_epub_extraction_report_js.EpubExtractionReportJsTests.test_real_upload_handler_fences_reports_and_uses_text_only"
   ]
   , "test_epub_hidden_attribute": [
-    "tests.test_epub_hidden_attribute.FuzzKnownBugFilterTests.test_known_bug_filter_accepts_the_shared_xhtml_decode_frames"
+    "tests.test_epub_hidden_attribute.FuzzKnownBugFilterTests.test_the_three_declared_encoding_frames_now_decode"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_anchor_id_helper_matches_the_tolerant_extractor_lookup"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_annotation_xml_in_inherited_xhtml_namespace_obeys_hidden"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_bad_encoding_name_load_stays_byte_identical_to_origin_main"

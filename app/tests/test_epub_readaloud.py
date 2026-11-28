@@ -5,7 +5,8 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from epub_readaloud import (build_epub_readaloud, map_spine_to_chunks,
-                            validate_epub_readaloud, get_xhtml_segments)
+                            validate_epub_readaloud, get_xhtml_segments,
+                            get_ncx_points, get_spine_documents)
 
 
 def _make_source_epub():
@@ -211,6 +212,50 @@ class EpubReadaloudTests(unittest.TestCase):
                 out.writestr(item.filename, data)
         with self.assertRaises(ValueError):
             validate_epub_readaloud(buffer.getvalue())
+
+
+_BOGUS_DECLARATION = b'<?xml version="1.0" encoding="bogus"?>'
+_NCX = (b'<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
+        b'<navMap><navPoint id="n1"><navLabel><text>Chapter One</text></navLabel>'
+        b'<content src="ch1.xhtml"/></navPoint></navMap></ncx>')
+
+
+def _put_member(archive_bytes, name, data):
+    """Return a copy of an EPUB with one member added or replaced."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(archive_bytes)) as source, \
+            zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            payload = data if info.filename == name else source.read(info.filename)
+            target.writestr(info, payload)
+        if name not in source.namelist():
+            target.writestr(name, data)
+    return buffer.getvalue()
+
+
+class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
+    """#2368: an unreadable declaration must not abort the read-aloud readers."""
+
+    def test_bogus_nav_declaration_leaves_the_readaloud_toc_empty(self):
+        nav = (_BOGUS_DECLARATION +
+               b'<html xmlns="http://www.w3.org/1999/xhtml" '
+               b'xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Nav</title>'
+               b'</head><body><nav epub:type="toc"><ol>'
+               b'<li><a href="ch1.xhtml">Chapter One</a></li>'
+               b'</ol></nav></body></html>')
+        raw = _put_member(_make_source_epub(), 'OEBPS/nav.xhtml', nav)
+        _opf_path, _package, _namespace, _manifest, spine, metadata = get_spine_documents(raw)
+        self.assertEqual([], metadata['toc'])
+        self.assertEqual(['OEBPS/ch1.xhtml', 'OEBPS/ch2.xhtml'],
+                         [document['path'] for document in spine])
+        self.assertEqual('Synthetic Title', metadata['title'])
+
+    def test_bogus_ncx_declaration_returns_no_ncx_points(self):
+        raw = _put_member(_make_source_epub(), 'OEBPS/toc.ncx',
+                          _BOGUS_DECLARATION + _NCX)
+        manifest = {'ncx': {'path': 'OEBPS/toc.ncx',
+                            'media_type': 'application/x-dtbncx+xml'}}
+        self.assertEqual([], get_ncx_points(raw, manifest, 'OEBPS/content.opf'))
 
 
 if __name__ == "__main__":

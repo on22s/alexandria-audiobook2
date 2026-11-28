@@ -23,6 +23,7 @@ The default empty lexicon preserves library callers' baseline behavior.
 """
 
 import re
+import codecs
 import io
 import difflib
 import functools
@@ -270,33 +271,68 @@ def html_hidden_handling_applies(media_type, *, xml_well_formed: bool) -> bool:
             and bool(xml_well_formed))
 
 
-def _decode_head_encoding(raw: bytes) -> str:
+def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
+    """Return ``(codec, declared_usable)`` for an EPUB markup item.
+
+    ``declared_usable`` is False when the XML declaration names a codec that
+    cannot decode the item: a non-ASCII name, a name containing NUL, or no
+    such codec. The returned codec is then the fallback, UTF-8 with BOM
+    handling.
+    """
     if raw.startswith((b'\xff\xfe', b'\xfe\xff')):
-        return 'utf-16'
+        return 'utf-16', True
     if raw.startswith(b'<\0'):
-        return 'utf-16-le'
+        return 'utf-16-le', True
     if raw.startswith(b'\0<'):
-        return 'utf-16-be'
+        return 'utf-16-be', True
     match = re.match(br'\s*<\?xml\b[^>]*\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', raw[:256])
-    return match.group(1).decode('ascii') if match else 'utf-8-sig'
+    if not match:
+        return 'utf-8-sig', True
+    try:
+        encoding = match.group(1).decode('ascii')
+        codecs.lookup(encoding)
+        # A declaration can name a binary transform codec (base64, hex,
+        # zlib) that codecs.lookup accepts but bytes.decode refuses with
+        # LookupError; probe the name the decoder will actually use.
+        b'x'.decode(encoding, errors='replace')
+    except (ValueError, LookupError):
+        # UnicodeDecodeError is a ValueError; a NUL name raises ValueError, an
+        # unknown name raises LookupError, and a binary codec raises
+        # LookupError from the probe.
+        return 'utf-8-sig', False
+    return encoding, True
 
 
 def decode_epub_markup(raw):
-    """Decode an item's bytes exactly as extraction's ``get_epub_xhtml_text``.
+    """Decode an item's bytes for both extraction and ``load_epub``.
 
-    Same BOM/declaration detection and ``errors='replace'``, so
-    ``load_epub`` and ``extract_epub_text`` judge well-formedness on the same
-    decoded string. This is the one encoding sniff both paths use (Rule 15);
-    a ``str`` item is returned unchanged.
+    BOM/declaration detection and ``errors='replace'`` are one rule (Rule 15);
+    a ``str`` item is returned unchanged. When the declaration names an
+    unusable codec the bytes are read as UTF-8 and the declaration is rewritten
+    to match, so extraction never aborts on a broken declaration (#2368).
+    EPUB 3.3 requires XML resources to be UTF-8 or UTF-16, so UTF-8 is the
+    spec-recommended recovery when the declaration cannot be used.
+    ``strip_hidden_xml`` declines those documents separately, which keeps
+    ``load_epub``'s origin/main output unchanged.
     """
     if isinstance(raw, str):
         return raw
-    encoding = _decode_head_encoding(raw)
-    return raw.decode(encoding, errors='replace')
+    encoding, declared_usable = _decode_head_encoding(raw)
+    text = raw.decode(encoding, errors='replace')
+    if declared_usable:
+        return text
+    return _normalize_xml_declaration_to_utf8(text)
 
 
 _XML_DECL_ENCODING_RE = re.compile(
     r'^(\s*<\?xml\b[^>]*?\bencoding\s*=\s*[\'"])([^\'"]*)([\'"])', re.ASCII)
+
+
+def _normalize_xml_declaration_to_utf8(text: str) -> str:
+    """Point a document's XML declaration at the UTF-8 it was read with."""
+    if text.startswith('\ufeff'):
+        text = text[1:]
+    return _XML_DECL_ENCODING_RE.sub(r'\1utf-8\3', text, count=1)
 
 
 def _utf8_markup(visible: str) -> bytes:
@@ -307,10 +343,7 @@ def _utf8_markup(visible: str) -> bytes:
     or UTF-16 encoding; normalize it to UTF-8 so the parser decodes the bytes
     we supply. This changes only the declaration, never document text.
     """
-    if visible.startswith('\ufeff'):
-        visible = visible[1:]
-    visible = _XML_DECL_ENCODING_RE.sub(r'\1utf-8\3', visible, count=1)
-    return visible.encode('utf-8')
+    return _normalize_xml_declaration_to_utf8(visible).encode('utf-8')
 
 
 def _xml_start_tag_end(data: bytes, start: int) -> tuple[int, bool]:
@@ -595,18 +628,16 @@ def strip_hidden_xml(content):
 
     A thin load-facing wrapper over :func:`cut_xml_subtrees`, the one XML
     walk shared with script extraction (Rule 15). It adds only the EPUB byte
-    decoding and maps a parse failure to ``None`` instead of an exception.
+    decoding, declines a declaration that cannot decode the document, and maps
+    a parse failure to ``None`` instead of an exception.
     """
     if not isinstance(content, str):
-        try:
-            content = decode_epub_markup(content)
-        except (LookupError, ValueError):
-            # The declared encoding is unknown, or its name cannot be decoded
-            # as ASCII (UnicodeDecodeError) or names a codec with NUL
-            # (ValueError). Extraction's decoder refuses the same documents, so
-            # hidden handling must decline and let origin/main's ebooklib path
+        if not _decode_head_encoding(content)[1]:
+            # The declaration names a codec that cannot decode the document.
+            # Hidden handling must decline and let origin/main's ebooklib path
             # narrate unchanged.
             return None
+        content = decode_epub_markup(content)
     try:
         return cut_xml_subtrees(content)
     except (UnicodeEncodeError, UnicodeDecodeError, ValueError, TypeError,

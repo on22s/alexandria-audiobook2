@@ -252,7 +252,7 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                     # size-bounded archive member.
                     root = ET.fromstring(_read_archive_member_bounded(  # nosec B314
                         archive, item['path'], _get_retained_xml_limit(), member_index=member_index))
-                except ET.ParseError:
+                except (ET.ParseError, LookupError):
                     continue
                 for nav in root.iter():
                     if nav.tag.rsplit('}', 1)[-1] != 'nav':
@@ -496,7 +496,9 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
     try:
         # size-bounded archive member.
         root = ET.fromstring(raw)  # nosec B314
-    except ET.ParseError as error:
+    except (ET.ParseError, LookupError) as error:
+        # LookupError is an unknown declared encoding (or a binary codec name),
+        # not a parse error, but the document is just as malformed here.
         raise ValueError(f"Spine document is malformed: {path}") from error
     if _namespace(root.tag) != XHTML_NS:
         raise ValueError(f"Spine document is not in the XHTML namespace: {path}")
@@ -1933,7 +1935,7 @@ def validate_epub_readaloud(archive_bytes):
                 try:
                     # size-bounded archive member.
                     root = ET.fromstring(raw)  # nosec B314
-                except ET.ParseError as error:
+                except (ET.ParseError, LookupError) as error:
                     raise ValueError("Built EPUB XHTML is malformed.") from error
                 ids = set()
                 for el in root.iter():
@@ -2010,7 +2012,7 @@ def validate_epub_readaloud(archive_bytes):
             try:
                 # size-bounded archive member.
                 smil_root = ET.fromstring(raw)  # nosec B314
-            except ET.ParseError as error:
+            except (ET.ParseError, LookupError) as error:
                 raise ValueError("Built EPUB SMIL is malformed.") from error
             if not smil_root.get('version'):
                 raise ValueError("Built EPUB SMIL lacks a version.")
@@ -2172,7 +2174,7 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
     try:
         # size-bounded archive member.
         root = ET.fromstring(raw)  # nosec B314
-    except ET.ParseError:
+    except (ET.ParseError, LookupError):
         return []
     nav_map = root.find('.//{%s}navMap' % 'http://www.daisy.org/z3986/2005/ncx/')
     if nav_map is None:
@@ -2602,7 +2604,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     try:
         # size-bounded archive member.
         container = ET.fromstring(container_raw)  # nosec B314
-    except ET.ParseError as error:
+    except (ET.ParseError, LookupError) as error:
         raise ValueError("Retained EPUB container is malformed.") from error
     container_ns = container.tag.split('}')[0] + '}' if '}' in container.tag else ''
     if container_ns != '{%s}' % CONTAINER_NS:

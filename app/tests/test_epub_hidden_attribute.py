@@ -1529,10 +1529,10 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             b'<?xml version="1.0" encoding="utf-8"?>\n<p>caf\xc3\xa9</p>',
             encoded)
 
-    def test_unknown_declared_encoding_declines_hidden_handling(self):
-        # is_well_formed_xml and extraction's decoder both reject an unknown
-        # declared encoding; load_epub must narrate the hidden text like
-        # origin/main rather than applying hidden handling to it.
+    def test_unknown_declared_encoding_still_hides_in_extraction(self):
+        # #2368: extraction decodes with a UTF-8 fallback instead of aborting
+        # the import, so a hidden paragraph is still omitted. load_epub keeps
+        # declining hidden handling and narrates it like origin/main.
         raw_doc = (
             b'<?xml version="1.0" encoding="bogus"?>\n'
             b'<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title>'
@@ -1540,37 +1540,36 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             b'<p>After.</p></body></html>')
         self.assertFalse(alignment.is_well_formed_xml(raw_doc))
         raw = make_epub('', raw_document=raw_doc, toc_links=[])
-        with self.assertRaises(LookupError):
-            extract_epub_text('synthetic.epub', archive_bytes=raw)
+        text = extract_epub_text('synthetic.epub', archive_bytes=raw)
+        self.assertNotIn('SECRET', text)
+        self.assertIn('Before.', text)
         self.assertIn('SECRET', _load_bytes(raw))
 
     def test_bad_encoding_name_load_stays_byte_identical_to_origin_main(self):
         # Merge gate 3 finding 1: a hidden-free XHTML item whose declaration
-        # names a non-ASCII or NUL encoding is refused by extraction (#2368)
-        # but was narrated by origin/main's load_epub. Hidden handling must
-        # decline on the decode failure and leave ebooklib's path unchanged.
+        # names a non-ASCII or NUL encoding was refused by extraction (#2368)
+        # but narrated by origin/main's load_epub. Extraction now falls back to
+        # UTF-8; load_epub declines hidden handling and stays byte-identical.
         rows = {
-            'non_ascii_name': (
-                b'<?xml version="1.0" encoding="\xe9"?>',
-                UnicodeDecodeError,
-                "ascii' codec can't decode byte 0xe9"),
-            'nul_name': (
-                b'<?xml version="1.0" encoding="ut\x00f-8"?>',
-                ValueError,
-                'embedded null character'),
+            'non_ascii_name': b'<?xml version="1.0" encoding="\xe9"?>',
+            'nul_name': b'<?xml version="1.0" encoding="ut\x00f-8"?>',
+            # codecs.lookup accepts a binary transform, but bytes.decode
+            # refuses it; the probe must route it to the same fallback.
+            'binary_codec_name': b'<?xml version="1.0" encoding="base64"?>',
         }
         body = (
             b'<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
             b'</head><body><p>Hello world.</p></body></html>')
-        for name, (declaration, extraction_error, message) in rows.items():
+        for name, declaration in rows.items():
             with self.subTest(case=name):
                 raw = make_epub('', raw_document=declaration + body,
                                 toc_links=[])
                 # origin/main's literal load_epub output, pinned byte for byte.
                 self.assertEqual(
                     '\n \n \n \n \n Hello world. \n \n \n', _load_bytes(raw))
-                with self.assertRaisesRegex(extraction_error, message):
-                    extract_epub_text('synthetic.epub', archive_bytes=raw)
+                self.assertEqual(
+                    'Hello world.',
+                    extract_epub_text('synthetic.epub', archive_bytes=raw))
                 with self.assertRaisesRegex(
                         ValueError, '^Spine document is malformed: '
                                     'OEBPS/ch1.xhtml$'):
@@ -1674,34 +1673,29 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertEqual(expected, _omit_xml_ignored_subtrees(document))
 
 
-class FuzzKnownBugFilterTests(unittest.TestCase):
-    """The fuzz harness's #2368 filter must follow the shared decode helper."""
+class DeclaredEncodingFallbackTests(unittest.TestCase):
+    """#2368: the UTF-8 fallback must not replace a declaration it can honour."""
 
-    def test_known_bug_filter_accepts_the_shared_xhtml_decode_frames(self):
+    def test_a_supported_declared_encoding_is_decoded_and_kept(self):
+        data = (b'<?xml version="1.0" encoding="windows-1252"?>'
+                b'<html><body><p>Caf\xe9.</p></body></html>')
+        text = script.get_epub_xhtml_text(data)
+        self.assertIn('Café.', text)
+        # The declaration is still true for these bytes, so it is not rewritten.
+        self.assertIn('encoding="windows-1252"', text)
+
+
+class FuzzEncodingFilterTests(unittest.TestCase):
+    """The fuzz harness filter must stay narrower than the decoder it names."""
+
+    def test_filter_does_not_absorb_errors_from_outside_the_decoder(self):
         fuzz_dir = str(Path(__file__).resolve().parents[2] / 'tools' / 'fuzz')
         if fuzz_dir not in sys.path:
             sys.path.insert(0, fuzz_dir)
         import _common  # noqa: PLC0415 - tools/fuzz is not on the test path
 
-        # The three review-gate-3 inputs: a non-ASCII declared name (raised in
-        # _decode_head_encoding), NUL inside the name (decode_epub_markup), and
-        # an unknown codec (decode_epub_markup). All are open bug #2368.
-        # Catch by hand: unittest's assertRaises strips the traceback, which
-        # the predicate needs.
-        for data in (b'<?xml version="1.0" encoding="\xe9"?><a/>',
-                     b'<?xml version="1.0" encoding="ut\x00f-8"?><a/>',
-                     b'<?xml version="1.0" encoding="bogus"?><a/>'):
-            with self.subTest(data=data):
-                try:
-                    script.get_epub_xhtml_text(data)
-                except (LookupError, ValueError, UnicodeError) as exc:
-                    self.assertTrue(
-                        _common.is_known_xhtml_encoding_error(exc),
-                        f'{type(exc).__name__} not filtered')
-                else:
-                    self.fail('expected a declared-encoding decode error')
-
-        # Same type and message, but raised outside the two #2368 sites.
+        # Same type and message as #2368, but raised outside the decoder: the
+        # filter must still refuse to absorb an unrelated ValueError.
         try:
             b'x'.decode('ut\x00f-8', errors='replace')
         except ValueError as exc:
