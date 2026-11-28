@@ -53,7 +53,8 @@ from alexandria_alignment import (
     html_hidden_handling_applies,
     is_html_hidden_attrs,
 )
-from epub_package import get_epub_package, is_navigation_document
+from epub_package import (EpubXmlEncodingError, get_epub_package,
+                         is_navigation_document, parse_epub_xml)
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from qwen_align import (get_normalized_stream, get_stream_chars,
                         get_token_key, get_validated_aligner_tokens,
@@ -250,9 +251,9 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                     continue
                 try:
                     # size-bounded archive member.
-                    root = ET.fromstring(_read_archive_member_bounded(  # nosec B314
+                    root = parse_epub_xml(_read_archive_member_bounded(
                         archive, item['path'], _get_retained_xml_limit(), member_index=member_index))
-                except (ET.ParseError, LookupError):
+                except (ET.ParseError, EpubXmlEncodingError):
                     continue
                 for nav in root.iter():
                     if nav.tag.rsplit('}', 1)[-1] != 'nav':
@@ -495,10 +496,10 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
         raw = _read_archive_member_bounded(archive, path, max_xml_bytes, member_index=member_index)
     try:
         # size-bounded archive member.
-        root = ET.fromstring(raw)  # nosec B314
-    except (ET.ParseError, LookupError) as error:
-        # LookupError is an unknown declared encoding (or a binary codec name),
-        # not a parse error, but the document is just as malformed here.
+        root = parse_epub_xml(raw)
+    except (ET.ParseError, EpubXmlEncodingError) as error:
+        # An unprocessable encoding declaration is malformed input here, not
+        # an unhandled ValueError (#2370).
         raise ValueError(f"Spine document is malformed: {path}") from error
     if _namespace(root.tag) != XHTML_NS:
         raise ValueError(f"Spine document is not in the XHTML namespace: {path}")
@@ -1934,8 +1935,8 @@ def validate_epub_readaloud(archive_bytes):
                     archive, path, _get_retained_xml_limit(), member_index=member_index)
                 try:
                     # size-bounded archive member.
-                    root = ET.fromstring(raw)  # nosec B314
-                except (ET.ParseError, LookupError) as error:
+                    root = parse_epub_xml(raw)
+                except (ET.ParseError, EpubXmlEncodingError) as error:
                     raise ValueError("Built EPUB XHTML is malformed.") from error
                 ids = set()
                 for el in root.iter():
@@ -2011,8 +2012,8 @@ def validate_epub_readaloud(archive_bytes):
                 archive, smil_path, MAX_EPUB_READALOUD_XML_BYTES, member_index=member_index)
             try:
                 # size-bounded archive member.
-                smil_root = ET.fromstring(raw)  # nosec B314
-            except (ET.ParseError, LookupError) as error:
+                smil_root = parse_epub_xml(raw)
+            except (ET.ParseError, EpubXmlEncodingError) as error:
                 raise ValueError("Built EPUB SMIL is malformed.") from error
             if not smil_root.get('version'):
                 raise ValueError("Built EPUB SMIL lacks a version.")
@@ -2173,8 +2174,8 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
             archive, ncx_path, _get_retained_xml_limit(), member_index=member_index)
     try:
         # size-bounded archive member.
-        root = ET.fromstring(raw)  # nosec B314
-    except (ET.ParseError, LookupError):
+        root = parse_epub_xml(raw)
+    except (ET.ParseError, EpubXmlEncodingError):
         return []
     nav_map = root.find('.//{%s}navMap' % 'http://www.daisy.org/z3986/2005/ncx/')
     if nav_map is None:
@@ -2603,8 +2604,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             raise ValueError("Retained EPUB lacks META-INF/container.xml.") from error
     try:
         # size-bounded archive member.
-        container = ET.fromstring(container_raw)  # nosec B314
-    except (ET.ParseError, LookupError) as error:
+        container = parse_epub_xml(container_raw)
+    except (ET.ParseError, EpubXmlEncodingError) as error:
         raise ValueError("Retained EPUB container is malformed.") from error
     container_ns = container.tag.split('}')[0] + '}' if '}' in container.tag else ''
     if container_ns != '{%s}' % CONTAINER_NS:

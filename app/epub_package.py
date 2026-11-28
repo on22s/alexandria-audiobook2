@@ -9,6 +9,45 @@ import xml.etree.ElementTree as ET
 # feed is kept for tolerance even though XML 1.0 forbids it in attribute values.
 _XML_WHITESPACE = re.compile(r'[ \t\n\f\r]+')
 
+# ET.fromstring(bytes) refuses an XML encoding declaration it cannot process in
+# two ways on CPython 3.10: LookupError for a codec Expat does not know, and
+# ValueError('multi-byte encodings are not supported') for one it cannot stream
+# (shift_jis, utf-16-le/be, utf-32 declarations; a BOM-carrying utf-16 document
+# is fine). Both mean the same thing - the declaration cannot be honoured - and
+# every EPUB reader here treats such a document as malformed. The ValueError is
+# matched by its exact message; ValueError is also the channel for unrelated
+# failures, and an unfixed declaration class must not be mistaken for one.
+_EXPAT_MULTIBYTE_REFUSAL = 'multi-byte encodings are not supported'
+
+
+class EpubXmlEncodingError(ValueError):
+    """An XML declaration Expat cannot process for this EPUB resource."""
+
+
+def is_epub_encoding_refusal(error):
+    """Return whether ``error`` is Expat refusing an XML encoding declaration."""
+    return isinstance(error, LookupError) or (
+        isinstance(error, ValueError)
+        and str(error) == _EXPAT_MULTIBYTE_REFUSAL)
+
+
+def parse_epub_xml(raw):
+    """Parse bounded EPUB XML with the one encoding-refusal decision (Rule 15).
+
+    An encoding declaration Expat refuses is malformed input, not an
+    unexpected exception: both of its failure types become
+    :class:`EpubXmlEncodingError`, so every caller maps it to the same
+    documented refusal or fallback per reader (#2370, #2375). ``raw`` is read
+    by the caller, so the member read stays size-bounded.
+    """
+    try:
+        # reviewed: callers bound the member read; expat is the only parser
+        return ET.fromstring(raw)  # nosec B314
+    except (LookupError, ValueError) as error:
+        if is_epub_encoding_refusal(error):
+            raise EpubXmlEncodingError(str(error)) from error
+        raise
+
 
 def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, include_details=False):
     """Read an EPUB package without extracting archive members.
@@ -49,11 +88,9 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
     # LookupError and must not be reported as a broken declaration.
     container_xml = read_member('META-INF/container.xml')
     try:
-        container = ET.fromstring(container_xml)  # nosec B314
-    except LookupError as error:
-        # ET.fromstring raises LookupError, not ET.ParseError, for an unknown
-        # declared encoding. Every caller already handles ValueError for a
-        # malformed package (#2375).
+        container = parse_epub_xml(container_xml)
+    except EpubXmlEncodingError as error:
+        # An unprocessable encoding declaration is a malformed package (#2375).
         raise ValueError(
             'Invalid EPUB: container.xml declares an unknown encoding') from error
     ns = {'c': 'urn:oasis:names:tc:opendocument:xmlns:container'}
@@ -66,9 +103,8 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
     opf_xml = read_member(opf_path)
     repaired_metadata = False
     try:
-        # bounded member read (size-capped, review mode).
-        package = ET.fromstring(opf_xml)  # nosec B314
-    except LookupError as error:
+        package = parse_epub_xml(opf_xml)
+    except EpubXmlEncodingError as error:
         raise ValueError(
             'Invalid EPUB: package document declares an unknown encoding') from error
     except ET.ParseError:
@@ -78,7 +114,7 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
         if repaired == opf_xml:
             raise
         # bounded member read (size-capped, review mode).
-        package = ET.fromstring(repaired)  # nosec B314
+        package = parse_epub_xml(repaired)
         repaired_metadata = True
     if include_details:
         return opf_path, package, {'rootfile_count': len(rootfiles),

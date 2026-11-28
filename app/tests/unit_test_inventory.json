@@ -6038,8 +6038,11 @@
     , "tests.test_epub_extraction_report_js.EpubExtractionReportJsTests.test_real_upload_handler_fences_reports_and_uses_text_only"
   ]
   , "test_epub_hidden_attribute": [
-    "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_a_supported_declared_encoding_is_decoded_and_kept"
-    , "tests.test_epub_hidden_attribute.FuzzEncodingFilterTests.test_filter_does_not_absorb_errors_from_outside_the_decoder"
+    "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_a_codec_that_refuses_the_document_does_not_crash_load_epub"
+    , "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_a_supported_declared_encoding_is_decoded_and_kept"
+    , "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_an_unusable_declaration_of_utf8_text_still_falls_back"
+    , "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_punycode_declaration_with_hidden_markup_matches_origin_main"
+    , "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_the_fallback_is_strict_and_names_the_refused_member"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_anchor_id_helper_matches_the_tolerant_extractor_lookup"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_annotation_xml_in_inherited_xhtml_namespace_obeys_hidden"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_bad_encoding_name_load_stays_byte_identical_to_origin_main"
@@ -6122,6 +6125,7 @@
   ]
   , "test_epub_package": [
     "tests.test_epub_package.EpubPackageTests.test_a_missing_container_is_not_reported_as_an_encoding_problem"
+    , "tests.test_epub_package.EpubPackageTests.test_a_multibyte_declared_encoding_is_a_value_error"
     , "tests.test_epub_package.EpubPackageTests.test_an_unknown_declared_encoding_is_a_value_error"
     , "tests.test_epub_package.EpubPackageTests.test_missing_rootfile_fails_in_both_modes"
     , "tests.test_epub_package.EpubPackageTests.test_only_known_sigil_fragment_is_repaired"
@@ -6155,6 +6159,11 @@
     , "tests.test_epub_readaloud.EpubReadaloudTests.test_wordless_separators_preserve_spoken_element_targets"
     , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_bogus_nav_declaration_leaves_the_readaloud_toc_empty"
     , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_bogus_ncx_declaration_returns_no_ncx_points"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_built_smil_declaration_is_malformed"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_built_xhtml_declaration_is_malformed"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_navigation_declarations_are_skipped"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_retained_container_declaration_is_malformed"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_spine_document_declaration_is_malformed"
   ]
   , "test_epub_readaloud_conformance": [
     "tests.test_epub_readaloud_conformance.R1ManifestAndDurationTests.test_dcterms_modified_exactly_one_and_epub2_gets_one"
@@ -6241,7 +6250,8 @@
     , "tests.test_epub_retention_r5.R5UploadTests.test_unknown_publish_after_commit_preserves"
   ]
   , "test_epub_unclosed_skip_tags": [
-    "tests.test_epub_unclosed_skip_tags.UnclosedRubyTests.test_unclosed_ruby_at_eof_keeps_its_base_text"
+    "tests.test_epub_unclosed_skip_tags.UnclosedRubyTests.test_unclosed_reading_at_eof_matches_the_closed_markup"
+    , "tests.test_epub_unclosed_skip_tags.UnclosedRubyTests.test_unclosed_ruby_at_eof_keeps_its_base_text"
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_canonical_media_type_drives_admission_and_dispatch"
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_case_insensitive_ignored_tags_in_cdata_are_omitted_exactly"
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_closed_ignored_entity_and_ampersand_diagnosis_is_truthful"

@@ -63,6 +63,24 @@ class EpubPackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'unknown encoding'):
                 get_epub_package(archive)
 
+    def test_a_multibyte_declared_encoding_is_a_value_error(self):
+        # E2: expat refuses a declaration it cannot stream with
+        # ValueError('multi-byte encodings are not supported'), not
+        # LookupError. Both parse sites must map it to the documented refusal.
+        for codec in ('shift_jis', 'utf-16-le', 'utf-16-be', 'utf-32-le'):
+            declaration = f'<?xml version="1.0" encoding="{codec}"?>'
+            container = (declaration +
+                         '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                         '<rootfiles><rootfile full-path="book.opf"/></rootfiles></container>')
+            with self.subTest(site='container', codec=codec), \
+                    self.archive(container=container) as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+            with self.subTest(site='opf', codec=codec), \
+                    self.archive(declaration + '<package/>') as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+
     def test_a_missing_container_is_not_reported_as_an_encoding_problem(self):
         # #2375: read_member's KeyError is a LookupError too, so the encoding
         # handler must not absorb a missing META-INF/container.xml.

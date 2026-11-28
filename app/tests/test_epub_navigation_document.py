@@ -199,26 +199,34 @@ class EpubNavigationDocumentTests(unittest.TestCase):
         self.assertEqual(['navigation_document'], sorted({row['reason'] for row in targets}))
 
     def test_unknown_navigation_encoding_is_recorded_as_malformed(self):
-        # #2370: ET.fromstring raises LookupError, not ET.ParseError, for an
-        # unknown declared encoding, and the navigation readers caught only
+        # #2370: ET.fromstring raises LookupError or, for a codec expat cannot
+        # stream, ValueError('multi-byte encodings are not supported'); neither
+        # is ET.ParseError, and the navigation readers caught only
         # KeyError/ET.ParseError.
-        bogus = '<?xml version="1.0" encoding="bogus"?>'
-        nav_body = (bogus + '<html xmlns="http://www.w3.org/1999/xhtml" '
-                    'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
-                    '<nav epub:type="toc"><a href="one.xhtml">A Cold Morning</a></nav>'
-                    '</body></html>')
-        text, report = extract(navigation_epub(nav_body=nav_body))
-        # Without a table of contents the chapter labels are not inserted.
-        self.assertEqual('Story begins.\n\nStory ends.', text)
-        self.assertIn('missing_or_malformed_navigation',
-                      [row.get('reason') for row in report['rows']])
+        declarations = {
+            'unknown': '<?xml version="1.0" encoding="bogus"?>',
+            'shift_jis': '<?xml version="1.0" encoding="shift_jis"?>',
+            'utf-16-le': '<?xml version="1.0" encoding="utf-16-le"?>',
+            'utf-32-be': '<?xml version="1.0" encoding="utf-32-be"?>',
+        }
+        for name, bogus in declarations.items():
+            with self.subTest(codec=name):
+                nav_body = (bogus + '<html xmlns="http://www.w3.org/1999/xhtml" '
+                            'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                            '<nav epub:type="toc"><a href="one.xhtml">A Cold Morning</a></nav>'
+                            '</body></html>')
+                text, report = extract(navigation_epub(nav_body=nav_body))
+                # Without a table of contents the chapter labels are not inserted.
+                self.assertEqual('Story begins.\n\nStory ends.', text)
+                self.assertIn('missing_or_malformed_navigation',
+                              [row.get('reason') for row in report['rows']])
 
-        epub2_text, epub2_report = extract(navigation_epub(
-            version='2.0', nav_in_spine=False, include_ncx=True,
-            nav_properties=None, ncx_declaration=bogus))
-        self.assertEqual('Story begins.\n\nStory ends.', epub2_text)
-        self.assertIn('missing_or_malformed_navigation',
-                      [row.get('reason') for row in epub2_report['rows']])
+                epub2_text, epub2_report = extract(navigation_epub(
+                    version='2.0', nav_in_spine=False, include_ncx=True,
+                    nav_properties=None, ncx_declaration=bogus))
+                self.assertEqual('Story begins.\n\nStory ends.', epub2_text)
+                self.assertIn('missing_or_malformed_navigation',
+                              [row.get('reason') for row in epub2_report['rows']])
 
     def test_manifest_href_with_invalid_ipv6_authority_does_not_abort_import(self):
         # #2377: urlsplit('http://[') raises ValueError before the href can be

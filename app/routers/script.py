@@ -115,7 +115,8 @@ from alexandria_alignment import (
     is_well_formed_xml,
     validate_epub_archive,
 )
-from epub_package import get_epub_package, is_navigation_document
+from epub_package import (EpubXmlEncodingError, get_epub_package,
+                         is_navigation_document, parse_epub_xml)
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from epub_extraction_report import EpubExtractionReport
 from project_scope_files import capture_scope_file
@@ -592,6 +593,10 @@ class _HTMLTextExtractor(HTMLParser):
         """Emit the open ruby collector's text, if any."""
         if self._ruby is None:
             return
+        # An <rt> left open (at EOF, or before </ruby>) never delivered its
+        # end tag. Close it here so the truncated element narrates exactly like
+        # the closed markup, including a kana reading that replaces its base.
+        self._ruby.end_reading()
         spoken, self._ruby, self._ruby_fallback_depth = (
             self._ruby.get_spoken_text(), None, 0)
         if spoken:
@@ -833,9 +838,10 @@ def _get_epub3_toc_entries(zf, manifest, *, report=None):
     for nav_item in nav_items:
         try:
             # archive admitted by validate_epub_archive.
-            root = ET.fromstring(zf.read(nav_item['path']))  # nosec B314
-        except (KeyError, ET.ParseError, LookupError):
-            # LookupError is an unknown declared encoding, not a parse error.
+            root = parse_epub_xml(zf.read(nav_item['path']))
+        except (KeyError, ET.ParseError, EpubXmlEncodingError):
+            # An unprocessable encoding declaration is malformed navigation
+            # (#2370), not an unhandled import failure.
             decisions.append((nav_item['path'], 'missing_or_malformed_navigation'))
             continue
         for nav in root.iter():
@@ -874,9 +880,9 @@ def _get_epub2_toc_entries(zf, opf, opf_ns, manifest, *, report=None):
         return [], [(None, 'no_epub2_navigation')]
     try:
         # archive admitted by validate_epub_archive.
-        root = ET.fromstring(zf.read(ncx_item['path']))  # nosec B314
-    except (KeyError, ET.ParseError, LookupError):
-        # LookupError is an unknown declared encoding, not a parse error.
+        root = parse_epub_xml(zf.read(ncx_item['path']))
+    except (KeyError, ET.ParseError, EpubXmlEncodingError):
+        # An unprocessable encoding declaration is malformed navigation (#2370).
         return [], [(ncx_item['path'], 'missing_or_malformed_navigation')]
     entries = []
     for nav_point in root.iter():
@@ -997,9 +1003,14 @@ def _insert_epub_toc_titles(text, anchor_positions, toc_targets, *, decisions=No
     return text
 
 
-def get_epub_xhtml_text(data: bytes) -> str:
-    """Decode XHTML using its Unicode byte order or XML encoding declaration."""
-    return decode_epub_markup(data)
+def get_epub_xhtml_text(data: bytes, *, resource=None) -> str:
+    """Decode XHTML using its Unicode byte order or XML encoding declaration.
+
+    ``resource`` names the archive member in the refusal raised when the
+    declaration is unreadable and the bytes are not valid UTF-8, so the
+    diagnostic identifies the one member that must be fixed.
+    """
+    return decode_epub_markup(data, resource=resource)
 
 
 def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, include_report=False,
@@ -1125,7 +1136,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                     report.apply_row('spine', index=spine_index, item_id=item_id, resource=href,
                                      reason='missing_archive_resource')
                 continue
-            html_content = get_epub_xhtml_text(html_bytes)
+            html_content = get_epub_xhtml_text(html_bytes, resource=href)
             targets = toc_by_path.get(href, [])
             anchor_ids = {fragment for fragment, _ in targets if fragment}
             # text/html RCDATA (<title>, <textarea>) keeps literal markup as

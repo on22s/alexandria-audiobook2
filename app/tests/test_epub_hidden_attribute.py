@@ -14,7 +14,6 @@ shared predicates (``alexandria_alignment.is_html_hidden_attrs`` and
 import contextlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -1684,33 +1683,56 @@ class DeclaredEncodingFallbackTests(unittest.TestCase):
         # The declaration is still true for these bytes, so it is not rewritten.
         self.assertIn('encoding="windows-1252"', text)
 
+    def test_the_fallback_is_strict_and_names_the_refused_member(self):
+        # #2368 follow-up: the fallback must never narrate U+FFFD. A real
+        # cp1252 document with an unusable declaration cannot be read as
+        # UTF-8, so extraction refuses that member by name instead.
+        doc = (b'<?xml version="1.0" encoding="bogus"?>'
+               b'<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+               b'<p>Caf\xe9.</p></body></html>')
+        raw = make_epub('', raw_document=doc, toc_links=[])
+        with self.assertRaisesRegex(ValueError, 'OEBPS/ch1.xhtml') as caught:
+            extract_epub_text('synthetic.epub', archive_bytes=raw)
+        self.assertIn('unreadable encoding', str(caught.exception))
+        self.assertNotIn('\ufffd', str(caught.exception))
 
-class FuzzEncodingFilterTests(unittest.TestCase):
-    """The fuzz harness filter must stay narrower than the decoder it names."""
+    def test_an_unusable_declaration_of_utf8_text_still_falls_back(self):
+        # A declaration with a non-ASCII/NUL name over real UTF-8 text is
+        # recoverable: strict UTF-8 succeeds and the declaration is rewritten.
+        for declaration in (b'<?xml version="1.0" encoding="\xe9"?>',
+                            b'<?xml version="1.0" encoding="ut\x00f-8"?>',
+                            b'<?xml version="1.0" encoding="base64"?>'):
+            with self.subTest(declaration=declaration):
+                doc = (declaration + b'<html xmlns="http://www.w3.org/1999/xhtml">'
+                       b'<body><p>Caf\xc3\xa9.</p></body></html>')
+                self.assertEqual(
+                    'Café.', extract_epub_text(
+                        'synthetic.epub',
+                        archive_bytes=make_epub('', raw_document=doc, toc_links=[])))
 
-    def test_filter_does_not_absorb_errors_from_outside_the_decoder(self):
-        fuzz_dir = str(Path(__file__).resolve().parents[2] / 'tools' / 'fuzz')
-        if fuzz_dir not in sys.path:
-            sys.path.insert(0, fuzz_dir)
-        import _common  # noqa: PLC0415 - tools/fuzz is not on the test path
+    def test_a_codec_that_refuses_the_document_does_not_crash_load_epub(self):
+        # punycode passes codecs.lookup() and then refuses these bytes. That is
+        # an unusable declaration: load_epub must narrate origin/main's text
+        # (hidden handling declines, ebooklib reads the member) rather than
+        # raising UnicodeDecodeError (#2368 follow-up).
+        doc = (b'<?xml version="1.0" encoding="punycode"?>'
+               b'<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+               b'</head><body><p>Caf\xc3\xa9.</p></body></html>')
+        self.assertEqual(
+            '\n \n \n \n \n Café. \n \n \n',
+            _load_bytes(make_epub('', raw_document=doc, toc_links=[])))
 
-        # Same type and message as #2368, but raised outside the decoder: the
-        # filter must still refuse to absorb an unrelated ValueError.
-        try:
-            b'x'.decode('ut\x00f-8', errors='replace')
-        except ValueError as exc:
-            self.assertFalse(_common.is_known_xhtml_encoding_error(exc))
-        else:
-            self.fail('expected ValueError("embedded null character")')
-
-        # A real UnicodeError from another alexandria_alignment function: same
-        # file, but not one of the decode sites.
-        try:
-            alignment._utf8_markup('\ud800')
-        except UnicodeEncodeError as exc:
-            self.assertFalse(_common.is_known_xhtml_encoding_error(exc))
-        else:
-            self.fail('expected UnicodeEncodeError from _utf8_markup')
+    def test_punycode_declaration_with_hidden_markup_matches_origin_main(self):
+        # The unusable declaration must be *declined*, not merely decoded: if
+        # hidden handling ran, the hidden paragraph would be dropped, while
+        # origin/main narrates it. Pin main's exact output.
+        doc = (b'<?xml version="1.0" encoding="punycode"?>'
+               b'<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+               b'</head><body><p>Caf\xc3\xa9.</p><p hidden="">SECRET</p>'
+               b'<p>After.</p></body></html>')
+        self.assertEqual(
+            '\n \n \n \n \n Café. \n SECRET \n After. \n \n \n',
+            _load_bytes(make_epub('', raw_document=doc, toc_links=[])))
 
 
 class HtmlHiddenReadaloudParityTests(unittest.TestCase):

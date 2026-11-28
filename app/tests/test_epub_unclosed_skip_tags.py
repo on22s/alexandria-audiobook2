@@ -72,6 +72,28 @@ class UnclosedRubyTests(unittest.TestCase):
                         middle_media_type='text/html')
         self.assertIn('Before.BaseWithoutClose', extract(raw))
 
+    def test_unclosed_reading_at_eof_matches_the_closed_markup(self):
+        # L2: HTMLParser never synthesizes </rt> either. An <rt> left open at
+        # EOF (or before </ruby>) must narrate exactly like closed markup: the
+        # kana reading replaces its base, and a reading with no base is kept.
+        rows = {
+            'base_then_reading': (
+                '<ruby>漢字<rt>かんじ', '<ruby>漢字<rt>かんじ</rt></ruby>'),
+            'reading_without_base': (
+                '<ruby><rt>かんじ', '<ruby><rt>かんじ</rt></ruby>'),
+            'closed_ruby_open_reading': (
+                '<ruby>漢字<rt>かんじ</ruby>', '<ruby>漢字<rt>かんじ</rt></ruby>'),
+        }
+        for name, (truncated, closed) in rows.items():
+            with self.subTest(case=name):
+                prefix = '<html><body><p>Before.</p>'
+                open_text = extract(make_epub(
+                    prefix + truncated, middle_media_type='text/html'))
+                closed_text = extract(make_epub(
+                    prefix + closed, middle_media_type='text/html'))
+                self.assertEqual(closed_text, open_text)
+                self.assertIn('Before.かんじ', open_text)
+
 
 class UnclosedSkipTagTests(unittest.TestCase):
     def test_each_unclosed_skip_tag_in_middle_raises_bytes_and_path(self):

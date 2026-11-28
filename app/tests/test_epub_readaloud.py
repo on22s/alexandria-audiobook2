@@ -2,8 +2,10 @@
 import io
 import zipfile
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 
+import epub_readaloud as er
 from epub_readaloud import (build_epub_readaloud, map_spine_to_chunks,
                             validate_epub_readaloud, get_xhtml_segments,
                             get_ncx_points, get_spine_documents)
@@ -215,6 +217,9 @@ class EpubReadaloudTests(unittest.TestCase):
 
 
 _BOGUS_DECLARATION = b'<?xml version="1.0" encoding="bogus"?>'
+_MULTIBYTE_DECLARATIONS = tuple(
+    f'<?xml version="1.0" encoding="{codec}"?>'.encode('ascii')
+    for codec in ('shift_jis', 'utf-16-le'))
 _NCX = (b'<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
         b'<navMap><navPoint id="n1"><navLabel><text>Chapter One</text></navLabel>'
         b'<content src="ch1.xhtml"/></navPoint></navMap></ncx>')
@@ -231,6 +236,15 @@ def _put_member(archive_bytes, name, data):
         if name not in source.namelist():
             target.writestr(name, data)
     return buffer.getvalue()
+
+
+def _replace_declaration(archive_bytes, name, declaration):
+    """Return a copy with ``name``'s XML declaration replaced by ``declaration``."""
+    with zipfile.ZipFile(io.BytesIO(archive_bytes)) as source:
+        original = source.read(name)
+    end = original.find(b'?>')
+    body = original[end + 2:] if original.startswith(b'<?xml') and end != -1 else original
+    return _put_member(archive_bytes, name, declaration + body)
 
 
 class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
@@ -256,6 +270,69 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
         manifest = {'ncx': {'path': 'OEBPS/toc.ncx',
                             'media_type': 'application/x-dtbncx+xml'}}
         self.assertEqual([], get_ncx_points(raw, manifest, 'OEBPS/content.opf'))
+
+    def test_multibyte_navigation_declarations_are_skipped(self):
+        # E2: expat's second refusal is ValueError, not LookupError; it must
+        # reach the same malformed-navigation fallback, not abort the reader.
+        for declaration in _MULTIBYTE_DECLARATIONS:
+            with self.subTest(member='nav', declaration=declaration):
+                raw = _replace_declaration(_make_source_epub(), 'OEBPS/nav.xhtml',
+                                           declaration)
+                _opf, _package, _ns, _manifest, spine, metadata = get_spine_documents(raw)
+                self.assertEqual([], metadata['toc'])
+                self.assertEqual(2, len(spine))
+            with self.subTest(member='ncx', declaration=declaration):
+                raw = _put_member(_make_source_epub(), 'OEBPS/toc.ncx',
+                                  declaration + _NCX)
+                manifest = {'ncx': {'path': 'OEBPS/toc.ncx',
+                                    'media_type': 'application/x-dtbncx+xml'}}
+                self.assertEqual([], get_ncx_points(raw, manifest, 'OEBPS/content.opf'))
+
+    def test_multibyte_spine_document_declaration_is_malformed(self):
+        for declaration in _MULTIBYTE_DECLARATIONS:
+            with self.subTest(declaration=declaration):
+                raw = _replace_declaration(_make_source_epub(), 'OEBPS/ch1.xhtml',
+                                           declaration)
+                with self.assertRaisesRegex(
+                        ValueError, '^Spine document is malformed: OEBPS/ch1.xhtml$'):
+                    get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+
+    def test_multibyte_built_xhtml_declaration_is_malformed(self):
+        built, _report = build_epub_readaloud(
+            retained_epub_bytes=_make_source_epub(), audio_bytes=b'\xff\xfbx',
+            audio_filename='audiobook.mp3', script_entries=_script_entries())
+        for declaration in _MULTIBYTE_DECLARATIONS:
+            with self.subTest(declaration=declaration):
+                raw = _replace_declaration(built, 'OEBPS/ch1.xhtml', declaration)
+                with self.assertRaisesRegex(ValueError, 'Built EPUB XHTML is malformed'):
+                    validate_epub_readaloud(raw)
+
+    def test_multibyte_built_smil_declaration_is_malformed(self):
+        built, _report = build_epub_readaloud(
+            retained_epub_bytes=_make_source_epub(), audio_bytes=b'\xff\xfbx',
+            audio_filename='audiobook.mp3', script_entries=_script_entries())
+        for declaration in _MULTIBYTE_DECLARATIONS:
+            with self.subTest(declaration=declaration):
+                raw = _replace_declaration(built, 'OEBPS/ch1.smil', declaration)
+                with self.assertRaisesRegex(ValueError, 'Built EPUB SMIL is malformed'):
+                    validate_epub_readaloud(raw)
+
+    def test_multibyte_retained_container_declaration_is_malformed(self):
+        # get_spine_documents normally parses container.xml first and refuses
+        # it as a package (#2375), so bypass that read to exercise the build's
+        # own retained-container handler.
+        source = _make_source_epub()
+        with zipfile.ZipFile(io.BytesIO(source)) as archive:
+            opf_path, package = er.get_epub_package(archive)
+        raw = _replace_declaration(
+            source, 'META-INF/container.xml',
+            b'<?xml version="1.0" encoding="shift_jis"?>')
+        with mock.patch.object(er, 'get_epub_package',
+                               return_value=(opf_path, package)):
+            with self.assertRaisesRegex(ValueError, 'Retained EPUB container is malformed'):
+                build_epub_readaloud(
+                    retained_epub_bytes=raw, audio_bytes=b'\xff\xfbx',
+                    audio_filename='audiobook.mp3', script_entries=_script_entries())
 
 
 if __name__ == "__main__":

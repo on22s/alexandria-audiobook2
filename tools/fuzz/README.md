@@ -50,37 +50,20 @@ app/env/bin/python tools/fuzz/fuzz_epub_raw.py /path/to/crash-artifact
 The harnesses ignore only exceptions that the fuzzed production code documents
 as malformed-input refusals; everything else crashes the run:
 
-- **Known library bugs** (`#2367`, `#2368`, `#2370`, `#2371`, `#2375`) are
-  matched by the throwing function's source file and function name plus the
-  exception type. Each filtered function has one reachable failure site (or,
-  for `#2368`, the two decode statements documented in that bug), so no
-  bytecode/`tb_lasti` inspection is used. Opcode names and call layouts
-  differ across CPython versions (`LOAD_METHOD` is gone in 3.12, `CALL_METHOD`
-  in 3.13) and Atheris rewrites the code it instruments, so a bytecode window
-  would be a CPython-3.10-only assumption. `get_epub_xhtml_text` delegates to
-  `alexandria_alignment.decode_epub_markup`, so #2368's two decode statements
-  now raise in `decode_epub_markup` (the resource decode) and
-  `_decode_head_encoding` (the declared name); the filter accepts either frame
-  and still accepts the old router frame. The encoding-declaration filters
-  (`#2368`/`#2370`/`#2375`) cover every CPython 3.10 failure mode of those
-  bugs: `LookupError` for an unknown codec plus `ValueError` for
-  `multi-byte encodings are not supported` (`#2370`/`#2375`) and
-  `embedded null character` (`#2368`).
-- **`ValueError`** is never caught wholesale. The EPUB harnesses accept only
-  the documented message prefixes from `validate_epub_archive`,
-  `get_epub_package`, and `extract_epub_text`; the parity harness does the same
-  for `load_epub`, whose documented refusals are the archive-admission
-  messages plus `EPUB has no readable spine documents` and
-  `EPUB spine references missing document: ...`. The extractor's
-  `Malformed EPUB resource at spine index ...` wrapper is accepted only when
-  its `__cause__` is one of the four documented inner parser messages
-  (`invalid XML: ...`, `invalid XML while ...`, `invalid Unicode: ...`,
-  `unclosed <...`), because an unexpected `ValueError` from the extraction
-  block is wrapped in the same prefix. The stdlib `zipfile` corrupt-offset
-  `ValueError` (`negative seek value ...` / `seek out of range`) is accepted
-  only from the `zipfile` frame, and #2377's `Invalid IPv6 URL` only from
-  `_resolve_epub_href` calling `urllib.parse.urlsplit`. A `ValueError` with
-  any other message fails the harness.
+- **Known library bugs** are matched by the throwing function's source file and
+  function name plus the exception type. The one remaining exemption is
+  **#2371** (`ebooklib._parse_nav` `IndexError` on a multi-token/non-TOC
+  `<nav>`). The #2367, #2368, #2370, #2375 and #2377 exemptions were retired
+  with their fixes (PR #2438): a recurrence now crashes the harness instead of
+  being reported as a known bug. `ValueError` is never caught wholesale; the
+  EPUB harnesses accept only the documented message prefixes from
+  `validate_epub_archive`, `get_epub_package`, `decode_epub_markup` and
+  `extract_epub_text` (including the `#2375` malformed-package refusals and the
+  `#2368` strict-UTF-8 fallback refusal), plus the stdlib `zipfile`
+  corrupt-offset refusal. `LookupError`/multi-byte `ValueError` encoding
+  refusals no longer escape: `epub_package.parse_epub_xml` maps both to
+  `EpubXmlEncodingError`, which every reader handles as its documented
+  malformed-input refusal or fallback.
 - **ZIP/XML refusal exceptions** (`BadZipFile`, `ET.ParseError`, stdlib
   ZIP `RuntimeError`/`KeyError`/`OSError`/`UnicodeError` paths) are scoped to
   the exact stdlib `zipfile`/`ElementTree` frame; `UnicodeError` is always
