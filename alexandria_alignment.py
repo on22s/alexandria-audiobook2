@@ -271,14 +271,47 @@ def html_hidden_handling_applies(media_type, *, xml_well_formed: bool) -> bool:
             and bool(xml_well_formed))
 
 
+# Python codecs that transform text or bytes instead of naming a character set.
+# An XML declaration can never legitimately select one (#2368): ``unicode_escape``
+# and ``raw_unicode_escape`` decode 8-bit document bytes to plausible mojibake
+# without raising, and ``idna``/``punycode`` are text transforms, not charsets.
+_PYTHON_ONLY_CODECS = frozenset({
+    'unicode-escape', 'raw-unicode-escape', 'idna', 'punycode', 'undefined',
+})
+_UTF16_32_CODECS = frozenset({
+    'utf-16', 'utf-16-le', 'utf-16-be',
+    'utf-32', 'utf-32-le', 'utf-32-be',
+})
+
+
+def _declared_multibyte_encoding_fits(raw: bytes, encoding: str) -> bool:
+    """Return whether a declared UTF-16/UTF-32 codec legitimately reads ``raw``.
+
+    A BOM or a real UTF-16 byte signature is detected before the declaration is
+    read, so the declaration only decides for a document *without* its matching
+    BOM. A valid BOM-less UTF-16 document still begins with markup; a wrong
+    declaration over 8-bit bytes decodes to CJK mojibake (``utf-16``) or
+    replacement characters (``utf-32``). Treating that as unusable sends the
+    bytes to the strict UTF-8 fallback instead of narrating the wrong text
+    (Rule 21).
+    """
+    try:
+        decoded = raw.decode(encoding, errors='replace')
+    except (LookupError, ValueError, UnicodeError):
+        return False
+    return '\ufffd' not in decoded and decoded.lstrip().startswith('<')
+
+
 def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
     """Return ``(codec, declared_usable)`` for an EPUB markup item.
 
     ``declared_usable`` is False when the XML declaration names something that
     is not an ASCII codec name this build can look up: a non-ASCII name, a name
-    containing NUL, or no such codec. The returned codec is then the fallback,
-    UTF-8 with BOM handling. Whether the codec can decode the document itself
-    (``punycode`` passes the lookup and then refuses real text) is decided on
+    containing NUL, or no such codec. It is also False for a Python-only
+    transform codec, and for a UTF-16/UTF-32 declaration that does not fit the
+    bytes (see :func:`_declared_multibyte_encoding_fits`). The returned codec
+    is then the fallback, UTF-8 with BOM handling. A codec that passes this
+    classification can still refuse the document's bytes; that is decided on
     the real bytes in :func:`_read_epub_markup`.
     """
     if raw.startswith((b'\xff\xfe', b'\xfe\xff')):
@@ -292,11 +325,18 @@ def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
         return 'utf-8-sig', True
     try:
         encoding = match.group(1).decode('ascii')
-        codecs.lookup(encoding)
+        codec = codecs.lookup(encoding)
     except (ValueError, LookupError):
         # A NUL name raises ValueError, an unknown or binary-transform name
         # (base64, hex) raises LookupError, and a non-ASCII name raises
         # UnicodeDecodeError, which is a ValueError.
+        return 'utf-8-sig', False
+    # ``_is_text_encoding`` is the flag CPython's own TextIOWrapper consults;
+    # the binary transforms (uu, base64, hex, zlib, ...) are not charsets.
+    if not getattr(codec, '_is_text_encoding', True) or codec.name in _PYTHON_ONLY_CODECS:
+        return 'utf-8-sig', False
+    if (codec.name in _UTF16_32_CODECS
+            and not _declared_multibyte_encoding_fits(raw, encoding)):
         return 'utf-8-sig', False
     return encoding, True
 

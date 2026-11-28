@@ -44,7 +44,7 @@ import posixpath
 import re
 import zipfile
 from pathlib import PurePosixPath
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import quote, unquote
 import unicodedata
 import xml.etree.ElementTree as ET
 
@@ -54,7 +54,8 @@ from alexandria_alignment import (
     is_html_hidden_attrs,
 )
 from epub_package import (EpubXmlEncodingError, get_epub_package,
-                         is_navigation_document, parse_epub_xml)
+                         is_navigation_document, parse_epub_xml,
+                         split_epub_href)
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from qwen_align import (get_normalized_stream, get_stream_chars,
                         get_token_key, get_validated_aligner_tokens,
@@ -215,8 +216,8 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                 continue
             if item_id in manifest:
                 raise ValueError("Retained EPUB has duplicate manifest ids.")
-            parsed = urlsplit(href)
-            if parsed.scheme or parsed.netloc or parsed.query:
+            parsed = split_epub_href(href)
+            if parsed is None or parsed.scheme or parsed.netloc or parsed.query:
                 raise ValueError("Retained EPUB has an external manifest reference.")
             if parsed.fragment:
                 raise ValueError("Retained EPUB manifest reference must not carry a fragment.")
@@ -266,8 +267,9 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                             continue
                         label = ' '.join(''.join(link.itertext()).split())
                         href = link.get('href') or ''
-                        parsed = urlsplit(href)
-                        if not label or parsed.scheme or parsed.netloc or parsed.query:
+                        parsed = split_epub_href(href)
+                        if (not label or parsed is None or parsed.scheme
+                                or parsed.netloc or parsed.query):
                             continue
                         base = PurePosixPath(item['path']).parent
                         target = _resolve_uri_path(parsed.path, str(base), "nav href")
@@ -1872,8 +1874,9 @@ def validate_epub_readaloud(archive_bytes):
                 raise ValueError("Built EPUB has a duplicate manifest id.")
             if item.get('fallback') is not None:
                 raise ValueError("Built EPUB manifest must not use fallback chains.")
-            parsed = urlsplit(href)
-            if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
+            parsed = split_epub_href(href)
+            if (parsed is None or parsed.scheme or parsed.netloc
+                    or parsed.query or parsed.fragment):
                 raise ValueError("Built EPUB manifest has an external/fragment reference.")
             path = _resolve_uri_path(parsed.path, str(PurePosixPath(opf_path).parent),
                                      "manifest href")
@@ -1962,8 +1965,9 @@ def validate_epub_readaloud(archive_bytes):
                 for a in el.iter():
                     if _local(a.tag) == 'a' and (a.get('href') or ''):
                         href = a.get('href') or ''
-                        parsed = urlsplit(href)
-                        if parsed.scheme or parsed.netloc or parsed.query:
+                        parsed = split_epub_href(href)
+                        if (parsed is None or parsed.scheme or parsed.netloc
+                                or parsed.query):
                             raise ValueError("Built EPUB nav link is external.")
                         target = _resolve_uri_path(parsed.path,
                                                    str(PurePosixPath(nav_path).parent),
@@ -2065,8 +2069,9 @@ def validate_epub_readaloud(archive_bytes):
                 asrc = audio.get('src') or ''
                 if not asrc or asrc.startswith('/'):
                     raise ValueError("Built EPUB SMIL audio reference is invalid.")
-                audio_parsed = urlsplit(asrc)
-                if audio_parsed.scheme or audio_parsed.netloc or audio_parsed.query or audio_parsed.fragment:
+                audio_parsed = split_epub_href(asrc)
+                if (audio_parsed is None or audio_parsed.scheme or audio_parsed.netloc
+                        or audio_parsed.query or audio_parsed.fragment):
                     raise ValueError("Built EPUB SMIL audio reference is invalid.")
                 audio_path = _resolve_uri_path(audio_parsed.path,
                                                str(PurePosixPath(smil_path).parent),
@@ -2208,8 +2213,9 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
         if not href:
             return {"label": label, "href": href, "full": "",
                     "fragment": None, "children": children}
-        parsed_href = urlsplit(href)
-        if parsed_href.scheme or parsed_href.netloc or parsed_href.query:
+        parsed_href = split_epub_href(href)
+        if (parsed_href is None or parsed_href.scheme or parsed_href.netloc
+                or parsed_href.query):
             raise ValueError("Retained EPUB NCX has an external NCX reference.")
         full = _resolve_uri_path(parsed_href.path, ncx_dir, "NCX href")
         return {"label": label, "href": href, "full": full,
@@ -2426,8 +2432,9 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     for item in package.findall(namespace + 'manifest/' + namespace + 'item'):
         if item.get('media-type') == SMIL_MEDIA_TYPE:
             href = item.get('href') or ''
-            parsed = urlsplit(href)
-            if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
+            parsed = split_epub_href(href)
+            if (parsed is None or parsed.scheme or parsed.netloc
+                    or parsed.query or parsed.fragment):
                 raise ValueError("Retained EPUB has an external/fragment SMIL reference.")
             old_smil_paths.add(_resolve_uri_path(parsed.path, base_dir, "SMIL href"))
     for record in smil_records:

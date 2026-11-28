@@ -1,6 +1,7 @@
 """Shared container/OPF parsing for text extraction and publication review."""
 from pathlib import PurePosixPath, PureWindowsPath
 import re
+from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
 # EPUB 3 calls manifest `properties` a space-separated list; XML separates the
@@ -47,6 +48,21 @@ def parse_epub_xml(raw):
         if is_epub_encoding_refusal(error):
             raise EpubXmlEncodingError(str(error)) from error
         raise
+
+
+def split_epub_href(href):
+    """Split an EPUB href, or return ``None`` when it cannot name a member.
+
+    ``urlsplit`` raises ``ValueError`` for an unbalanced IPv6 bracket
+    (``http://[``). That href cannot identify an archive member, so every EPUB
+    reader treats it like any other external reference instead of aborting the
+    import (#2377). This is the one place the decision is made (Rule 15): text
+    extraction, read-aloud and publication review all call it.
+    """
+    try:
+        return urlsplit(href)
+    except (TypeError, ValueError):
+        return None
 
 
 def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, include_details=False):

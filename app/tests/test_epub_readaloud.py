@@ -339,5 +339,109 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
                             script_entries=_script_entries())
 
 
+class MalformedHrefReaderTests(unittest.TestCase):
+    """#2377 rev2: one unparsable-href rule in every read-aloud resolver."""
+
+    _MALFORMED = ('http://[', 'http://[::1', '//[')
+    _NAV = (b'<html xmlns="http://www.w3.org/1999/xhtml" '
+            b'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+            b'<nav epub:type="toc"><ol>'
+            b'<li><a href="{href}">Bad</a></li>'
+            b'<li><a href="ch1.xhtml">Chapter One</a></li>'
+            b'</ol></nav></body></html>')
+
+    def _opf_with_href(self, item_id, href):
+        source = _make_source_epub()
+        with zipfile.ZipFile(io.BytesIO(source)) as archive:
+            opf = archive.read('OEBPS/content.opf')
+        marker = f'id="{item_id}" href="'.encode()
+        start = opf.index(marker) + len(marker)
+        end = opf.index(b'"', start)
+        return _put_member(source, 'OEBPS/content.opf',
+                           opf[:start] + href.encode() + opf[end:])
+
+    def test_a_malformed_manifest_href_is_the_documented_external_refusal(self):
+        for href in self._MALFORMED:
+            with self.subTest(href=href):
+                raw = self._opf_with_href('c1', href)
+                with self.assertRaisesRegex(
+                        ValueError, 'Retained EPUB has an external manifest reference'):
+                    get_spine_documents(raw)
+                with self.assertRaisesRegex(
+                        ValueError, 'Retained EPUB has an external manifest reference'):
+                    build_epub_readaloud(
+                        retained_epub_bytes=raw, audio_bytes=b'\xff\xfbx',
+                        audio_filename='audiobook.mp3',
+                        script_entries=_script_entries())
+
+    def test_a_malformed_nav_href_is_skipped_like_an_external_link(self):
+        for href in self._MALFORMED:
+            with self.subTest(href=href):
+                raw = _put_member(_make_source_epub(), 'OEBPS/nav.xhtml',
+                                  self._NAV.replace(b'{href}', href.encode()))
+                _opf, _package, _ns, _manifest, spine, metadata = get_spine_documents(raw)
+                self.assertEqual(['OEBPS/ch1.xhtml', 'OEBPS/ch2.xhtml'],
+                                 [document['path'] for document in spine])
+                self.assertEqual(['OEBPS/ch1.xhtml'],
+                                 [link['path'] for link in metadata['toc']])
+
+    def test_a_malformed_ncx_content_src_is_the_documented_external_refusal(self):
+        for href in self._MALFORMED:
+            with self.subTest(href=href):
+                ncx = ('<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" '
+                       'version="2005-1"><navMap><navPoint id="n1">'
+                       '<navLabel><text>Chapter One</text></navLabel>'
+                       f'<content src="{href}"/></navPoint></navMap></ncx>').encode()
+                raw = _put_member(_make_source_epub(), 'OEBPS/toc.ncx', ncx)
+                manifest = {'ncx': {'path': 'OEBPS/toc.ncx',
+                                    'media_type': 'application/x-dtbncx+xml'}}
+                with self.assertRaisesRegex(
+                        ValueError, 'Retained EPUB NCX has an external NCX reference'):
+                    get_ncx_points(raw, manifest, 'OEBPS/content.opf')
+
+    def test_a_malformed_retained_smil_href_is_the_documented_refusal(self):
+        source = _make_source_epub()
+        opf_path, package, namespace, manifest, spine, meta = get_spine_documents(source)
+        manifest_el = package.find(namespace + 'manifest')
+        item = ET.SubElement(manifest_el, namespace + 'item')
+        item.set('id', 'bad-smil')
+        item.set('href', 'http://[')
+        item.set('media-type', er.SMIL_MEDIA_TYPE)
+        with mock.patch.object(
+                er, 'get_spine_documents',
+                return_value=(opf_path, package, namespace, manifest, spine, meta)):
+            with self.assertRaisesRegex(
+                    ValueError,
+                    'Retained EPUB has an external/fragment SMIL reference'):
+                build_epub_readaloud(
+                    retained_epub_bytes=source, audio_bytes=b'\xff\xfbx',
+                    audio_filename='audiobook.mp3',
+                    script_entries=_script_entries())
+
+    def test_a_malformed_href_in_a_built_epub_is_the_documented_refusal(self):
+        built, _report = build_epub_readaloud(
+            retained_epub_bytes=_make_source_epub(), audio_bytes=b'\xff\xfbx',
+            audio_filename='audiobook.mp3', script_entries=_script_entries())
+        with zipfile.ZipFile(io.BytesIO(built)) as archive:
+            opf = archive.read('OEBPS/content.opf')
+            nav = archive.read('OEBPS/nav.xhtml')
+            smil = archive.read('OEBPS/ch1.smil')
+        cases = (
+            ('manifest', 'OEBPS/content.opf',
+             opf.replace(b'href="ch1.xhtml"', b'href="http://["', 1),
+             'Built EPUB manifest has an external/fragment reference'),
+            ('nav', 'OEBPS/nav.xhtml',
+             nav.replace(b'href="ch1.xhtml"', b'href="http://["', 1),
+             'Built EPUB nav link is external'),
+            ('audio', 'OEBPS/ch1.smil',
+             smil.replace(b'src="audio/audiobook.mp3"', b'src="http://["'),
+             'Built EPUB SMIL audio reference is invalid'),
+        )
+        for name, member, data, message in cases:
+            with self.subTest(case=name):
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_epub_readaloud(_put_member(built, member, data))
+
+
 if __name__ == "__main__":
     unittest.main()

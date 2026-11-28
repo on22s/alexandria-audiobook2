@@ -39,7 +39,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 from math import ceil
 from typing import Any, Dict, List, Literal, Optional
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
@@ -116,7 +116,8 @@ from alexandria_alignment import (
     validate_epub_archive,
 )
 from epub_package import (EpubXmlEncodingError, get_epub_package,
-                         is_navigation_document, parse_epub_xml)
+                         is_navigation_document, parse_epub_xml,
+                         split_epub_href)
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from epub_extraction_report import EpubExtractionReport
 from project_scope_files import capture_scope_file
@@ -811,12 +812,12 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
 
 def _resolve_epub_href(base_path, href):
     """Resolve an internal EPUB href to a ZIP path and optional fragment."""
-    try:
-        parsed = urlsplit(href)
-    except ValueError:
-        # An unbalanced IPv6 bracket (`http://[`) makes urlsplit raise before
-        # the href can be classified as external. It cannot name an internal
-        # EPUB member, so treat it like any other external reference (#2377).
+    parsed = split_epub_href(href)
+    if parsed is None:
+        # An unbalanced IPv6 bracket (`http://[`) cannot be split, so it
+        # cannot name an internal EPUB member: treat it like any other
+        # external reference (#2377). ``split_epub_href`` is the one copy of
+        # that decision, shared with read-aloud and publication review.
         return None, None
     if parsed.scheme or parsed.netloc or (not parsed.path and not parsed.fragment):
         return None, None
@@ -1136,7 +1137,6 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                     report.apply_row('spine', index=spine_index, item_id=item_id, resource=href,
                                      reason='missing_archive_resource')
                 continue
-            html_content = get_epub_xhtml_text(html_bytes, resource=href)
             targets = toc_by_path.get(href, [])
             anchor_ids = {fragment for fragment, _ in targets if fragment}
             # text/html RCDATA (<title>, <textarea>) keeps literal markup as
@@ -1146,6 +1146,11 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 html_rcdata=media_type != 'application/xhtml+xml')
             xml_stats = {'hidden_elements': 0, 'first_hidden_location': None, 'hidden_anchors': set()}
             try:
+                # Decode inside this wrapper: #2368's strict-fallback refusal
+                # must name the spine index and resource like every other
+                # malformed-resource refusal, not escape as a bare ValueError
+                # before the documented message is built.
+                html_content = get_epub_xhtml_text(html_bytes, resource=href)
                 # XHTML resources are XML: omit true ignored subtrees via
                 # the strict XML path (a malformed XHTML resource with a
                 # skip-tag opening rejects actionably, exactly as before this

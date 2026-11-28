@@ -1734,6 +1734,90 @@ class DeclaredEncodingFallbackTests(unittest.TestCase):
             '\n \n \n \n \n Café. \n SECRET \n After. \n \n \n',
             _load_bytes(make_epub('', raw_document=doc, toc_links=[])))
 
+    def test_python_only_codecs_are_invalid_declarations(self):
+        # L1 rev2: these pass codecs.lookup() and several decode 8-bit bytes
+        # without raising, so the one declaration helper must reject them
+        # rather than let them narrate mojibake (Rule 21).
+        body = b'<html><body><p>Story.</p></body></html>'
+        for codec in ('unicode_escape', 'raw_unicode_escape', 'idna', 'punycode',
+                      'uu', 'base64', 'hex', 'rot_13'):
+            with self.subTest(codec=codec):
+                declaration = f'<?xml version="1.0" encoding="{codec}"?>'.encode()
+                encoding, usable = alignment._decode_head_encoding(declaration + body)
+                self.assertFalse(usable)
+                self.assertEqual('utf-8-sig', encoding)
+
+    def test_utf16_and_utf32_declarations_over_8bit_bytes_take_the_fallback(self):
+        # L1 rev2: a usable UTF-16/32 declaration silently decoded 8-bit
+        # document bytes to CJK mojibake or U+FFFD. It must be unusable and
+        # take the strict UTF-8 fallback (which recovers this UTF-8 document).
+        body = (b'<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+                b'<p>Caf\xc3\xa9.</p><p hidden="">SECRET</p></body></html>')
+        for encoding in ('utf-16', 'utf-16-le', 'utf-16-be',
+                         'utf-32', 'utf-32-le', 'utf-32-be'):
+            with self.subTest(encoding=encoding):
+                doc = f'<?xml version="1.0" encoding="{encoding}"?>'.encode() + body
+                self.assertFalse(alignment._decode_head_encoding(doc)[1])
+                self.assertEqual(
+                    'Café.',
+                    extract_epub_text('synthetic.epub',
+                                      archive_bytes=make_epub('', raw_document=doc,
+                                                              toc_links=[])))
+
+    def test_a_utf16_declaration_over_non_utf8_bytes_refuses_that_member(self):
+        # A wrong UTF-16 declaration over real 8-bit text is not recoverable as
+        # UTF-8; the member is refused by name instead of narrating mojibake.
+        doc = ('<?xml version="1.0" encoding="utf-16"?>'
+               '<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+               '<p>Caf\u00e9.</p></body></html>').encode('cp1252')
+        with self.assertRaisesRegex(ValueError, 'OEBPS/ch1.xhtml') as caught:
+            extract_epub_text('synthetic.epub',
+                              archive_bytes=make_epub('', raw_document=doc,
+                                                      toc_links=[]))
+        message = str(caught.exception)
+        self.assertIn('unreadable encoding', message)
+        self.assertNotIn('\ufffd', message)
+        self.assertNotIn('Café', message)
+
+    def test_valid_utf16_and_utf32_declarations_still_decode_as_origin_main(self):
+        # The other direction: a declaration that matches the real bytes must
+        # not take the unusable-declaration path.
+        template = ('<?xml version="1.0" encoding="{encoding}"?><html><body>'
+                    '<p>Caf\u00e9.</p></body></html>')
+        rows = {
+            'utf16_bom': template.format(encoding='utf-16').encode('utf-16'),
+            'utf16_be_bom': b'\xfe\xff' + template.format(
+                encoding='utf-16-be').encode('utf-16-be'),
+            'utf16_le_no_bom': template.format(encoding='utf-16-le').encode('utf-16-le'),
+            'utf16_be_no_bom': template.format(encoding='utf-16-be').encode('utf-16-be'),
+            'utf16_declared_le_no_bom': template.format(
+                encoding='utf-16').encode('utf-16-le'),
+        }
+        for name, raw in rows.items():
+            with self.subTest(case=name):
+                text = script.get_epub_xhtml_text(raw)
+                self.assertIn('Café.', text)
+                self.assertNotIn('\ufffd', text)
+                # The declaration was honoured, not rewritten by the fallback.
+                self.assertNotIn('encoding="utf-8"', text)
+
+    def test_the_strict_fallback_refusal_names_the_spine_index(self):
+        # L3 rev2: the #2368 refusal must be wrapped like every other
+        # malformed-resource refusal, naming the spine index and resource.
+        doc = (b'<?xml version="1.0" encoding="bogus"?>'
+               b'<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+               b'<p>Caf\xe9.</p></body></html>')
+        raw = make_epub('', raw_document=doc, toc_links=[])
+        with self.assertRaisesRegex(ValueError, r'^Malformed EPUB resource at spine '
+                                              r'index 0: ') as caught:
+            extract_epub_text('synthetic.epub', archive_bytes=raw)
+        message = str(caught.exception)
+        self.assertIn('unreadable encoding', message)
+        self.assertIn("'OEBPS/ch1.xhtml'", message)
+        self.assertNotIn('\ufffd', message)
+        with self.assertRaisesRegex(ValueError, r'spine index 0'):
+            extract_epub_text('synthetic.epub', archive_bytes=raw, include_report=True)
+
 
 class HtmlHiddenReadaloudParityTests(unittest.TestCase):
     def _build_from_extracted_script(self, epub_bytes, *, qwen):
