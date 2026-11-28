@@ -30,7 +30,9 @@ from dialogue_spans import (BLANK_LINE as _BLANK_LINE,
                             PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
                             dash_line_unverified_prefixes as _dash_prefixes,
                             dash_line_unverified_ranges as _dash_ranges,
+                            get_dash_mark as _get_dash_mark,
                             get_guillemet_direction as _get_guillemet_direction,
+                            has_strong_dash_line as _has_strong_dash_line,
                             is_inch_mark as _is_inch_mark,
                             is_number_char as _is_number_char,
                             split_dash_line as _split_dash_line)
@@ -779,7 +781,8 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     for index, char in enumerate(text):
         if index < skip_until:
             continue
-        if (dash_is_dialogue and not depth and char in "—–"
+        if (dash_is_dialogue and not depth
+                and _get_dash_mark(text, index)[1] == "strong"
                 and not text[text.rfind("\n", 0, index) + 1:index].strip(" \t")):
             # Continental line-dash dialogue: split at evidenced tags via the
             # single shared rule in dialogue_spans (#2329).
@@ -1415,6 +1418,14 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
                 convention = detect_convention(source_text)
             except Exception as exc:                        # noqa: BLE001
                 return [], "skipped:error:" + type(exc).__name__
+            if (convention == "dash_lines"
+                    and not _has_strong_dash_line(source_text)):
+                # The convention is the weak ASCII `--` form, which this gate
+                # cannot certify (it only understands `—`/`–`, #2447 gate 2).
+                # main reported `none_detected` for exactly these chunks, and
+                # naming a convention the gate never checked would mislead a
+                # reader comparing two clean reports (#2447 r5 nit 3).
+                convention = None
             return [], "skipped:" + (convention or "none_detected")
     findings = []
     if unverified_prefixes is not None:

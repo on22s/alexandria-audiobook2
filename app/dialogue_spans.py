@@ -151,7 +151,23 @@ _DASH_DIARY_SHAPE = re.compile(r"^\d{1,2}\s+[^\W\d_]+\.\s")
 _DASH_SHORT_ITEM_WORDS = 2
 # The gate's hard-wrap repro starts directly under a line that continues the
 # sentence. Dialogue normally starts a paragraph or follows a finished line.
+# This is the establishment floor, not the detection floor: `detect_convention`
+# still needs `MIN_CONVENTION_PAIRS` (5) dash lines for ANY convention, so a
+# three- or four-line fragment is evidence but not yet a book. The effective
+# detection floor for a weak `--` book is therefore 5 (#2447 r5 low 4).
 _DASH_WEAK_FLOOR = 3
+# Prose opened with `--` (a block quote, a footnote) opens like speech too.
+# At least one third of the counted lines must carry a dialogue anchor: `?`/`!`
+# or one of the reporting verbs in the table below (Rule 15, no second list).
+# Six verse lines or six `--1. See ...` notes carry neither, so they cannot
+# establish `--` dialogue (#2447 r5 low 2).
+_DASH_ANCHOR_DIVISOR = 3
+# Three or more paired-quote spans mean the book quotes its dialogue; its `--`
+# lines are then punctuation, never a competing convention, however many there
+# are. Without this veto a paired-quote book whose `--` asides outnumber its
+# quote spans flips to `dash_lines` and voices the asides (#2447 r5 low 3).
+# `—`/`–` never consult it: they certify by strength as on main.
+_DASH_PAIRED_VETO = 3
 
 
 def _weak_dash_is_structural(body):
@@ -215,6 +231,18 @@ def _weak_dash_evidence(text):
         yield match
 
 
+def _weak_dash_is_anchored(body):
+    """-> True when a weak `--` body carries a dialogue anchor.
+
+    A block quote or footnote row opens with the same capitalised and
+    punctuated shape as speech, so shape alone cannot make it dialogue. A
+    `?`/`!` or a reporting verb is the evidence that a line is spoken. The
+    verb vocabulary is the single dash table below (`_DASH_VERB`), not a
+    second list (Rule 15).
+    """
+    return "?" in body or "!" in body or bool(_DASH_VERB.search(body))
+
+
 def has_established_dash_convention(text, convention=None):
     """-> True when the weak `--` form carries dialogue in `text`.
 
@@ -225,22 +253,33 @@ def has_established_dash_convention(text, convention=None):
       (or any other) a `--` chunk abstains exactly as main did, because a
       chunk cannot tell `--Chapter I. The Beginning.` from `--Where are you
       going?` (#2447 gate 2 blocker 2 / low 1).
-    * With no caller convention, this is the whole-book detection question
-      for `detect_convention`: at least `_DASH_WEAK_FLOOR` weak lines of
-      dialogue evidence (opening like speech, not attribution/ToC/list/
-      diary/hard-wrap shaped) AND those lines outnumber paired-quote spans.
-      Guillemets go through `_paired_spans`, so `«…»` is counted consistently
-      and not only through a `QUOTE_MARKS` shortcut (#2447 gate 2 nit 1).
+    * With no caller convention, this is the whole-book evidence question
+      `detect_convention` asks. At least `_DASH_WEAK_FLOOR` weak lines must
+      open like speech, be non-attribution/non-ToC/list/diary/hard-wrap, and
+      a third of them must carry a dialogue anchor (`?`/`!` or a reporting
+      verb), or the `--` prose stays narration (#2447 r5 low 2). A book with
+      `_DASH_PAIRED_VETO` or more paired-quote spans quotes its dialogue
+      instead, and its `--` lines never establish a competing convention
+      (#2447 r5 low 3). Guillemets go through `_paired_spans`, so `«…»` is
+      counted consistently (#2447 gate 2 nit 1).
+    * `detect_convention` additionally requires `MIN_CONVENTION_PAIRS` (5)
+      dash lines, so the EFFECTIVE detection floor for a weak `--` book is 5:
+      three or four lines are established evidence but still too short to be
+      a book (#2447 r5 low 4).
 
     `—`/`–` never enter this predicate: they certify on strength, exactly as
     on main, in every context.
     """
     if convention is not None:
         return convention == "dash_lines"
-    evidence = sum(1 for _match in _weak_dash_evidence(text))
-    if evidence < _DASH_WEAK_FLOOR:
+    if len(_paired_spans(text)) >= _DASH_PAIRED_VETO:
         return False
-    return evidence > len(_paired_spans(text))
+    evidence = [match for match in _weak_dash_evidence(text)]
+    if len(evidence) < _DASH_WEAK_FLOOR:
+        return False
+    anchored = sum(1 for match in evidence
+                   if _weak_dash_is_anchored(match.group(1)))
+    return anchored * _DASH_ANCHOR_DIVISOR >= len(evidence)
 
 
 def iter_dash_lines(text, convention=None):
@@ -282,6 +321,22 @@ def count_dash_lines(text):
     if not has_established_dash_convention(text):
         return strong
     return strong + sum(1 for _match in _weak_dash_evidence(text))
+
+
+def has_strong_dash_line(text):
+    """-> True when `text` has at least one strong (`—`/`–`) dash line.
+
+    Whole-book detection counts both strengths, so this asks the different
+    question an unchecked chunk asks: can `pass_quality` certify a dash line
+    here at all? Only the strong forms, exactly as on main (#2447 r5 nit 3).
+    Drawn from the one dash table, so a new strong form is covered once.
+    """
+    for match in DASH_LINE.finditer(text):
+        raw = match.group(0)
+        lead = len(raw) - len(raw.lstrip(" \t"))
+        if get_dash_mark(raw, lead)[1] == "strong":
+            return True
+    return False
 
 
 def get_dash_mark(text, index):

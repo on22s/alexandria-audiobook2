@@ -2313,6 +2313,57 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
              for row in analyze_outer_quote_regions(signed)["regions"]],
         )
 
+    def test_line_dash_gate_takes_both_strong_marks_from_the_dash_table(self):
+        """#2447 r5 nit 2: the chunk gate recognises every strong table form.
+
+        The condition derives its marks from `DASH_MARKS` through
+        `get_dash_mark`, so the en dash certifies exactly like the em dash and
+        a future fourth strong row is covered once (Rule 15). A weak `--` line
+        is still not a line-dash here.
+        """
+        from dialogue_spans import DASH_MARKS, get_dash_mark
+        strong = [mark for mark, _length, strength in DASH_MARKS
+                  if strength == "strong"]
+        self.assertIn("—", strong)
+        self.assertIn("–", strong)
+        for mark in strong:
+            with self.subTest(mark=mark):
+                self.assertEqual((1, "strong"), get_dash_mark(mark + " Hi.", 0))
+                chunk = (f"{mark} The door was already open.\n"
+                         f"{mark} Nobody had come.\n")
+                self.assertEqual(
+                    [("SPOKEN", "The door was already open."),
+                     ("SPOKEN", "Nobody had come.")],
+                    [(row["type"], row["text"])
+                     for row in analyze_outer_quote_regions(chunk)["regions"]],
+                )
+        weak = "-- The door was already open.\n-- Nobody had come.\n"
+        self.assertEqual(
+            [], analyze_outer_quote_regions(weak)["regions"])
+
+    def test_unchecked_weak_dash_chunk_keeps_mains_skip_reason(self):
+        """#2447 r5 nit 3: an unchecked `--` chunk reports `none_detected`.
+
+        The gate only understands the strong forms, so it checked nothing.
+        main reported `skipped:none_detected` for these chunks; naming
+        `dash_lines` would advertise a check that did not happen. A strong
+        dash chunk keeps `skipped:dash_lines` when no analysis is supplied.
+        """
+        weak = "\n".join(["-- Where are you going now?", "-- Come back to me.",
+                          "-- Why did you leave.", "-- I am sorry.",
+                          "-- Tell me again.", "-- I will, she said."])
+        report = validate_segment_quality(
+            weak, [{"type": "NARRATOR", "text": weak}],
+            quote_analysis=analyze_outer_quote_regions(weak))
+        self.assertEqual("skipped:none_detected", report["quote_gate"])
+        self.assertTrue(report["passed"])
+        strong = "\n".join(
+            "— " + text for text in ("Come here.", "Wait there.", "Stay calm.",
+                                     "Look outside.", "Go ahead."))
+        report = validate_segment_quality(
+            strong, [{"type": "NARRATOR", "text": strong}])
+        self.assertEqual("skipped:dash_lines", report["quote_gate"])
+
 
 if __name__ == "__main__":
     unittest.main()
