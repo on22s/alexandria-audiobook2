@@ -2210,7 +2210,7 @@ class DashDialogueTagTests(unittest.TestCase):
             [{"speaker": "ANA", "text": "Adelante,"},
              {"speaker": "ANA", "text": "Sr. Licurgo."}], book)
         self.assertEqual(["weak_dash_ambiguity", "weak_dash_ambiguity"],
-                         [row["dialogue_ambiguity"]
+                         [row.get("dialogue_ambiguity")
                           for row in split["entries"]])
         self.assertEqual(["ANA", "ANA"],
                          [row["speaker"] for row in split["entries"]])
