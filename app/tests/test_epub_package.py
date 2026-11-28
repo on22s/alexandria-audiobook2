@@ -50,6 +50,124 @@ class EpubPackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'ambiguous publication'):
                 get_epub_package(archive, max_xml_bytes=4096, require_unique=True)
 
+    def test_an_unknown_declared_encoding_is_a_value_error(self):
+        # #2375: ET.fromstring raises LookupError (not ET.ParseError) for an
+        # unknown declared encoding, escaping both parse sites.
+        container = ('<?xml version="1.0" encoding="bogus"?>'
+                     '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                     '<rootfiles><rootfile full-path="book.opf"/></rootfiles></container>')
+        with self.archive(container=container) as archive:
+            with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                get_epub_package(archive)
+        with self.archive('<?xml version="1.0" encoding="bogus"?><package/>') as archive:
+            with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                get_epub_package(archive)
+
+    def test_a_multibyte_declared_encoding_is_a_value_error(self):
+        # E2: expat refuses a declaration it cannot stream with
+        # ValueError('multi-byte encodings are not supported'), not
+        # LookupError. Both parse sites must map it to the documented refusal.
+        for codec in ('shift_jis', 'utf-16-le', 'utf-16-be', 'utf-32-le'):
+            declaration = f'<?xml version="1.0" encoding="{codec}"?>'
+            container = (declaration +
+                         '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                         '<rootfiles><rootfile full-path="book.opf"/></rootfiles></container>')
+            with self.subTest(site='container', codec=codec), \
+                    self.archive(container=container) as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+            with self.subTest(site='opf', codec=codec), \
+                    self.archive(declaration + '<package/>') as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+
+    def test_unusable_python_codec_declarations_are_value_errors(self):
+        # #2370/#2375: Expat hands ``punycode``/``idna``/``undefined`` to
+        # Python's codec, which raises UnicodeError (not LookupError or the
+        # multi-byte ValueError). The shared unusable-codec decision refuses
+        # the declaration before that raw codec text can escape.
+        for codec in ('punycode', 'idna', 'undefined'):
+            declaration = f'<?xml version="1.0" encoding="{codec}"?>'
+            container = (declaration +
+                         '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                         '<rootfiles><rootfile full-path="book.opf"/></rootfiles></container>')
+            with self.subTest(site='container', codec=codec), \
+                    self.archive(container=container) as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+            with self.subTest(site='opf', codec=codec), \
+                    self.archive(declaration + '<package/>') as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+
+    def test_a_utf16_document_with_a_python_only_declaration_is_refused(self):
+        # The declaration bytes are UTF-16, so only a prolog decoded with the
+        # BOM/signature encoding can name the codec; the same shared decision
+        # still refuses it before Expat hands it to Python (Rule 15).
+        from epub_package import EpubXmlEncodingError, parse_epub_xml
+        for codec in ('punycode', 'idna', 'undefined'):
+            raw = (f'<?xml version="1.0" encoding="{codec}"?>'
+                   '<package/>').encode('utf-16')
+            with self.subTest(codec=codec), \
+                    self.assertRaises(EpubXmlEncodingError):
+                parse_epub_xml(raw)
+
+    def test_padded_python_codec_declarations_are_value_errors(self):
+        # Gate-2 B1: XML allows arbitrary whitespace before ``encoding=``, and
+        # the old 256/512-byte prolog window could not see a declaration padded
+        # past it, so punycode/idna/undefined escaped to Expat and Python. The
+        # declaration is read to its closing ``?>`` now, with and without a
+        # UTF-8 BOM, so every padded form is the documented refusal.
+        for codec in ('punycode', 'idna', 'undefined'):
+            for pad in (230, 1000, 10000):
+                declaration = ('<?xml version="1.0"'.encode('ascii')
+                               + b' ' * pad + f' encoding="{codec}"?>'.encode('ascii'))
+                container = (declaration +
+                             b'<container xmlns="urn:oasis:names:tc:opendocument:'
+                             b'xmlns:container"><rootfiles><rootfile '
+                             b'full-path="book.opf"/></rootfiles></container>')
+                with self.subTest(site='container', codec=codec, pad=pad), \
+                        self.archive(container=container) as archive:
+                    with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                        get_epub_package(archive)
+                with self.subTest(site='container_bom', codec=codec, pad=pad), \
+                        self.archive(container=b'\xef\xbb\xbf' + container) as archive:
+                    with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                        get_epub_package(archive)
+                for bom, site in ((b'', 'opf'), (b'\xef\xbb\xbf', 'opf_bom')):
+                    with self.subTest(site=site, codec=codec, pad=pad), \
+                            self.archive(bom + declaration + b'<package/>') as archive:
+                        with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                            get_epub_package(archive)
+
+    def test_a_declaration_beyond_the_read_limit_is_malformed(self):
+        # The declaration is read up to its closing ``?>`` with a 64 KiB cap.
+        # Beyond the cap the declaration is malformed, not silently handed to
+        # Expat with an unclassified codec: both sites take the documented
+        # refusal.
+        from epub_package import EpubXmlEncodingError, parse_epub_xml
+        declaration = (b'<?xml version="1.0" encoding="utf-8"'
+                       + b' ' * (64 * 1024) + b'?>')
+        with self.assertRaises(EpubXmlEncodingError):
+            parse_epub_xml(declaration + b'<package/>')
+        container = (declaration +
+                     b'<container xmlns="urn:oasis:names:tc:opendocument:'
+                     b'xmlns:container"><rootfiles><rootfile '
+                     b'full-path="book.opf"/></rootfiles></container>')
+        with self.archive(container=container) as archive:
+            with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                get_epub_package(archive)
+
+    def test_a_missing_container_is_not_reported_as_an_encoding_problem(self):
+        # #2375: read_member's KeyError is a LookupError too, so the encoding
+        # handler must not absorb a missing META-INF/container.xml.
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, 'w') as archive:
+            archive.writestr('mimetype', 'application/epub+zip')
+        with zipfile.ZipFile(io.BytesIO(raw.getvalue())) as archive:
+            with self.assertRaises(KeyError):
+                get_epub_package(archive)
+
     def test_missing_rootfile_fails_in_both_modes(self):
         with self.archive(roots=[]) as archive:
             for options in ({}, {'max_xml_bytes': 4096, 'require_unique': True}):

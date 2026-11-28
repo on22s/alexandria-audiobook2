@@ -15,11 +15,12 @@ import zipfile
 from fastapi import FastAPI
 import httpx
 import core
-from epub_package import is_navigation_document
+from epub_package import get_epub_declared_encoding, is_navigation_document
 from epub_readaloud import build_epub_readaloud
 from routers import script
 from routers.script import extract_epub_text
-from tests.test_epub_readaloud import _make_source_epub, _script_entries
+from tests.test_epub_readaloud import (_make_source_epub, _replace_declaration,
+                                       _script_entries)
 
 
 CHAPTERS = 'A Cold Morning\n\nStory begins.\n\nThe Bridge\n\nStory ends.'
@@ -28,7 +29,7 @@ CHAPTERS = 'A Cold Morning\n\nStory begins.\n\nThe Bridge\n\nStory ends.'
 def navigation_epub(*, version='3.0', nav_in_spine=True, nav_linear=None,
                     nav_properties='nav', nav_body=None, include_ncx=False,
                     chapter_in_spine=True, cover=False, omit_nav_member=False,
-                    empty_body=False):
+                    empty_body=False, ncx_declaration='<?xml version="1.0"?>'):
     """Synthetic EPUB whose navigation document links to two chapters."""
     if nav_body is None:
         nav_body = ('<html xmlns="http://www.w3.org/1999/xhtml" '
@@ -63,7 +64,7 @@ def navigation_epub(*, version='3.0', nav_in_spine=True, nav_linear=None,
                '<dc:language>en</dc:language></metadata>'
                '<manifest>%s</manifest><spine%s>%s</spine></package>'
                % (version, manifest, spine_attributes, spine))
-    ncx = ('<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
+    ncx = (ncx_declaration + '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
            '<navMap><navPoint id="n1"><navLabel><text>A Cold Morning</text></navLabel>'
            '<content src="one.xhtml"/></navPoint><navPoint id="n2"><navLabel><text>The Bridge</text>'
            '</navLabel><content src="two.xhtml"/></navPoint></navMap></ncx>')
@@ -197,6 +198,148 @@ class EpubNavigationDocumentTests(unittest.TestCase):
                    if row['kind'] == 'navigation_target' and row['resource'] == 'nav.xhtml']
         self.assertEqual(['top', None], [row['fragment'] for row in targets])
         self.assertEqual(['navigation_document'], sorted({row['reason'] for row in targets}))
+
+    def test_unknown_navigation_encoding_is_recorded_as_malformed(self):
+        # #2370: ET.fromstring raises LookupError or, for a codec expat cannot
+        # stream, ValueError('multi-byte encodings are not supported'); neither
+        # is ET.ParseError, and the navigation readers caught only
+        # KeyError/ET.ParseError.
+        declarations = {
+            'unknown': '<?xml version="1.0" encoding="bogus"?>',
+            'shift_jis': '<?xml version="1.0" encoding="shift_jis"?>',
+            'utf-16-le': '<?xml version="1.0" encoding="utf-16-le"?>',
+            'utf-32-be': '<?xml version="1.0" encoding="utf-32-be"?>',
+            # Expat hands these to Python's codec, which raises UnicodeError
+            # rather than an Expat refusal; the shared unusable-codec decision
+            # must still record them as malformed navigation (#2370).
+            'punycode': '<?xml version="1.0" encoding="punycode"?>',
+            'idna': '<?xml version="1.0" encoding="idna"?>',
+            'undefined': '<?xml version="1.0" encoding="undefined"?>',
+        }
+        for name, bogus in declarations.items():
+            with self.subTest(codec=name):
+                nav_body = (bogus + '<html xmlns="http://www.w3.org/1999/xhtml" '
+                            'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                            '<nav epub:type="toc"><a href="one.xhtml">A Cold Morning</a></nav>'
+                            '</body></html>')
+                text, report = extract(navigation_epub(nav_body=nav_body))
+                # Without a table of contents the chapter labels are not inserted.
+                self.assertEqual('Story begins.\n\nStory ends.', text)
+                self.assertIn('missing_or_malformed_navigation',
+                              [row.get('reason') for row in report['rows']])
+
+                epub2_text, epub2_report = extract(navigation_epub(
+                    version='2.0', nav_in_spine=False, include_ncx=True,
+                    nav_properties=None, ncx_declaration=bogus))
+                self.assertEqual('Story begins.\n\nStory ends.', epub2_text)
+                self.assertIn('missing_or_malformed_navigation',
+                              [row.get('reason') for row in epub2_report['rows']])
+
+    def test_padded_unusable_navigation_declarations_are_malformed(self):
+        # Gate-2 B1: a declaration padded past the old 256-byte prolog window
+        # was invisible to the shared classifier, so Expat handed
+        # punycode/idna/undefined to Python and the reader aborted. The whole
+        # declaration is read now, so the padded forms fall back like the
+        # unpadded ones above.
+        for codec in ('punycode', 'idna', 'undefined'):
+            for pad in (230, 1000, 10000):
+                declaration = ('<?xml version="1.0"' + ' ' * pad
+                               + f' encoding="{codec}"?>')
+                nav_body = (declaration.encode('ascii') +
+                            b'<html xmlns="http://www.w3.org/1999/xhtml" '
+                            b'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                            b'<nav epub:type="toc"><a href="one.xhtml">A Cold Morning</a></nav>'
+                            b'</body></html>')
+                with self.subTest(site='nav', codec=codec, pad=pad):
+                    text, report = extract(navigation_epub(nav_body=nav_body))
+                    self.assertEqual('Story begins.\n\nStory ends.', text)
+                    self.assertIn('missing_or_malformed_navigation',
+                                  [row.get('reason') for row in report['rows']])
+                with self.subTest(site='ncx', codec=codec, pad=pad):
+                    epub2_text, epub2_report = extract(navigation_epub(
+                        version='2.0', nav_in_spine=False, include_ncx=True,
+                        nav_properties=None, ncx_declaration=declaration))
+                    self.assertEqual('Story begins.\n\nStory ends.', epub2_text)
+                    self.assertIn('missing_or_malformed_navigation',
+                                  [row.get('reason') for row in epub2_report['rows']])
+                with self.subTest(site='ncx_bom', codec=codec, pad=pad):
+                    raw = _replace_declaration(
+                        navigation_epub(version='2.0', nav_in_spine=False,
+                                        include_ncx=True, nav_properties=None),
+                        'toc.ncx', b'\xef\xbb\xbf' + declaration.encode('ascii'))
+                    bom_text, bom_report = extract(raw)
+                    self.assertEqual('Story begins.\n\nStory ends.', bom_text)
+                    self.assertIn('missing_or_malformed_navigation',
+                                  [row.get('reason') for row in bom_report['rows']])
+
+    def test_a_utf8_bom_before_a_padded_declaration_is_still_classified(self):
+        # Gate-2 L2: the shared classifier skips a leading UTF-8 BOM before it
+        # looks for ``<?xml``. If that skip breaks, a BOM'd padded declaration
+        # is invisible again and the raw codec error escapes.
+        from epub_package import EpubXmlEncodingError, parse_epub_xml
+        declaration = (b'\xef\xbb\xbf<?xml version="1.0"' + b' ' * 10000
+                       + b' encoding="idna"?>')
+        with self.assertRaises(EpubXmlEncodingError):
+            parse_epub_xml(declaration + b'<html/>')
+        nav_body = (declaration +
+                    b'<html xmlns="http://www.w3.org/1999/xhtml" '
+                    b'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                    b'<nav epub:type="toc"><a href="one.xhtml">A Cold Morning</a></nav>'
+                    b'</body></html>')
+        text, report = extract(navigation_epub(nav_body=nav_body))
+        self.assertEqual('Story begins.\n\nStory ends.', text)
+        self.assertIn('missing_or_malformed_navigation',
+                      [row.get('reason') for row in report['rows']])
+
+    def test_a_stylesheet_processing_instruction_is_not_the_declaration(self):
+        # Review 3 N3: only ``<?xml`` followed by whitespace is the XML
+        # declaration. A navigation document that starts with a
+        # ``<?xml-stylesheet ... encoding="idna"?>`` processing instruction (no
+        # declaration) carries no declaration, so the nav is used instead of
+        # being refused as malformed; its pseudo-attribute is not rewritten.
+        pi = (b'<?xml-stylesheet type="text/xsl" href="s.xsl" '
+              b'encoding="idna"?>')
+        self.assertEqual((None, False, False),
+                         get_epub_declared_encoding(pi + b'<html/>'))
+        visible = script.get_epub_xhtml_text(pi + b'<html/>')
+        self.assertIn('encoding="idna"', visible)
+        self.assertNotIn('encoding="utf-8"', visible)
+        # The declaration normaliser applies the same rule when it rewrites an
+        # unusable declaration: a leading PI is not one and is left alone.
+        import alexandria_alignment
+        self.assertEqual(
+            pi.decode('ascii'),
+            alexandria_alignment._normalize_xml_declaration_to_utf8(
+                pi.decode('ascii')))
+        nav_body = (pi + b'<html xmlns="http://www.w3.org/1999/xhtml" '
+                    b'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                    b'<nav epub:type="toc"><a href="one.xhtml">A Cold Morning</a>'
+                    b'<a href="two.xhtml">The Bridge</a></nav></body></html>')
+        text, report = extract(navigation_epub(nav_body=nav_body))
+        self.assertEqual(CHAPTERS, text)
+        self.assertNotIn('missing_or_malformed_navigation',
+                         [row.get('reason') for row in report['rows']])
+
+    def test_manifest_href_with_invalid_ipv6_authority_does_not_abort_import(self):
+        # #2377: urlsplit('http://[') raises ValueError before the href can be
+        # classified as external, aborting the whole import.
+        self.assertEqual((None, None), script._resolve_epub_href('book.opf', 'http://['))
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, 'w') as archive:
+            archive.writestr('mimetype', 'application/epub+zip')
+            archive.writestr(
+                'META-INF/container.xml',
+                '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                '<rootfile full-path="book.opf"/></container>')
+            archive.writestr(
+                'book.opf',
+                '<package><manifest>'
+                '<item id="bad" href="http://[" media-type="application/xhtml+xml"/>'
+                '<item id="one" href="one.xhtml" media-type="application/xhtml+xml"/>'
+                '</manifest><spine><itemref idref="bad"/><itemref idref="one"/></spine></package>')
+            archive.writestr('one.xhtml', '<html><body><p>Story begins.</p></body></html>')
+        text, _report = extract(raw.getvalue())
+        self.assertIn('Story begins.', text)
 
     def test_epub2_properties_in_the_spine_is_still_the_navigation_document(self):
         # Non-conforming EPUB 2 carrying the EPUB 3 ``properties="nav"`` token:
