@@ -624,6 +624,128 @@ class ReadaloudNormalizationMappingTests(unittest.TestCase):
         self.assertEqual({0, 1}, consumed)
         self.assertEqual(3, len(mapping))
 
+    def test_forged_repetition_after_is_refused(self):
+        # L1/M17: a repetition record is accepted only when its ``after`` is
+        # exactly what the normalizer would produce on its ``before``. Without
+        # the contract this forged record would authorize "Hello…?" for a
+        # 20-Hello run and the build would succeed.
+        repeated = " ".join(["Hello"] * 20)
+        _normalized, changes = normalize_extreme_phrase_repetitions(f"“{repeated}?”")
+        forged = dict(changes[0])
+        forged["after"] = "Hello…"
+        source = f"“{repeated}?”"
+        self.assertEqual((source, ()), map_recorded_source_normalizations(source, [forged]))
+
+        epub = _make_epub([f"<h1>Chapter One</h1><p>{source}</p>"])
+        entries, _ = _make_entries_from_texts(["Chapter One", "Hello…?"])
+        with self.assertRaisesRegex(ValueError, "No unambiguous synchronization"):
+            build_epub_readaloud(
+                retained_epub_bytes=epub,
+                audio_bytes=b"\xff\xfbmp3",
+                audio_filename="audiobook.mp3",
+                script_entries=entries,
+                source_normalizations=[forged],
+            )
+
+    def test_span_group_does_not_reuse_records_consumed_earlier(self):
+        # L1/M22: a group attempt must start from the records already consumed.
+        # Otherwise one record authorizes both collapses when a chunk spans the
+        # second collapse and the paragraph after it.
+        hello20 = " ".join(["Hello"] * 20)
+        epub = _make_epub([
+            f"<h1>Chapter One</h1><p>“{hello20}?”</p>"
+            f"<p>“{hello20}?”</p><p>Then silence.</p>",
+        ])
+        _extracted, _normalized, changes = _extract_and_normalize(epub)
+        self.assertEqual(2, len(changes))
+        entries, aligned = _make_entries_from_texts(
+            ["Chapter One", "Hello Hello Hello…?", "Hello Hello Hello…? Then silence."])
+        for aligned_rows in (None, aligned):
+            with self.subTest(qwen=aligned_rows is not None):
+                with self.assertRaisesRegex(ValueError, "No unambiguous synchronization"):
+                    build_epub_readaloud(
+                        retained_epub_bytes=epub,
+                        audio_bytes=b"\xff\xfbmp3",
+                        audio_filename="audiobook.mp3",
+                        script_entries=entries,
+                        aligned_rows=aligned_rows,
+                        source_normalizations=changes[:1],
+                    )
+                # Control: both recorded changes map both collapses.
+                built, _ = build_epub_readaloud(
+                    retained_epub_bytes=epub,
+                    audio_bytes=b"\xff\xfbmp3",
+                    audio_filename="audiobook.mp3",
+                    script_entries=entries,
+                    aligned_rows=aligned_rows,
+                    source_normalizations=changes,
+                )
+                validate_epub_readaloud(built)
+                texts = [text for _id, text, _b, _e in _highlighted_texts(built, "ch0")]
+                self.assertEqual(2, sum(hello20 in text for text in texts))
+
+    def test_caption_inside_span_group_consumes_its_record(self):
+        # L1/M19: a caption-only member skipped while finishing a carried span
+        # group must consume its record; otherwise the identical second caption
+        # can be deleted with the same record and one recorded change authorizes
+        # two deletions.
+        caption = "Illustration from Volume 1, coloring by Artist (source)"
+        epub = _make_epub([
+            "<h1>Chapter One</h1><p>Alpha beta.</p>",
+            f"<p>{caption}</p><p>Gamma delta.</p><p>Epsilon.</p>",
+            f"<p>{caption}</p><p>Zeta.</p>",
+        ])
+        _extracted, _normalized, changes = _extract_and_normalize(epub)
+        self.assertEqual(2, len(changes))
+        entries, aligned = _make_entries_from_texts(
+            ["Chapter One", "Alpha beta. Gamma delta.", "Epsilon.", "Zeta."])
+        with self.assertRaisesRegex(ValueError, "No unambiguous synchronization"):
+            build_epub_readaloud(
+                retained_epub_bytes=epub,
+                audio_bytes=b"\xff\xfbmp3",
+                audio_filename="audiobook.mp3",
+                script_entries=entries,
+                aligned_rows=aligned,
+                source_normalizations=changes[:1],
+            )
+        # Control: both recorded deletions build and keep the visible text.
+        built, _ = build_epub_readaloud(
+            retained_epub_bytes=epub,
+            audio_bytes=b"\xff\xfbmp3",
+            audio_filename="audiobook.mp3",
+            script_entries=entries,
+            aligned_rows=aligned,
+            source_normalizations=changes,
+        )
+        validate_epub_readaloud(built)
+        self.assertEqual(
+            ["Chapter One", "Alpha beta."],
+            [text for _id, text, _b, _e in _highlighted_texts(built, "ch0")])
+        self.assertEqual(
+            ["Gamma delta.", "Epsilon."],
+            [text for _id, text, _b, _e in _highlighted_texts(built, "ch1")])
+        self.assertEqual(
+            ["Zeta."],
+            [text for _id, text, _b, _e in _highlighted_texts(built, "ch2")])
+
+    def test_no_spine_text_guard_requires_consumed_progress(self):
+        # NIT 4/M20: a spine with no readable words still fails closed, while a
+        # document skipped only because it consumed a recorded change is not
+        # "no spine text" at all.
+        blank = [{"fragment": None, "text": "—"}]
+        entry = {"index": 0, "prepared_text": "Spoken elsewhere.",
+                 "start_frame": 0, "end_frame": 1000, "sample_rate": 24000}
+        with self.assertRaisesRegex(ValueError, "No spine text could be synchronized"):
+            map_spine_to_chunks(blank, [entry], start=1)
+        caption = "Illustration from Volume 1, coloring by Artist (source)"
+        _normalized, changes = normalize_known_source_corruptions(caption)
+        mapping, cursor, consumed = map_spine_to_chunks(
+            [{"fragment": None, "text": caption}], [entry], start=1,
+            source_normalizations=changes)
+        self.assertEqual([], mapping)
+        self.assertEqual(1, cursor)
+        self.assertEqual({0}, consumed)
+
     def test_collapse_at_chapter_and_chunk_boundaries(self):
         hello20 = " ".join(["Hello"] * 20)
         echo20 = " ".join(["Echo"] * 20)
@@ -707,6 +829,163 @@ class ReadaloudNormalizationMappingTests(unittest.TestCase):
         self.assertEqual({0}, consumed)
         self.assertNotIn("spoken_text", mapping[0])
         self.assertEqual("Hello Hello Hello…?", mapping[1]["spoken_text"])
+
+
+def _write_saved_book_with_records(scripts_dir, changes, entries, *, name="book"):
+    """Write a saved script and a companion .meta.json bound to its bytes."""
+    script_path = Path(scripts_dir) / f"{name}.json"
+    script_bytes = json.dumps(entries, ensure_ascii=False, indent=2).encode("utf-8")
+    script_path.write_bytes(script_bytes)
+    meta = {"book_id": f"book-{name}"}
+    meta.update(readalong_export.get_saved_script_normalization_metadata(changes, script_bytes))
+    (Path(scripts_dir) / f"{name}.meta.json").write_text(
+        json.dumps(meta), encoding="utf-8")
+    return script_path, script_bytes
+
+
+class SavedScriptNormalizationWriterTests(unittest.TestCase):
+    """Every writer that rewrites a saved script rebinds its .meta.json records."""
+
+    def _read_repro_book(self):
+        repeated = " ".join(["Hello"] * 20)
+        body = (
+            "<h1>Chapter One</h1>"
+            "<p>The lantern flickered in the hall.</p>"
+            f"<p>“{repeated}?”</p>"
+            "<p>Nobody answered from the stairs.</p>"
+        )
+        epub = _make_epub([body])
+        _extracted, normalized, changes = _extract_and_normalize(epub)
+        chunks = _script_chunks_from_normalized(normalized)
+        return repeated, epub, changes, [dict(row) for row in chunks]
+
+    def test_saved_repair_refreshes_the_digest_and_still_builds_readaloud(self):
+        from routers import scripts_library
+
+        repeated, epub, changes, entries = self._read_repro_book()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts_dir = root / "scripts"
+            scripts_dir.mkdir()
+            script_path, _old_bytes = _write_saved_book_with_records(
+                scripts_dir, changes, entries)
+            # Reordered keys are a real rewrite with unchanged spoken content.
+            repaired = [dict(reversed(list(row.items()))) for row in entries]
+            with patch.object(scripts_library, "DATA_DIR", str(root)), \
+                 patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)):
+                scripts_library._publish_saved_repair(str(script_path), repaired)
+                self.assertEqual(
+                    changes,
+                    readalong_export.get_recorded_source_normalizations(None, str(script_path)))
+                new_bytes = script_path.read_bytes()
+                meta = json.loads((scripts_dir / "book.meta.json").read_text(encoding="utf-8"))
+                self.assertEqual(hashlib.sha256(new_bytes).hexdigest(),
+                                 meta["source_normalizations_script_sha256"])
+                self.assertEqual("book-book", meta["book_id"])
+
+                entries_from_audio, _aligned = _make_entries_from_texts(
+                    [row["text"] for row in entries])
+                built, _ = build_epub_readaloud(
+                    retained_epub_bytes=epub,
+                    audio_bytes=b"\xff\xfbmp3",
+                    audio_filename="audiobook.mp3",
+                    script_entries=entries_from_audio,
+                    source_normalizations=readalong_export.get_recorded_source_normalizations(
+                        None, str(script_path)),
+                )
+                validate_epub_readaloud(built)
+                self.assertTrue(any(text == f"“{repeated}?”"
+                                    for _id, text, _b, _e in _highlighted_texts(built, "ch0")))
+
+                # A hand edit (not a repair path) leaves the digest stale and
+                # is refused, so records are dropped and the build fails closed.
+                script_path.write_bytes(json.dumps(repaired, ensure_ascii=False, indent=4).encode())
+                with self.assertLogs("readalong_export", level="WARNING") as captured:
+                    self.assertEqual([], readalong_export.get_recorded_source_normalizations(
+                        None, str(script_path)))
+                self.assertIn("different saved script", "\n".join(captured.output))
+                with self.assertRaisesRegex(ValueError, "No unambiguous synchronization"):
+                    build_epub_readaloud(
+                        retained_epub_bytes=epub,
+                        audio_bytes=b"\xff\xfbmp3",
+                        audio_filename="audiobook.mp3",
+                        script_entries=entries_from_audio,
+                    )
+
+                # A companion that cannot be parsed is left unchanged; it keeps
+                # failing closed at read time and does not block the rewrite.
+                (scripts_dir / "book.meta.json").write_text("{not json", encoding="utf-8")
+                with self.assertLogs("readalong_export", level="WARNING") as captured:
+                    self.assertEqual([], readalong_export.get_recorded_source_normalizations(
+                        None, str(script_path)))
+                self.assertIn("not valid JSON", "\n".join(captured.output))
+                with self.assertLogs("readalong_export", level="WARNING") as captured:
+                    scripts_library._publish_saved_repair(
+                        str(script_path), [dict(reversed(list(row.items()))) for row in entries])
+                self.assertIn("cannot be refreshed", "\n".join(captured.output))
+                self.assertEqual("{not json",
+                                 (scripts_dir / "book.meta.json").read_text(encoding="utf-8"))
+
+    def test_speaker_repair_refreshes_the_digest(self):
+        from routers import scripts_library
+
+        repeated, _epub, changes, entries = self._read_repro_book()
+        # Reordered keys are a real rewrite with unchanged spoken content.
+        repaired = [dict(reversed(list(row.items()))) for row in entries]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts_dir = root / "scripts"
+            scripts_dir.mkdir()
+            script_path, old_bytes = _write_saved_book_with_records(
+                scripts_dir, changes, entries)
+            request = SimpleNamespace(
+                expected_sha256=hashlib.sha256(old_bytes).hexdigest(),
+                selections=[SimpleNamespace(model_dump=lambda: {"index": 0})])
+            with patch.object(scripts_library, "DATA_DIR", str(root)), \
+                 patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)), \
+                 patch.object(scripts_library, "_saved_mutation_admission",
+                              lambda: contextlib.nullcontext()), \
+                 patch.object(scripts_library, "_require_saved_book_idle", lambda: None), \
+                 patch.object(scripts_library, "saved_script_is_active_source",
+                              new=lambda *a, **k: False), \
+                 patch.object(scripts_library, "_saved_repair_binding",
+                              new=lambda *a, **k: None), \
+                 patch.object(scripts_library, "apply_speaker_selections",
+                              new=lambda current, selections: {
+                                  "changes": [{"index": 0}], "entries": repaired}):
+                result = scripts_library._apply_speaker_repair_sync("book", request)
+            self.assertEqual("repaired", result["status"])
+            self.assertEqual(
+                changes,
+                readalong_export.get_recorded_source_normalizations(None, str(script_path)))
+            meta = json.loads((scripts_dir / "book.meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(hashlib.sha256(script_path.read_bytes()).hexdigest(),
+                             meta["source_normalizations_script_sha256"])
+
+    def test_saved_review_publisher_refreshes_the_digest(self):
+        from script_selection_binding import publish_saved_script_edit
+
+        repeated, _epub, changes, entries = self._read_repro_book()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts_dir = root / "scripts"
+            scripts_dir.mkdir()
+            script_path, old_bytes = _write_saved_book_with_records(
+                scripts_dir, changes, entries)
+            new_bytes = json.dumps(entries, ensure_ascii=False, indent=3).encode("utf-8")
+            with patch("book_state_transaction.reuse_book_state",
+                       lambda *a, **k: contextlib.nullcontext()), \
+                 patch("book_state_transaction.ensure_saved_book_state",
+                       lambda *a, **k: contextlib.nullcontext()):
+                publish_saved_script_edit(
+                    str(root), str(scripts_dir), str(script_path), old_bytes, new_bytes)
+            self.assertEqual(new_bytes, script_path.read_bytes())
+            meta = json.loads((scripts_dir / "book.meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(hashlib.sha256(new_bytes).hexdigest(),
+                             meta["source_normalizations_script_sha256"])
+            self.assertEqual(
+                changes,
+                readalong_export.get_recorded_source_normalizations(None, str(script_path)))
 
 
 class ReadaloudNormalizationPersistenceTests(unittest.TestCase):
@@ -1079,61 +1358,114 @@ class ReadaloudNormalizationPersistenceTests(unittest.TestCase):
             scripts_dir = root / "scripts"
             scripts_dir.mkdir()
             source_path = data_dir / "book.txt"
-            source_path.write_text(f"The lantern flickered.\n\n{repeated}?\n", encoding="utf-8")
+            source_bytes = f"The lantern flickered.\n\n{repeated}?\n".encode("utf-8")
+            source_path.write_bytes(source_bytes)
+            source_sha256 = hashlib.sha256(source_bytes).hexdigest()
             state = {"input_file_path": str(source_path),
                      "script_generation_run_id": "run-1",
                      "script_generation_selection": {"book_token": "book-token"}}
             checkpoint = {"annotated": [{"speaker": "NARRATOR", "text": "x", "instruct": ""}],
                           "named": [{"name": "NARRATOR"}],
                           "segmented": [{"text": "x"}], "chunks_done": 1, "stage": "instruct"}
-            replacements = {}
 
-            def use(target, name, value=None, *, new=None):
+            def use(stack, target, name, value=None, *, new=None):
                 return stack.enter_context(
                     patch.object(target, name, new if value is None else value))
 
             nullcontext = contextlib.nullcontext
-            with contextlib.ExitStack() as stack:
-                use(script_router, "SCRIPTS_DIR", str(scripts_dir))
-                use(script_router, "DATA_DIR", str(data_dir))
-                use(script_router, "VOICE_CONFIG_PATH", str(data_dir / "voice.json"))
-                use(scripts_library, "SCRIPTS_DIR", str(scripts_dir))
-                use(scripts_library, "DATA_DIR", str(data_dir))
-                use(core, "SCRIPTS_DIR", str(scripts_dir))
-                use(script_router, "process_state",
-                    {"script": {"running": True, "cancel": False}})
-                use(script_router, "ensure_saved_book_destination_available",
-                    lambda dest: nullcontext())
-                use(script_router, "ensure_book_state",
-                    lambda *args, **kwargs: nullcontext())
-                use(script_router, "ensure_saved_book_state",
-                    lambda *args, **kwargs: nullcontext())
-                use(script_router, "file_lock", lambda path: nullcontext())
-                use(script_router, "safe_load_json", new=lambda *a, **k: state)
-                stack.enter_context(patch(
-                    "script_selection_binding.capture_generation_selection",
-                    return_value={"book_token": "book-token"}))
-                use(script_router, "get_current_generation_checkpoint",
-                    new=lambda *a, **k: checkpoint)
-                use(core, "_gpu_lock", nullcontext())
-                use(core, "_task_claims", {"script": {"phase": "started", "id": "run-1"}})
-                use(script_router, "get_active_book_id", new=lambda: "book-2440")
-                use(scripts_library, "_capture_sound_companions",
-                    new=lambda *a, **k: (None, None))
-                use(script_router, "get_saved_publication_source_bytes",
-                    new=lambda *a, **k: None)
-                use(script_router, "apply_book_state_locked",
-                    new=lambda directory, files, removals: replacements.update(files))
-                result = script_router._snapshot_script_sync(SimpleNamespace(name="snap"))
+
+            def snapshot(captured):
+                replacements = {}
+                state["script_generation_selection"] = captured
+                with contextlib.ExitStack() as stack:
+                    use(stack, script_router, "SCRIPTS_DIR", str(scripts_dir))
+                    use(stack, script_router, "DATA_DIR", str(data_dir))
+                    use(stack, script_router, "VOICE_CONFIG_PATH", str(data_dir / "voice.json"))
+                    use(stack, scripts_library, "SCRIPTS_DIR", str(scripts_dir))
+                    use(stack, scripts_library, "DATA_DIR", str(data_dir))
+                    use(stack, core, "SCRIPTS_DIR", str(scripts_dir))
+                    use(stack, script_router, "process_state",
+                        {"script": {"running": True, "cancel": False}})
+                    use(stack, script_router, "ensure_saved_book_destination_available",
+                        lambda dest: nullcontext())
+                    use(stack, script_router, "ensure_book_state",
+                        lambda *args, **kwargs: nullcontext())
+                    use(stack, script_router, "ensure_saved_book_state",
+                        lambda *args, **kwargs: nullcontext())
+                    use(stack, script_router, "file_lock", lambda path: nullcontext())
+                    use(stack, script_router, "safe_load_json", new=lambda *a, **k: state)
+                    stack.enter_context(patch(
+                        "script_selection_binding.capture_generation_selection",
+                        return_value=captured))
+                    use(stack, script_router, "get_current_generation_checkpoint",
+                        new=lambda *a, **k: checkpoint)
+                    use(stack, core, "_gpu_lock", nullcontext())
+                    use(stack, core, "_task_claims",
+                        {"script": {"phase": "started", "id": "run-1"}})
+                    use(stack, script_router, "get_active_book_id", new=lambda: "book-2440")
+                    use(stack, scripts_library, "_capture_sound_companions",
+                        new=lambda *a, **k: (None, None))
+                    use(stack, script_router, "get_saved_publication_source_bytes",
+                        new=lambda *a, **k: None)
+                    use(stack, script_router, "apply_book_state_locked",
+                        new=lambda directory, files, removals: replacements.update(files))
+                    result = script_router._snapshot_script_sync(SimpleNamespace(name="snap"))
+                return result, replacements
+
+            result, replacements = snapshot(
+                {"book_token": "book-token", "source_path": str(source_path),
+                 "source_sha256": source_sha256})
             self.assertEqual("saved", result["status"])
             meta_bytes = replacements["snap.meta.json"]
             meta = json.loads(meta_bytes)
-            recorded = readalong_export.get_running_generation_source_normalizations(str(source_path))
+            recorded = readalong_export.get_running_generation_source_normalizations(
+                str(source_path))
             self.assertEqual(recorded, meta["source_normalizations"])
             self.assertEqual(1, len(recorded))
             script_bytes = replacements["snap.json"]
             self.assertEqual(hashlib.sha256(script_bytes).hexdigest(),
                              meta["source_normalizations_script_sha256"])
+
+            # The route's captured source digest fences the recompute: bytes
+            # that changed after the capture are refused, not recorded.
+            with self.assertRaises(ValueError):
+                readalong_export.get_running_generation_source_normalizations(
+                    str(source_path), expected_source_sha256="0" * 64)
+            with self.assertLogs("AlexandriaUI", level="WARNING") as captured:
+                _result, stale = snapshot(
+                    {"book_token": "book-token", "source_path": str(source_path),
+                     "source_sha256": "0" * 64})
+            self.assertIn("Snapshot cannot read recorded source normalizations",
+                          "\n".join(captured.output))
+            stale_meta = json.loads(stale["snap.meta.json"])
+            self.assertNotIn("source_normalizations", stale_meta)
+            self.assertNotIn("source_normalizations_script_sha256", stale_meta)
+
+    def test_three_pass_binding_stops_at_the_first_matching_policy(self):
+        # NIT 5: a book without removable front matter prepares once per read.
+        repeated = " ".join(["Hello"] * 20)
+        _norm, changes = normalize_extreme_phrase_repetitions(repeated)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_path = root / "book.txt"
+            source_path.write_text(f"The lantern flickered.\n\n{repeated}?\n", encoding="utf-8")
+            script_path = root / "annotated_script.json"
+            script_path.write_text("[]", encoding="utf-8")
+            Path(tp.three_pass_manifest_path(str(script_path))).write_text(
+                json.dumps(_three_pass_manifest_doc(source_path, changes)), encoding="utf-8")
+            calls = []
+            original = tp.get_prepared_source
+
+            def counted(path, *args, **kwargs):
+                calls.append(kwargs.get("strip_front_matter"))
+                return original(path, *args, **kwargs)
+
+            with patch.object(tp, "get_prepared_source", counted):
+                self.assertEqual(changes,
+                                 readalong_export.get_recorded_source_normalizations(
+                                     str(script_path), str(source_path),
+                                     strip_front_matter=False))
+            self.assertEqual([False], calls)
 
 
 if __name__ == "__main__":

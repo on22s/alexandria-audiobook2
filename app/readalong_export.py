@@ -1536,8 +1536,15 @@ def _get_bounded_file_sha256(path, cancel_check):
     return hashlib.sha256(raw).hexdigest()
 
 
-def _get_three_pass_binding_error(doc, source_txt):
-    """Why a complete three-pass manifest does not describe this book, or None."""
+def _get_three_pass_binding_error(doc, source_txt, strip_front_matter=None):
+    """Why a complete three-pass manifest does not describe this book, or None.
+
+    The book may have been generated with or without front-matter stripping;
+    either prepared text is this source. A caller that already knows the book's
+    recorded policy passes it first. Preparation stops at the first policy that
+    matches, so a book without removable front matter (both policies produce
+    the same text) is prepared once per export/save call instead of twice.
+    """
     if doc.get("status") != "complete":
         return "generation is not complete"
     completion = doc.get("completion")
@@ -1554,21 +1561,20 @@ def _get_three_pass_binding_error(doc, source_txt):
         return "source fingerprint is invalid"
     if not isinstance(source_txt, str) or not source_txt:
         return "the current source is unavailable"
-    # The book may have been generated with or without front-matter
-    # stripping; either prepared text is this source, so try both policies.
-    prepared_digests = set()
+    policies = (True, False)
+    if type(strip_front_matter) is bool:
+        policies = (strip_front_matter, not strip_front_matter)
     try:
         from three_pass_generate import get_prepared_source
-        for strip_front_matter in (True, False):
+        for policy in policies:
             book, _report = get_prepared_source(
-                source_txt, strip_front_matter=strip_front_matter,
+                source_txt, strip_front_matter=policy,
                 report=lambda message: None)
-            prepared_digests.add(hashlib.sha256(book.encode("utf-8")).hexdigest())
+            if hashlib.sha256(book.encode("utf-8")).hexdigest() == expected:
+                return None
     except (OSError, ValueError) as error:
         return f"the current source cannot be read ({error.__class__.__name__})"
-    if expected not in prepared_digests:
-        return "the manifest belongs to a different source"
-    return None
+    return "the manifest belongs to a different source"
 
 
 def _get_generation_quality_binding_error(doc, source_txt):
@@ -1611,7 +1617,8 @@ def _get_saved_meta_binding_error(doc, source_txt, cancel_check):
     return None
 
 
-def get_recorded_source_normalizations(script_path, source_txt=None, cancel_check=None):
+def get_recorded_source_normalizations(script_path, source_txt=None, cancel_check=None,
+                                      strip_front_matter=None):
     """Read recorded preprocessing normalizations from completed generation metadata.
 
     Checks the active three-pass manifest, the single-pass generation-quality
@@ -1619,10 +1626,13 @@ def get_recorded_source_normalizations(script_path, source_txt=None, cancel_chec
     using bounded no-follow reads. Records are accepted only when the metadata
     is complete AND bound to the current book: the three-pass source
     fingerprint, the single-pass completion artifact's input digest, or the
-    saved script's recorded byte digest. Anything absent, incomplete,
-    unreadable or bound to another source returns ``[]`` so callers fail
-    closed on any unrecorded text difference; a present but rejected candidate
-    is logged rather than silently treated as "no records" (Rule 8).
+    saved script's recorded byte digest. ``strip_front_matter`` is the book's
+    own recorded preparation policy when the caller already knows it; the
+    three-pass check tries it first to avoid preparing the whole source under
+    the other policy. Anything absent, incomplete, unreadable or bound to
+    another source returns ``[]`` so callers fail closed on any unrecorded
+    text difference; a present but rejected candidate is logged rather than
+    silently treated as "no records" (Rule 8).
     """
     from generate_script import get_generation_quality_path
     from script_recovery_facts import three_pass_manifest_path
@@ -1647,7 +1657,7 @@ def get_recorded_source_normalizations(script_path, source_txt=None, cancel_chec
         if not changes:
             return []
         if kind == "three_pass":
-            error = _get_three_pass_binding_error(doc, source_txt)
+            error = _get_three_pass_binding_error(doc, source_txt, strip_front_matter)
         elif kind == "quality":
             error = _get_generation_quality_binding_error(doc, source_txt)
         else:
@@ -1659,17 +1669,20 @@ def get_recorded_source_normalizations(script_path, source_txt=None, cancel_chec
     return []
 
 
-def get_running_generation_source_normalizations(source_txt):
+def get_running_generation_source_normalizations(source_txt, expected_source_sha256=None):
     """Recorded normalizations for a generation that is still running.
 
     A mid-run snapshot has a checkpoint but no completed manifest, so it
     cannot read stored evidence. Recompute it through the same preprocessing
-    authority generation used; the snapshot route has already fenced the
-    running generation to this exact source.
+    authority generation used. ``expected_source_sha256`` fences the read to
+    the selection the snapshot route captured, so bytes that change between
+    that capture and this read are refused instead of recorded under stale
+    coordinates.
     """
     from three_pass_generate import get_prepared_source_with_preprocessing
     _book, _report, preprocessing = get_prepared_source_with_preprocessing(
-        source_txt, report=lambda message: None)
+        source_txt, report=lambda message: None,
+        expected_source_sha256=expected_source_sha256)
     return preprocessing["source_normalizations"]
 
 
@@ -1686,6 +1699,35 @@ def get_saved_script_normalization_metadata(recorded_normalizations, script_byte
         "source_normalizations": list(recorded_normalizations),
         "source_normalizations_script_sha256": hashlib.sha256(script_bytes).hexdigest(),
     }
+
+
+def get_refreshed_saved_script_metadata(script_path, script_bytes, *, cancel_check=None):
+    """-> rewritten ``.meta.json`` bytes for a saved script about to be replaced.
+
+    Every path that rewrites ``scripts/<name>.json`` keeps its companion
+    ``.meta.json``. Without refreshing it, ``source_normalizations_script_sha256``
+    would name the previous bytes and the recorded normalizations would be
+    dropped. Reads the records from the current companion (validated against
+    the script bytes still on disk) and rebinds them to ``script_bytes`` through
+    the one producer above (Rule 15). Returns None when the book has no
+    ``.meta.json``; a companion that cannot be parsed is left unchanged and
+    reported in the log, so the rewrite still proceeds and the stale companion
+    keeps failing closed at read time.
+    """
+    meta_path = os.path.splitext(script_path)[0] + ".meta.json"
+    doc, error = _read_bounded_json_document(meta_path, cancel_check)
+    if doc is None:
+        if error is not None:
+            logger.warning("Saved script metadata cannot be refreshed: %s: %s",
+                           meta_path, error)
+        return None
+    recorded = get_recorded_source_normalizations(
+        None, script_path, cancel_check=cancel_check)
+    doc = dict(doc)
+    doc.pop("source_normalizations", None)
+    doc.pop("source_normalizations_script_sha256", None)
+    doc.update(get_saved_script_normalization_metadata(recorded, script_bytes))
+    return json.dumps(doc, ensure_ascii=False, indent=2).encode("utf-8")
 
 
 def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir):

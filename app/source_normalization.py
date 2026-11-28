@@ -540,8 +540,12 @@ def map_recorded_source_normalizations(text, changes, *, consumed=()):
     input-only: each record whose index is already there is skipped, and the
     caller commits the returned ``used_indices`` only once the mapped span
     matches (Rule 17). Records are matched by their recorded text, not their
-    ``offset``: offsets index the generation source (an extracted ``.txt``),
-    while this helper receives an EPUB spine segment, whose coordinates differ.
+    ``offset``: offsets index the generation source at that preprocessing
+    stage (an extracted ``.txt``), while this helper receives an EPUB spine
+    segment, whose coordinates differ. ``offset`` is part of record identity
+    only, so a byte-identical copy of a valid record with a changed or missing
+    ``offset`` is not distinguished here; it still authorizes only a collapse
+    the normalizer itself produces on that exact text.
     """
     if not isinstance(text, str) or not text or not changes:
         return text, ()

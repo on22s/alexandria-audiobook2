@@ -2985,7 +2985,8 @@ def _snapshot_script_sync(request):
                                       "stage": checkpoint.get("stage"), "taken": time.time()}}
         try:
             recorded_normalizations = get_running_generation_source_normalizations(
-                source_state.get('input_file_path'))
+                source_state.get('input_file_path'),
+                expected_source_sha256=captured.get('source_sha256'))
         except (OSError, ValueError) as error:
             logger.warning("Snapshot cannot read recorded source normalizations: %s", error)
             recorded_normalizations = []

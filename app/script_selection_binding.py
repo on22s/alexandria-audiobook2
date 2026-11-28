@@ -974,6 +974,14 @@ def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, ne
         if alias_committed is None and registry is None and alias_capture is not None:
             _, alias_committed = capture_scope_file(
                 data_dir, alias_capture.name, limit=MAX_SELECTION_STATE_BYTES, include_bytes=True)
+        # A saved review rewrites the script but keeps its .meta.json; rebind
+        # the recorded source normalizations to the new bytes through the one
+        # producer, or the review silently drops them.
+        from readalong_export import get_refreshed_saved_script_metadata
+        meta = directory / (script.stem + '.meta.json')
+        meta_bytes = get_refreshed_saved_script_metadata(str(script), new_script)
+        if meta_bytes is not None:
+            replacements[relative(meta)] = meta_bytes
         if binding_bytes is not None:
             replacements[relative(binding)] = binding_bytes
         if publication_bytes is not None:
