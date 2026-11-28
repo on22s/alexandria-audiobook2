@@ -6159,11 +6159,11 @@
     , "tests.test_epub_readaloud.EpubReadaloudTests.test_wordless_separators_preserve_spoken_element_targets"
     , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_bogus_nav_declaration_leaves_the_readaloud_toc_empty"
     , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_bogus_ncx_declaration_returns_no_ncx_points"
-    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_built_smil_declaration_is_malformed"
-    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_built_xhtml_declaration_is_malformed"
     , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_navigation_declarations_are_skipped"
-    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_retained_container_declaration_is_malformed"
-    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_multibyte_spine_document_declaration_is_malformed"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_unreadable_built_smil_declarations_are_malformed"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_unreadable_built_xhtml_declarations_are_malformed"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_unreadable_retained_container_declarations_are_malformed"
+    , "tests.test_epub_readaloud.UnknownDeclaredEncodingReaderTests.test_unreadable_spine_document_declarations_are_malformed"
   ]
   , "test_epub_readaloud_conformance": [
     "tests.test_epub_readaloud_conformance.R1ManifestAndDurationTests.test_dcterms_modified_exactly_one_and_epub2_gets_one"

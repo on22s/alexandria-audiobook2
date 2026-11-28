@@ -288,8 +288,8 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
                                     'media_type': 'application/x-dtbncx+xml'}}
                 self.assertEqual([], get_ncx_points(raw, manifest, 'OEBPS/content.opf'))
 
-    def test_multibyte_spine_document_declaration_is_malformed(self):
-        for declaration in _MULTIBYTE_DECLARATIONS:
+    def test_unreadable_spine_document_declarations_are_malformed(self):
+        for declaration in (_BOGUS_DECLARATION,) + _MULTIBYTE_DECLARATIONS:
             with self.subTest(declaration=declaration):
                 raw = _replace_declaration(_make_source_epub(), 'OEBPS/ch1.xhtml',
                                            declaration)
@@ -297,42 +297,46 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
                         ValueError, '^Spine document is malformed: OEBPS/ch1.xhtml$'):
                     get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
 
-    def test_multibyte_built_xhtml_declaration_is_malformed(self):
+    def test_unreadable_built_xhtml_declarations_are_malformed(self):
         built, _report = build_epub_readaloud(
             retained_epub_bytes=_make_source_epub(), audio_bytes=b'\xff\xfbx',
             audio_filename='audiobook.mp3', script_entries=_script_entries())
-        for declaration in _MULTIBYTE_DECLARATIONS:
+        for declaration in (_BOGUS_DECLARATION,) + _MULTIBYTE_DECLARATIONS:
             with self.subTest(declaration=declaration):
                 raw = _replace_declaration(built, 'OEBPS/ch1.xhtml', declaration)
                 with self.assertRaisesRegex(ValueError, 'Built EPUB XHTML is malformed'):
                     validate_epub_readaloud(raw)
 
-    def test_multibyte_built_smil_declaration_is_malformed(self):
+    def test_unreadable_built_smil_declarations_are_malformed(self):
         built, _report = build_epub_readaloud(
             retained_epub_bytes=_make_source_epub(), audio_bytes=b'\xff\xfbx',
             audio_filename='audiobook.mp3', script_entries=_script_entries())
-        for declaration in _MULTIBYTE_DECLARATIONS:
+        for declaration in (_BOGUS_DECLARATION,) + _MULTIBYTE_DECLARATIONS:
             with self.subTest(declaration=declaration):
                 raw = _replace_declaration(built, 'OEBPS/ch1.smil', declaration)
                 with self.assertRaisesRegex(ValueError, 'Built EPUB SMIL is malformed'):
                     validate_epub_readaloud(raw)
 
-    def test_multibyte_retained_container_declaration_is_malformed(self):
+    def test_unreadable_retained_container_declarations_are_malformed(self):
         # get_spine_documents normally parses container.xml first and refuses
         # it as a package (#2375), so bypass that read to exercise the build's
         # own retained-container handler.
         source = _make_source_epub()
         with zipfile.ZipFile(io.BytesIO(source)) as archive:
             opf_path, package = er.get_epub_package(archive)
-        raw = _replace_declaration(
-            source, 'META-INF/container.xml',
-            b'<?xml version="1.0" encoding="shift_jis"?>')
-        with mock.patch.object(er, 'get_epub_package',
-                               return_value=(opf_path, package)):
-            with self.assertRaisesRegex(ValueError, 'Retained EPUB container is malformed'):
-                build_epub_readaloud(
-                    retained_epub_bytes=raw, audio_bytes=b'\xff\xfbx',
-                    audio_filename='audiobook.mp3', script_entries=_script_entries())
+        for declaration in (_BOGUS_DECLARATION,
+                            b'<?xml version="1.0" encoding="shift_jis"?>'):
+            with self.subTest(declaration=declaration):
+                raw = _replace_declaration(
+                    source, 'META-INF/container.xml', declaration)
+                with mock.patch.object(er, 'get_epub_package',
+                                       return_value=(opf_path, package)):
+                    with self.assertRaisesRegex(
+                            ValueError, 'Retained EPUB container is malformed'):
+                        build_epub_readaloud(
+                            retained_epub_bytes=raw, audio_bytes=b'\xff\xfbx',
+                            audio_filename='audiobook.mp3',
+                            script_entries=_script_entries())
 
 
 if __name__ == "__main__":
