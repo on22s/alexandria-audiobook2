@@ -1259,6 +1259,12 @@ class SingleQuotedSpeechTests(unittest.TestCase):
         self.assertLess(short_time, 0.5)
         self.assertLess(long_time, 2.0)
         self.assertLess(long_time, mid_time * 15)
+        # No paired quote anywhere, so the possessive lookahead is pointless
+        # and the scan can close at every `s’` immediately. Without that fast
+        # path this input took 4.8 s at 75 KB (the ~500-character lookahead
+        # chain); with it, ~0.08 s.
+        dense = ("\u2018a s\u2019 " * 10000)[:75000]
+        self.assertLess(best(dense, 2), 1.0)
 
     def test_straight_elision_guard_without_an_outside_pair(self):
         # Rev2 finding 6: the earlier straight-elision cases all had a second

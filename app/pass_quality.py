@@ -147,6 +147,19 @@ def _record_single_quote_closer(text, index, limit=None, opener=None,
                                      None)
 
 
+def _text_has_paired_quote(text, memo):
+    """Does `text` hold a paired quote anywhere? Cached in the scan's memo.
+
+    A chunk with no paired quote cannot adopt a single span, so its ambiguity
+    list is never consumed; this lets a possessive mark skip the lookahead.
+    """
+    cached = memo.get("has_paired_quote")
+    if cached is None:
+        cached = _contains_paired_quote(text)
+        memo["has_paired_quote"] = cached
+    return cached
+
+
 def _walk_single_quote_closer(text, index, limit, opener, ambiguous, memo):
     """The uncached predicate behind `_record_single_quote_closer`."""
     following = text[index + 1] if index + 1 < len(text) else ""
@@ -157,6 +170,14 @@ def _walk_single_quote_closer(text, index, limit, opener, ambiguous, memo):
             and text[index - 2] in "\u2018\u2019'"):
         # `rock ’n’ roll`: this apostrophe closes the elision, not the speech.
         return False
+    if (previous.lower() == "s" and following.isspace() and limit is not None
+            and memo is not None and not _text_has_paired_quote(text, memo)):
+        # No paired quote exists anywhere, so no span can be adopted and the
+        # ambiguity list is never read. The possessive lookahead would fall
+        # through both of its branches to `False`, so this mark is a closer;
+        # the ~500-character lookahead chain on `‘a s’ ` repeated is skipped
+        # (#2381 gate 3 finding 2, adversarial dense-possessive input).
+        return True
     if (previous.lower() == "s" and following.isspace() and limit is not None
             and _record_possessive_continuation(
                 text, index, opener, limit, ambiguous, memo)):
