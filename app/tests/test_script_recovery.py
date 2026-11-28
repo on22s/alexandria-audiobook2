@@ -604,7 +604,10 @@ class RecoveryTests(unittest.TestCase):
 
     def test_continuation_with_a_dotted_title_own_tag_is_accepted(self):
         source = _long_source(ATTESTED)
-        for title in ("Mr.", "Mrs.", "Ms.", "Dr.", "St.", "Prof.", "Rev.", "Capt."):
+        titles = ("Mr.", "Mrs.", "Ms.", "Dr.", "St.", "Prof.", "Rev.", "Capt.",
+                  "Col.", "Gen.", "Lt.", "Sgt.", "M.", "Mlle.", "Mme.", "Fr.",
+                  "Hon.", "Sr.", "Messrs.")
+        for title in titles:
             entries = [{"type": "SPOKEN", "text": "Go now,"},
                        {"type": "NARRATOR", "text": "said Holmes."},
                        {"type": "SPOKEN", "text": "Gone,"},

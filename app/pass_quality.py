@@ -951,13 +951,11 @@ _KOREAN_SUFFIX_RE = re.compile(
     r"[은는도만]?"
 )
 NAME_TITLE_PREFIXES = frozenset({
-    "mr", "mrs", "ms", "miss", "dr", "doctor", "prof", "professor",
-    "capt", "captain",
+    "mr", "mrs", "ms", "miss", "dr", "doctor", "professor", "captain",
     "king", "queen", "prince", "princess", "lord", "lady", "sir", "dame",
     "duke", "duchess", "count", "countess", "baron", "baroness", "father",
     "mother", "brother", "sister", "officer", "sergeant", "general", "colonel",
-    "major", "lieutenant", "rev", "reverend", "pastor", "bishop", "st", "saint",
-    "the", "his", "her",
+    "major", "lieutenant", "reverend", "pastor", "bishop", "saint", "the", "his", "her",
 })
 # A married-woman title names the wife, not the man whose name follows it:
 # "Mrs. John Vale" is Fanny, so the title-stripped "John Vale" must not become
@@ -1350,9 +1348,9 @@ _BARE_CONTINUATION_TAG = re.compile(
 # that a quotation carries its own tag and must abstain; it never creates
 # evidence. The evidence verb list stays _SOURCE_TAG_VERBS (#2388, Rule 15).
 # added/adds/continued/continues repeat that list on purpose: the direct rule's
-# adverb slot accepts only a lowercase -ly adverb, so "she added later," (a
-# common non-ly adverb) is not a direct tag and this clause form is what keeps
-# the quotation from inheriting A's speaker (PDNC AHandfulOfDust-01969~3157).
+# adverb slot accepts only a lowercase -ly adverb, so a non-ly adverb after one
+# of them ("she added afterwards,") is not a direct tag and this clause form is
+# what keeps the quotation from inheriting A's speaker.
 _CONTINUATION_OWN_TAG_VERBS = (
     r"(?:began|begun|starts?|started|went on|goes on|going on|"
     r"cut in|cuts in|broke in|breaks in|broke off|breaks off|"
@@ -1379,9 +1377,10 @@ _CONTINUATION_QUESTION_VERBS = frozenset({
 })
 # The same four-word subject cap as _TAG_NAME, then a clause verb. The dash
 # introducer belongs here: "No"-Kit began. is still the quotation's own tag.
-# A comma-delimited interjection may sit between subject and verb
-# ("Kit, however, said."); the verb there may be a clause verb or one the
-# direct rule already carries.
+# A comma-delimited interjection of up to six words may sit between subject
+# and verb ("Kit, however, said.", "Kit, who had been silent, said."), and a
+# parenthetical may too ("Kit (smiling) said."); the verb there may be a clause
+# verb or one the direct rule already carries.
 _CONTINUATION_CLAUSE_VERBS = (
     rf"(?:{_SOURCE_TAG_VERBS}|{_CONTINUATION_OWN_TAG_VERBS})"
 )
@@ -1390,8 +1389,10 @@ _CONTINUATION_OWN_TAG_CLAUSE = re.compile(
     rf"(?:(?P<pronoun>{_CONTINUATION_TAG_PRONOUN_ALT})|(?P<subject>{_TAG_NAME}))"
     rf"(?:[ \t]+(?:{_CONTINUATION_OWN_TAG_VERBS})\b"
     rf"|[ \t]*,[ \t]*(?P<interject>{_TAG_WORD}"
-    rf"(?:[ \t]+{_TAG_WORD}){{0,2}})[ \t]*,"
-    rf"[ \t]*(?:{_CONTINUATION_CLAUSE_VERBS})\b)", re.IGNORECASE)
+    rf"(?:[ \t]+{_TAG_WORD}){{0,5}})[ \t]*,"
+    rf"[ \t]*(?:{_CONTINUATION_CLAUSE_VERBS})\b"
+    rf"|[ \t]*\([^)\n]{{1,40}}\)[ \t]*(?:{_CONTINUATION_CLAUSE_VERBS})\b)",
+    re.IGNORECASE)
 # Verb-first clause tags are the same own-tag shape inverted ("began Kit.",
 # "put in Kit."). A direct reporting verb in that position is already the
 # direct rule's verb-first form, so only the clause verbs are needed here.
@@ -1399,16 +1400,28 @@ _CONTINUATION_OWN_TAG_INVERTED = re.compile(
     rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
     rf"(?:{_CONTINUATION_OWN_TAG_VERBS})[ \t]+(?P<subject>{_TAG_NAME})"
     rf"(?:[ \t]+{_TAG_ADVERB})?(?=[ \t]*[,.!?:;])", re.IGNORECASE)
-# One title vocabulary (#2388's NAME_TITLE_PREFIXES, Rule 15). Prose writes
-# several of its titles as an abbreviation with a period ("Mrs.", "Dr.",
-# "St.", "Prof.", "Rev.", "Capt."); _TAG_WORD cannot cross that period, so a
-# leading dotted title is flattened before the own-tag shapes are matched. The
-# flattened text is only tested; it never becomes evidence.
-_CONTINUATION_TITLE_ALT = "|".join(sorted(NAME_TITLE_PREFIXES,
-                                          key=lambda value: (-len(value), value)))
-_CONTINUATION_DOTTED_TITLE = re.compile(
-    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?(?P<title>{_CONTINUATION_TITLE_ALT})"
-    r"\.[ \t]+", re.IGNORECASE)
+# A lowercase reporting verb the lists do not carry, followed immediately by
+# a capitalised name, is the same inverted own-tag shape ("interposed Kit.",
+# "came Kit's reply.", "was Kit's answer."). The first word must start
+# lowercase and the next word must start uppercase, so a lowercase non-name
+# clause ("somebody began.", "she added afterwards,") and a participle that
+# names a character later ("fixing her eyes upon Elinor,") stay continuations.
+_CONTINUATION_OWN_TAG_VERB_FIRST = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
+    rf"(?-i:[a-z])[^\W\d_]*[ \t]+"
+    rf"(?P<subject>(?-i:[A-Z])[\w’'-]*)"
+    rf"(?:[ \t]+[\w’'-]+(?:[ \t]+[\w’'-]+){{0,2}})?"
+    rf"(?=[ \t]*[,.!?:;])")
+# A period inside a title abbreviation ("Mrs. Bennet said.", "Col. Brandon
+# said.") is a character _TAG_WORD cannot cross, so the continuation guards
+# would miss the quotation's own tag or beat. This is a shape, not a second
+# title list (Rule 15): any capitalised word of up to six letters followed by
+# a period and a capitalised word has the period dropped before matching. The
+# flattened text is only tested; it never becomes evidence, and the direct
+# read does not use it. Out-of-vocabulary titles ("Col.", "M.", "Messrs.")
+# therefore work without extending #2388's NAME_TITLE_PREFIXES.
+_CONTINUATION_DOTTED_ABBREVIATION = re.compile(
+    r"\b(?P<title>[A-Z][a-z]{0,5})\.(?=[ \t]+[A-Z])")
 # A tag attached by a dash directly after the closing mark is the quotation's
 # own tag for the continuation guard. It must NOT become direct-tag evidence:
 # #2388 disclosed the em-dash gap and this PR leaves it in place.
@@ -1416,19 +1429,15 @@ _DASH_TAG_INTRODUCER = re.compile(r"^[ \t]*[\u2014\u2013-][ \t]*")
 
 
 def _flatten_continuation_dotted_title(tail):
-    """Drop the period of a leading honorific so #2388's tag shapes match.
+    """Drop the period of a title abbreviation so the guard shapes can match.
 
-    "Mrs. Bennet said." becomes "Mrs Bennet said." The title text itself is
-    unchanged, so the same vocabulary decides the own-tag question; the
-    period is the only thing _TAG_WORD cannot cross. Returns `tail` unchanged
-    when it does not start with a capitalised dotted title.
+    "Mrs. Bennet said." becomes "Mrs Bennet said.", and the same happens
+    anywhere in `tail` ("old Mr. Bennet said."), so a title outside the
+    vocabulary ("Col.", "M.", "Messrs.") is covered by the same shape. Only
+    the period is removed; the whitespace after it stays. The result is only
+    tested by the continuation guard and never becomes evidence.
     """
-    match = _CONTINUATION_DOTTED_TITLE.match(tail)
-    if match is None or not match.group("title")[:1].isupper():
-        return tail
-    # Skip only the period; the whitespace after it stays.
-    period = match.end("title")
-    return tail[:period] + tail[period + 1:]
+    return _CONTINUATION_DOTTED_ABBREVIATION.sub(r"\g<title>", tail)
 
 
 def _quote_ends_with_question(text):
@@ -1452,11 +1461,13 @@ def _has_continuation_own_tag(tail):
     True when `tail` matches the direct-tag rule ("Kit said.", "Kit muttered.",
     "Kit said to Nita."), the same rule behind a dash introducer
     ("No"-Kit said.), a clause-shaped tag ("Kit began.", "Kit went on.",
-    "Kit, however, said."), or that clause inverted ("began Kit."). A dotted
-    honorific ("Mrs. Bennet said.") is flattened first, because _TAG_WORD
-    cannot cross its period. Any hit means the quotation belongs to that tag,
-    so it must not inherit the previous quotation's speaker; it also means the
-    dash/clause form is not evidence.
+    "Kit, however, said.", "Kit (smiling) said."), or that clause inverted
+    ("began Kit.", "interposed Kit.", "came Kit's reply."). A title
+    abbreviation's period ("Mrs. Bennet said.", "old Mr. Bennet said.",
+    "Col. Brandon said.") is dropped first, because _TAG_WORD cannot cross it.
+    Any hit means the quotation belongs to that tag, so it must not inherit
+    the previous quotation's speaker; it also means the dash/clause form is
+    not evidence.
     """
     tail = _flatten_continuation_dotted_title(tail)
     if _SOURCE_SPEECH_TAG.match(tail):
@@ -1465,22 +1476,29 @@ def _has_continuation_own_tag(tail):
     if dash and _SOURCE_SPEECH_TAG.match(tail[dash.end():]):
         return True
     clause = _CONTINUATION_OWN_TAG_CLAUSE.match(tail)
-    if clause is None:
-        return _CONTINUATION_OWN_TAG_INVERTED.match(tail) is not None
-    if clause.group("pronoun"):
-        return True
-    subject = clause.group("subject").split()
-    return (subject[0][:1].isupper()
-            or subject[0].casefold() in _CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS)
+    if clause is not None:
+        if clause.group("pronoun"):
+            return True
+        subject = clause.group("subject").split()
+        if (subject[0][:1].isupper()
+                or subject[0].casefold()
+                in _CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS):
+            return True
+    return (_CONTINUATION_OWN_TAG_INVERTED.match(tail) is not None
+            or _CONTINUATION_OWN_TAG_VERB_FIRST.match(tail) is not None)
 
 
 # An action beat that names another character is not evidence that the
 # quotation continues the earlier tag: "No." Kit crossed his arms. Pronouns and
 # determiner phrases ("She", "the man") are not names, so "No." She shook her
 # head. keeps the inherited speaker; a beat naming A's own speaker adds
-# nothing, so it keeps it too.
+# nothing, so it keeps it too. One sentence-opening word ("Then Kit laughed.")
+# is skipped so the beat's real subject is still read.
+_CONTINUATION_SENTENCE_OPENER_ALT = "|".join(sorted(_SENTENCE_OPENING_WORDS))
 _CONTINUATION_ACTION_BEAT = re.compile(
-    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?(?P<subject>{_TAG_WORD})"
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
+    rf"(?:(?i:{_CONTINUATION_SENTENCE_OPENER_ALT})[ \t]+)?"
+    rf"(?P<subject>{_TAG_WORD})"
     rf"(?=[ \t]+{_TAG_WORD}"
     rf"|,[ \t]*{_TAG_WORD}(?:[ \t]+{_TAG_WORD}){{0,2}}[ \t]*,[ \t]*{_TAG_WORD})")
 
@@ -1664,6 +1682,27 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         """Speaker named by a direct or continuation tag, or None when unsure."""
         return resolve_name_speaker(match.group("before") or match.group("after"))
 
+    def get_following_tag_speaker(span_pos):
+        """Speaker named by the tag immediately after a span, or None."""
+        span_end = spans[span_pos][1]
+        after_span = source_text[span_end:span_end + 160].lstrip(" \t")
+        if not after_span:
+            return None
+        direct = _SOURCE_SPEECH_TAG.match(after_span[1:].split("\n", 1)[0])
+        if not direct:
+            return None
+        if direct.group("adv_before") and (direct.group("adv_after")
+                                           or direct.group("adv_after_t")):
+            return None
+        obj = (direct.group("obj_b") or direct.group("obj_a")
+               or direct.group("obj_t"))
+        if obj is not None:
+            obj_clean = remove_silent_word_characters(obj)
+            if (obj_clean not in _TAG_OBJECT_PRONOUNS
+                    and not _is_valid_tag_name(obj_clean)):
+                return None
+        return resolve_tag_speaker(direct)
+
     evidence = {}
     continuation_evidence = {}
     for index, entry in enumerate(entries):
@@ -1767,6 +1806,21 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         if beat is not None and resolve_name_speaker(beat) != speaker:
             # The quotation is followed by a clause about another character, so
             # it is an action beat, not evidence that it continues the tag.
+            continue
+        # A paragraph that already carries two different tagged speakers is
+        # the textbook unsure case: this quotation's bare tag may belong to
+        # either of them. Abstain rather than guess the nearer one (LOW 3).
+        paragraph_speakers = {speaker}
+        earlier = span_pos - 1
+        while earlier >= 0:
+            gap = source_text[spans[earlier][1] + 1:spans[earlier + 1][0] - 1]
+            if "\n" in gap or "\r" in gap:
+                break
+            tag_speaker = get_following_tag_speaker(earlier)
+            if tag_speaker is not None:
+                paragraph_speakers.add(tag_speaker)
+            earlier -= 1
+        if len(paragraph_speakers) >= 2:
             continue
         continuation_evidence[index] = speaker
     return evidence, continuation_evidence
