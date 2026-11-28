@@ -312,6 +312,12 @@ _EXTRACT_VALUE_ERROR_PREFIXES = _ARCHIVE_ADMISSION_VALUE_ERROR_PREFIXES + (
     # (#2368): the declaration is unreadable and the bytes are not UTF-8, so
     # there is no decoded text that could be narrated truthfully.
     "EPUB resource declares an unreadable encoding",
+    # alexandria_alignment.get_epub_markup_refusal's documented refusals
+    # (#2448): EPUB 3.3 forbids UTF-32, and XML 1.0 forbids a leading U+0000.
+    # Both may be raised at a package member (container/OPF) as well as inside
+    # the per-resource wrapper below.
+    "EPUB resource is UTF-32 encoded",
+    "EPUB resource is not well-formed: it starts with U+0000",
 )
 
 # extract_epub_text's per-spine-resource wrapper (app/routers/script.py). The
@@ -324,6 +330,9 @@ _EXTRACT_RESOURCE_VALUE_ERROR_PREFIXES = (
     "invalid XML: ",
     "invalid XML while ",
     "unclosed <",
+    # alexandria_alignment.get_epub_markup_refusal (#2448).
+    "EPUB resource is UTF-32 encoded",
+    "EPUB resource is not well-formed: it starts with U+0000",
 )
 
 # alexandria_alignment.load_epub: archive admission, then its own two spine
@@ -332,6 +341,9 @@ _EXTRACT_RESOURCE_VALUE_ERROR_PREFIXES = (
 _LOAD_EPUB_VALUE_ERROR_PREFIXES = _ARCHIVE_ADMISSION_VALUE_ERROR_PREFIXES + (
     "EPUB spine references missing document: ",
     "EPUB has no readable spine documents",
+    # alexandria_alignment.get_epub_markup_refusal (#2448).
+    "EPUB resource is UTF-32 encoded",
+    "EPUB resource is not well-formed: it starts with U+0000",
 )
 
 

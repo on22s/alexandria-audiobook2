@@ -850,7 +850,7 @@ def _get_epub3_toc_entries(zf, manifest, *, report=None):
     for nav_item in nav_items:
         try:
             # archive admitted by validate_epub_archive.
-            root = parse_epub_xml(zf.read(nav_item['path']))
+            root = parse_epub_xml(zf.read(nav_item['path']), nav_item['path'])
         except (KeyError, ET.ParseError, EpubXmlEncodingError):
             # An unprocessable encoding declaration is malformed navigation
             # (#2370), not an unhandled import failure.
@@ -892,7 +892,7 @@ def _get_epub2_toc_entries(zf, opf, opf_ns, manifest, *, report=None):
         return [], [(None, 'no_epub2_navigation')]
     try:
         # archive admitted by validate_epub_archive.
-        root = parse_epub_xml(zf.read(ncx_item['path']))
+        root = parse_epub_xml(zf.read(ncx_item['path']), ncx_item['path'])
     except (KeyError, ET.ParseError, EpubXmlEncodingError):
         # An unprocessable encoding declaration is malformed navigation (#2370).
         return [], [(ncx_item['path'], 'missing_or_malformed_navigation')]

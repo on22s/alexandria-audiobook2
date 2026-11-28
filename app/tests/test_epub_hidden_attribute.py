@@ -27,6 +27,7 @@ from epub_readaloud import (
     _inline_events,
     _local,
     build_epub_readaloud,
+    get_spine_documents,
     get_spoken_text,
     get_xhtml_segments,
     validate_epub_readaloud,
@@ -49,7 +50,8 @@ ISSUE_SNIPPET = (
 
 
 def make_epub(body, *, media_type='application/xhtml+xml', toc_links=None,
-              extra_html_attrs='', raw_document=None, head='<title>Synthetic</title>'):
+              extra_html_attrs='', raw_document=None, head='<title>Synthetic</title>',
+              nav_document=None):
     """Build a minimal synthetic EPUB 3 archive with one spine document."""
     if raw_document is not None:
         doc = raw_document
@@ -61,13 +63,15 @@ def make_epub(body, *, media_type='application/xhtml+xml', toc_links=None,
         )
     links = toc_links if toc_links is not None else [('ch1.xhtml', 'Chapter One')]
     nav_items = ''.join(f'<li><a href="{href}">{label}</a></li>' for href, label in links)
-    nav_doc = (
-        '<?xml version="1.0" encoding="utf-8"?>'
-        '<html xmlns="http://www.w3.org/1999/xhtml" '
-        'xmlns:epub="http://www.idpf.org/2007/ops">'
-        '<head><title>Nav</title></head><body>'
-        f'<nav epub:type="toc"><ol>{nav_items}</ol></nav></body></html>'
-    )
+    nav_doc = nav_document
+    if nav_doc is None:
+        nav_doc = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops">'
+            '<head><title>Nav</title></head><body>'
+            f'<nav epub:type="toc"><ol>{nav_items}</ol></nav></body></html>'
+        )
     opf = (
         '<?xml version="1.0" encoding="utf-8"?>'
         '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">'
@@ -1885,6 +1889,111 @@ class DeclaredEncodingFallbackTests(unittest.TestCase):
                         ValueError, r'UTF-32.*ch1\.xhtml'):
                     _load_bytes(raw)
 
+    def test_the_two_unusual_utf32_octet_orders_are_refused(self):
+        # N1 rev1: XML 1.0 appendix F also lists the 2143 and 3412 octet
+        # orders. Their four-byte signature is the decision; the body only has
+        # to be past it. Deliberately short and non-UTF-32, so only the
+        # signature entries can refuse it (the widened code-unit check cannot),
+        # which is what the dropped-signature mutant has to fail.
+        template = ('<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+                    '<p>Caf\u00e9.</p></body></html>').encode('utf-8')
+        rows = {
+            'utf32-order-2143': b'\x00\x00\xff\xfe' + template,
+            'utf32-order-3412': b'\xfe\xff\x00\x00' + template,
+        }
+        for name, doc in rows.items():
+            with self.subTest(case=name):
+                raw = make_epub('', raw_document=doc, toc_links=[])
+                with self.assertRaisesRegex(
+                        ValueError, r'UTF-32.*OEBPS/ch1\.xhtml'):
+                    extract_epub_text('synthetic.epub', archive_bytes=raw)
+                with self.assertRaisesRegex(
+                        ValueError, r'UTF-32.*ch1\.xhtml'):
+                    _load_bytes(raw)
+
+    def test_a_bomless_utf32_chapter_starting_with_a_non_ascii_character_is_refused(self):
+        # L3 rev1: the three-NUL rule needed a first code unit <= U+00FF.
+        # Four consistent four-byte units identify UTF-32 whatever the first
+        # character is, so these no longer narrate NULs.
+        template = ('<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+                    '<title>T</title></head><body><p>Caf\u00e9.</p></body></html>')
+        for name, first in (('e-acute', '\u00e9'),
+                            ('emoji', '\U0001F600'),
+                            ('replacement', '\ufffd')):
+            with self.subTest(case=name):
+                doc = (first + template).encode('utf-32-le')
+                raw = make_epub('', raw_document=doc, toc_links=[])
+                with self.assertRaisesRegex(
+                        ValueError, r'UTF-32.*OEBPS/ch1\.xhtml') as caught:
+                    extract_epub_text('synthetic.epub', archive_bytes=raw)
+                self.assertNotIn('\x00', str(caught.exception))
+                self.assertNotIn('\ufffd', str(caught.exception))
+                with self.assertRaisesRegex(
+                        ValueError, r'UTF-32.*ch1\.xhtml'):
+                    _load_bytes(raw)
+
+    def test_whitespace_heavy_utf16_markup_is_not_mistaken_for_utf32(self):
+        # L3 rev1: UTF-16 puts a NUL in every second byte, so 16 bytes of
+        # leading whitespace make four code-unit strides look exactly like
+        # BOM-less UTF-32. Valid UTF-16 that opens a legal XML document is
+        # excluded from the widened detection; nothing here is refused.
+        template = ('<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+                    '<title>T</title></head><body><p>Caf\u00e9.</p></body></html>')
+        rows = {
+            'utf16-le-no-bom-tabs': ('\t' * 16 + template).encode('utf-16-le'),
+            'utf16-be-no-bom-tabs': ('\t' * 16 + template).encode('utf-16-be'),
+            'utf16-le-no-bom-space-tab': (' \t' * 4 + template).encode('utf-16-le'),
+            'utf16-be-no-bom-space-tab': (' \t' * 4 + template).encode('utf-16-be'),
+            'utf16-le-bom-tabs': ('\t' * 16 + template).encode('utf-16'),
+            'utf16-be-bom-tabs': (b'\xfe\xff' +
+                                  ('\t' * 16 + template).encode('utf-16-be')),
+            'utf16-le-no-bom-emoji-first': ('\U0001F600' + template)
+                                           .encode('utf-16-le'),
+            'utf16-be-no-bom-emoji-first': ('\U0001F600' + template)
+                                           .encode('utf-16-be'),
+        }
+        for name, doc in rows.items():
+            with self.subTest(case=name):
+                self.assertIsInstance(script.get_epub_xhtml_text(doc), str)
+
+    def test_a_utf16_document_starting_with_u0000_is_named_not_utf32(self):
+        # N2 rev1: such a document is not well-formed XML (U+0000 is not a
+        # legal XML character), so it stays refused, but the encoding named
+        # must not be UTF-32.
+        template = ('<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+                    '<p>Caf\u00e9.</p></body></html>')
+        for name, doc in (
+                ('utf16-le', ('\x00' + template).encode('utf-16-le')),
+                ('utf16-be', ('\x00' + template).encode('utf-16-be'))):
+            with self.subTest(case=name):
+                raw = make_epub('', raw_document=doc, toc_links=[])
+                with self.assertRaisesRegex(ValueError, r'U\+0000') as caught:
+                    extract_epub_text('synthetic.epub', archive_bytes=raw)
+                self.assertNotIn('UTF-32', str(caught.exception))
+                with self.assertRaisesRegex(ValueError, r'U\+0000') as caught:
+                    _load_bytes(raw)
+                self.assertNotIn('UTF-32', str(caught.exception))
+
+    def test_the_readaloud_spine_path_names_the_utf32_resource(self):
+        # L1 rev1: every Expat reader shares the one decision, so the
+        # read-along spine path names UTF-32 instead of "malformed".
+        doc = ('<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+               '<p>Caf\u00e9.</p></body></html>').encode('utf-32')
+        raw = make_epub('', raw_document=doc, toc_links=[])
+        with self.assertRaisesRegex(
+                ValueError, r'UTF-32.*OEBPS/ch1\.xhtml'):
+            get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+
+    def test_the_readaloud_nav_reader_names_the_utf32_resource(self):
+        nav = ('<html xmlns="http://www.w3.org/1999/xhtml" '
+               'xmlns:epub="http://www.idpf.org/2007/ops"><head><title>N</title>'
+               '</head><body><nav epub:type="toc"><ol><li>'
+               '<a href="ch1.xhtml">Chapter One</a></li></ol></nav>'
+               '</body></html>').encode('utf-32')
+        raw = make_epub('Body text.', nav_document=nav)
+        with self.assertRaisesRegex(ValueError, r'UTF-32.*OEBPS/nav\.xhtml'):
+            get_spine_documents(raw)
+
     def test_the_strict_fallback_refusal_names_the_spine_index(self):
         # L3 rev2: the #2368 refusal must be wrapped like every other
         # malformed-resource refusal, naming the spine index and resource.
@@ -2177,6 +2286,34 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
              for kind, value in events],
             [(kind, value if isinstance(value, str) else _local(value.tag))
              for kind, value in _inline_events(segment_minus['element'])])
+
+
+class FuzzRefusalContractTests(unittest.TestCase):
+    """The #2448 refusals are documented, so the fuzz harness's closed set takes them."""
+
+    def test_the_utf32_and_leading_nul_refusals_are_expected_values(self):
+        # L2 rev1: tools/fuzz/_common.py crashes on an undocumented ValueError.
+        # Both new named refusals must be accepted at every site they can
+        # reach: the load_epub top level, extraction's top level (a package
+        # member), and the per-resource wrapper's cause.
+        import importlib
+        common = importlib.import_module('tools.fuzz._common')
+        messages = (
+            "EPUB resource is UTF-32 encoded, which EPUB 3.3 does not allow: "
+            "'OEBPS/ch1.xhtml'",
+            "EPUB resource is not well-formed: it starts with U+0000, which "
+            "XML 1.0 does not allow: 'OEBPS/ch1.xhtml'",
+        )
+        for message in messages:
+            with self.subTest(message=message):
+                refusal = alignment.EpubMarkupRefusal(message)
+                self.assertTrue(common.is_expected_load_epub_value_error(refusal))
+                self.assertTrue(common.is_expected_epub_extract_value_error(refusal))
+                wrapped = ValueError(
+                    "Malformed EPUB resource at spine index 0: "
+                    f"{message} (resource 'OEBPS/ch1.xhtml')")
+                wrapped.__cause__ = refusal
+                self.assertTrue(common.is_expected_epub_extract_value_error(wrapped))
 
 
 if __name__ == '__main__':

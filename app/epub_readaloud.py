@@ -51,6 +51,7 @@ import xml.etree.ElementTree as ET
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
 from alexandria_alignment import (
     EPUB_XML_DECL_MAX_BYTES,
+    get_epub_markup_refusal,
     html_hidden_handling_applies,
     is_html_hidden_attrs,
 )
@@ -255,7 +256,8 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                 try:
                     # size-bounded archive member.
                     root = parse_epub_xml(_read_archive_member_bounded(
-                        archive, item['path'], _get_retained_xml_limit(), member_index=member_index))
+                        archive, item['path'], _get_retained_xml_limit(),
+                        member_index=member_index), item['path'])
                 except (ET.ParseError, EpubXmlEncodingError):
                     continue
                 for nav in root.iter():
@@ -499,8 +501,10 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
             raise ValueError(f"Spine document is missing: {path}")
         raw = _read_archive_member_bounded(archive, path, max_xml_bytes, member_index=member_index)
     try:
-        # size-bounded archive member.
-        root = parse_epub_xml(raw)
+        # size-bounded archive member. UTF-32 is refused by name before Expat
+        # sees the bytes, so it keeps the shared refusal instead of becoming
+        # "Spine document is malformed" (#2448).
+        root = parse_epub_xml(raw, path)
     except (ET.ParseError, EpubXmlEncodingError) as error:
         # An unprocessable encoding declaration is malformed input here, not
         # an unhandled ValueError (#2370).
@@ -1096,7 +1100,7 @@ def get_epub_language_from_path(retained_path):
                          % str(error)[:256]) from error
 
 
-def _svg_has_text(stream, cancel_check=None):
+def _svg_has_text(stream, cancel_check=None, resource=None):
     """Streaming SVG text probe with a custom no-tree XML target.
 
     Uses stdlib ``XMLParser`` with a lightweight target (never a
@@ -1111,7 +1115,9 @@ def _svg_has_text(stream, cancel_check=None):
     which the SVG spine probe skips like any other malformed SVG.
     The target retains no tree or text. Expat may still buffer a
     single large XML token; chunked input is not a constant-memory
-    guarantee for arbitrary attributes or markup.
+    guarantee for arbitrary attributes or markup. UTF-32 is refused by the
+    shared markup decision before the stream is fed, so it is named rather
+    than skipped as malformed (#2448).
     """
     class _Target:
         def __init__(self):
@@ -1156,6 +1162,9 @@ def _svg_has_text(stream, cancel_check=None):
     # 3 N4). The extra bytes only shift the following chunks.
     chunk = stream.read(EPUB_XML_DECL_MAX_BYTES + 3)
     if chunk:
+        refusal = get_epub_markup_refusal(chunk, resource)
+        if refusal is not None:
+            raise refusal
         refusal = get_epub_declaration_refusal(chunk)
         if refusal is not None:
             raise refusal
@@ -1962,7 +1971,7 @@ def validate_epub_readaloud(archive_bytes):
                     archive, path, _get_retained_xml_limit(), member_index=member_index)
                 try:
                     # size-bounded archive member.
-                    root = parse_epub_xml(raw)
+                    root = parse_epub_xml(raw, path)
                 except (ET.ParseError, EpubXmlEncodingError) as error:
                     raise ValueError("Built EPUB XHTML is malformed.") from error
                 ids = set()
@@ -2040,7 +2049,7 @@ def validate_epub_readaloud(archive_bytes):
                 archive, smil_path, MAX_EPUB_READALOUD_XML_BYTES, member_index=member_index)
             try:
                 # size-bounded archive member.
-                smil_root = parse_epub_xml(raw)
+                smil_root = parse_epub_xml(raw, smil_path)
             except (ET.ParseError, EpubXmlEncodingError) as error:
                 raise ValueError("Built EPUB SMIL is malformed.") from error
             if not smil_root.get('version'):
@@ -2203,7 +2212,7 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
             archive, ncx_path, _get_retained_xml_limit(), member_index=member_index)
     try:
         # size-bounded archive member.
-        root = parse_epub_xml(raw)
+        root = parse_epub_xml(raw, ncx_path)
     except (ET.ParseError, EpubXmlEncodingError):
         return []
     nav_map = root.find('.//{%s}navMap' % 'http://www.daisy.org/z3986/2005/ncx/')
@@ -2338,7 +2347,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                     continue
                 try:
                     with _src.open(_info) as _stream:
-                        if _svg_has_text(_stream, cancel_check=cancel_check):
+                        if _svg_has_text(_stream, cancel_check=cancel_check,
+                                         resource=spine_item["path"]):
                             raise ValueError(
                                 "SVG spine documents with text are unsupported; failing closed.")
                 except (KeyError, ET.ParseError, EpubXmlEncodingError):
@@ -2635,7 +2645,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             raise ValueError("Retained EPUB lacks META-INF/container.xml.") from error
     try:
         # size-bounded archive member.
-        container = parse_epub_xml(container_raw)
+        container = parse_epub_xml(container_raw, 'META-INF/container.xml')
     except (ET.ParseError, EpubXmlEncodingError) as error:
         raise ValueError("Retained EPUB container is malformed.") from error
     container_ns = container.tag.split('}')[0] + '}' if '}' in container.tag else ''

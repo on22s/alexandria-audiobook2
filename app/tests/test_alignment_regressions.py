@@ -207,6 +207,29 @@ class AlignmentCliRegressionTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "EPUB support requires"):
                 alignment.load_epub("book.epub")
 
+    def test_compare_exits_non_zero_on_a_refused_source_markup(self):
+        # L4 rev1: load_epub now raises the named refusal, so compare must
+        # report it and exit non-zero instead of a traceback (#2448).
+        args = SimpleNamespace(
+            jsonl="book.jsonl", source="book.epub", output="out.jsonl",
+            threshold=0.8, review_all=False, reset=False, reset_entry=None,
+            reset_from=None, reset_range=None, also_clear_log=False,
+            source_start=None, source_start_text=None, no_auto_anchor=True,
+            review_preanchor=False,
+        )
+        refusal = alignment.EpubMarkupRefusal(
+            "EPUB resource is UTF-32 encoded, which EPUB 3.3 does not allow: "
+            "'ch1.xhtml'")
+        with patch.object(compare.argparse.ArgumentParser, "parse_args",
+                          return_value=args), \
+             patch.object(compare, "load_jsonl", return_value=[]), \
+             patch.object(compare, "get_checkpoint_identity", return_value={}), \
+             patch.object(compare, "load_source", side_effect=refusal), \
+             self.assertRaises(SystemExit) as caught:
+            compare.main()
+        self.assertIn("UTF-32", str(caught.exception))
+        self.assertNotEqual(0, caught.exception.code)
+
     def test_fresh_compare_uses_cli_threshold_for_quality_estimate(self):
         args = SimpleNamespace(
             jsonl="book.jsonl", source="book.txt", output="out.jsonl",

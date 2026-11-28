@@ -100,6 +100,22 @@ class EpubPackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'unknown encoding'):
                     get_epub_package(archive)
 
+    def test_utf32_container_and_opf_are_refused_by_name(self):
+        # L1 rev1: the package readers share the one UTF-32 decision, so a
+        # UTF-32 container or OPF is named as UTF-32, not reported as a bare
+        # Expat parse error (#2448).
+        container = ('<container xmlns="urn:oasis:names:tc:opendocument:'
+                     'xmlns:container"><rootfiles><rootfile full-path="book.opf"/>'
+                     '</rootfiles></container>')
+        with self.assertRaisesRegex(
+                ValueError, r'UTF-32.*META-INF/container\.xml'), \
+                self.archive(container=container.encode('utf-32')) as archive:
+            get_epub_package(archive)
+        with self.assertRaisesRegex(
+                ValueError, r'UTF-32.*book\.opf'), \
+                self.archive('<package/>'.encode('utf-32')) as archive:
+            get_epub_package(archive)
+
     def test_a_stylesheet_pi_before_the_declaration_is_a_named_refusal(self):
         # #2452 N1: a real declaration after a PI is malformed XML. Expat's
         # XML_ERROR_XML_DECL is mapped to the named refusal, not a bare
