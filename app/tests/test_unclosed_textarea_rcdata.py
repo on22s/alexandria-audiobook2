@@ -1,49 +1,43 @@
 """Regression test for #2439: an unclosed <textarea>'s trailing RCDATA must not be dropped.
 
-The router module imports optional audio dependencies, so this unit test loads only the
-extractor class from its source instead of importing the whole module.
+Python 3.14's ``html.parser`` holds a short trailing ``feed()`` in
+``self._pending`` until ``close()``. The extractor's feed-only text accessors
+never call ``close()``, so ``_finalize_pending_rcdata`` must drain that buffer
+too or the last chunk of an unclosed ``<textarea>`` is silently lost.
 """
 
-import ast
-import pathlib
 import unittest
-from html import unescape
-from html.parser import HTMLParser
 
-_MODULE = pathlib.Path(__file__).resolve().parents[1] / 'routers' / 'script.py'
-_TREE = ast.parse(_MODULE.read_text(encoding='utf-8'))
-import ruby_text  # noqa: E402 - lightweight module that supplies the extractor's ruby constants
-
-_NAMESPACE = {
-    'HTMLParser': HTMLParser,
-    'unescape': unescape,
-    'RUBY_TAG': ruby_text.RUBY_TAG,
-    'RUBY_FALLBACK_TAG': ruby_text.RUBY_FALLBACK_TAG,
-    'RUBY_READING_TAG': ruby_text.RUBY_READING_TAG,
-    'RubyCollector': ruby_text.RubyCollector,
-}
-for _node in _TREE.body:
-    if isinstance(_node, ast.Assign) and isinstance(_node.value, ast.Constant):
-        for _target in _node.targets:
-            if isinstance(_target, ast.Name):
-                _NAMESPACE[_target.id] = _node.value.value
-for _node in _TREE.body:
-    if isinstance(_node, ast.ClassDef) and _node.name == '_HTMLTextExtractor':
-        exec(compile(ast.Module(body=[_node], type_ignores=[]), str(_MODULE), 'exec'), _NAMESPACE)
-        break
-_HTMLTextExtractor = _NAMESPACE['_HTMLTextExtractor']
+from routers import script
 
 
 class UnclosedTextareaRcdataTest(unittest.TestCase):
     def test_chunked_feed_does_not_drop_the_rcdata_suffix(self):
-        extractor = _HTMLTextExtractor(html_rcdata=True)
+        # The three-call shape matters on 3.14: the second feed makes no
+        # progress, so the parser waits for the buffer to double and the
+        # third, smaller feed lands in _pending instead of rawdata.
+        extractor = script._HTMLTextExtractor(html_rcdata=True)
         extractor.feed('<html><body><textarea>Hello')
         extractor.feed(' world')
         extractor.feed(' again')
         self.assertEqual(extractor.get_text(), 'Hello world again')
 
+    def test_buffered_pending_tail_is_finalized(self):
+        # CI runs 3.10, which has no _pending, so reproduce 3.14's buffered
+        # state explicitly. Without the drain in _finalize_pending_rcdata the
+        # tail is dropped here on every interpreter.
+        extractor = script._HTMLTextExtractor(html_rcdata=True)
+        extractor.feed('<html><body><textarea>Hello world')
+        self.assertEqual(extractor.rawdata, 'Hello world')
+        extractor._pending = [' again']
+        if hasattr(extractor, '_pending_len'):
+            extractor._pending_len = len(' again')
+        self.assertEqual(extractor.get_text(), 'Hello world again')
+        self.assertEqual(extractor._pending, [])
+        self.assertEqual(getattr(extractor, '_pending_len', 0), 0)
+
     def test_closed_textarea_is_unchanged(self):
-        extractor = _HTMLTextExtractor(html_rcdata=True)
+        extractor = script._HTMLTextExtractor(html_rcdata=True)
         extractor.feed('<html><body><textarea>Hello world</textarea>')
         self.assertEqual(extractor.get_text(), 'Hello world')
 

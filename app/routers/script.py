@@ -629,6 +629,10 @@ class _HTMLTextExtractor(HTMLParser):
         if buffered:
             pending += ''.join(buffered)
             self._pending = []
+            # close() also clears the buffered-length counter; leave the parser
+            # consistent if a caller feeds again after a text accessor.
+            if hasattr(self, '_pending_len'):
+                self._pending_len = 0
         if pending:
             self.handle_data(pending)
         self.cdata_elem = None
