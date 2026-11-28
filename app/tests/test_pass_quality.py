@@ -2280,6 +2280,39 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
                     quote_regions_decision("auto", chunk, analysis)[1],
                 )
 
+    def test_ascii_attribution_lines_do_not_certify_their_own_chunk(self):
+        """#2447 gate 1 blocker 2: `--` signatures/ToC/epigraph attributions and
+        hard-wrapped lower-case continuations cannot certify a convention.
+
+        Main abstains on every chunk below (and `—` is unchanged, main already
+        certifying signature pairs); before the fix two `--` attribution lines
+        established the convention and were certified SPOKEN.
+        """
+        from three_pass_generate import quote_regions_decision
+
+        for chunk in (
+            ("Vanity of vanities, all is vanity.\n--Ecclesiastes\n"
+             "The paths of glory lead but to the grave.\n--Thomas Gray\n"
+             "The story begins.\n"),
+            "Yours very truly,\n--John Smith\n--Mary Smith\n",
+            "CONTENTS\n--Chapter One\n--Chapter Two\n--Chapter Three\n",
+            ("--Vanity of vanities, saith the Preacher.\n--_Ecclesiastes_\n"
+             "The story begins.\n"),
+            ("and I thought of her\n--and wept.\nThe rain fell\n"
+             "--the road was gone.\n"),
+        ):
+            with self.subTest(chunk=chunk):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertEqual([], analysis["regions"])
+                self.assertEqual((None, None),
+                                 quote_regions_decision("auto", chunk, analysis))
+        # A real two-line `--` dialogue chunk still certifies.
+        real = "He walked in.\n-- Hello there.\n-- Hi.\nHe sat down.\n"
+        analysis = analyze_outer_quote_regions(real)
+        self.assertEqual(
+            "quote_presegmented",
+            quote_regions_decision("auto", real, analysis)[1])
+
     def test_ascii_double_hyphen_dash_lines_segment_and_route_via_shared_rule(self):
         """#2395: pass_quality shares dialogue_spans' ASCII `--` dash rule."""
         from three_pass_generate import quote_regions_decision

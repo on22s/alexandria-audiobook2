@@ -121,17 +121,61 @@ def is_dash_attribution(line):
     return named
 
 
-def has_established_dash_convention(text):
-    """-> True when `text` is a quote-free chunk that runs dash dialogue.
+def _starts_like_speech(body):
+    """-> True when a dash line's body opens like dialogue, not a continuation.
+
+    A `--` line is weak evidence, so it counts toward establishment only when
+    it reads as speech: an uppercase or caseless letter, a digit, or opening
+    punctuation (`¿`, `¡`, `«`, `"`). A lower-case hard-wrap continuation
+    (`--and wept.`) never does (#2447 gate 1 blocker 2).
+    """
+    return bool(body) and not body[0].islower()
+
+
+def _dialogue_dash_lines(text):
+    """-> dash-opened lines that are evidence of dialogue.
+
+    `—`/`–` are strong: every line counts, exactly as on main, so a signature
+    pair still certifies its own chunk (the #2447 gate 1 Limits note). The
+    weak `--` is the form that could establish itself on attribution-shaped
+    lines (`--Thomas Gray`, `--John Smith`, `--Chapter One`), so a `--` line
+    counts only when it is NOT attribution-shaped and starts like speech
+    (#2447 gate 1 blocker 2).
+    """
+    for match in DASH_LINE.finditer(text):
+        raw = match.group(0)
+        lead = len(raw) - len(raw.lstrip(" \t"))
+        if get_dash_mark(raw, lead)[1] == "weak":
+            body = match.group(1)
+            if (is_dash_attribution(body)
+                    or not _starts_like_speech(body)):
+                continue
+        yield match
+
+
+def has_established_dash_convention(text, convention=None):
+    """-> True when `text` RUNS dash dialogue, not merely "has no quotes".
 
     ONE test of "the dash convention is established", shared by its two users
     (Rule 15): the weak `--` certification in `pass_quality` (#2395 review 1
-    blocker 2) and the attribution exclusion below (#2395 review 2 low 1). It
-    takes at least two dash-opened lines and no quote mark, so dashes are the
-    dialogue convention rather than punctuation in a paired-quote book.
+    blocker 2) and the attribution exclusion below (#2395 review 2 low 1).
+
+    Establishment means at least two lines that are evidence of dialogue
+    (`_dialogue_dash_lines`) AND that dashes carry this text: either the
+    caller's detected `convention` is already `dash_lines`, or dash-opened
+    lines outnumber paired-quote openers. The quote-free requirement is gone:
+    in a dash book a stray quoted title (a Polish `„…”` title, a French
+    `"…"` newspaper) no longer switches the convention off and turns
+    unpunctuated vocatives into NARRATOR (#2447 gate 1 blocker 1).
     """
-    return (not any(mark in text for mark in QUOTE_MARKS)
-            and sum(1 for _match in DASH_LINE.finditer(text)) >= 2)
+    evidence = sum(1 for _match in _dialogue_dash_lines(text))
+    if evidence < 2:
+        return False
+    if convention == "dash_lines":
+        return True
+    if not any(mark in text for mark in QUOTE_MARKS):
+        return True
+    return evidence > len(_paired_spans(text))
 
 
 def iter_dash_lines(text):
@@ -139,7 +183,7 @@ def iter_dash_lines(text):
 
     An attribution-shaped line is excluded only where the dash convention is
     NOT established: in a paired-quote book (`--Author Name`) it is narration,
-    while inside an established dash-dialogue chunk a name-only line keeps
+    while inside an established dash-dialogue text a name-only line keeps
     main's SPOKEN label (`—Mamá`, #2395 review 2 low 1).
     """
     established = has_established_dash_convention(text)
@@ -1811,6 +1855,17 @@ def _unclosed_opener_spans(text, pairs):
     return spans
 
 
+# The #2399 note shape has its OWN constants (#2447 gate 1 nit 2), not the
+# dash-attribution ones: the two questions ("is this a signature line?" and
+# "is this an inner note?") happen to share a shape today, but a dash tweak
+# must not silently change which chevron bodies surface as notes.
+_NOTE_SENTENCE_END = ".!?…。！？"
+_NOTE_PARTICLES = frozenset(
+    ("de", "van", "von", "der", "den", "da", "di", "du", "la", "le", "del",
+     "della", "dos", "das", "of", "bin", "ibn", "al", "el", "y", "e"))
+_NOTE_MAX_WORDS = 5
+
+
 def _is_note_fragment(content):
     """-> True when a chevron pair's body reads as an inner note, not a sentence.
 
@@ -1818,17 +1873,18 @@ def _is_note_fragment(content):
     `«The Times»`) is a single word or a short title-shaped phrase, with no
     sentence-final punctuation. Narration that merely lies between two
     reversed speeches (`He walked over.`, `Two words`) has a sentence shape
-    or a lowercase non-title word and stays unflagged (#2399).
+    or a lowercase non-title word and stays unflagged (#2399). A one-word
+    body must contain a letter: `«42»` is not a note (#2447 gate 1 nit 1).
     """
     body = content.strip()
-    if not body or body[-1] in _DASH_SENTENCE_END:
+    if not body or body[-1] in _NOTE_SENTENCE_END:
         return False
     words = body.split()
-    if not 1 <= len(words) <= _DASH_ATTRIBUTION_MAX_WORDS:
+    if not 1 <= len(words) <= _NOTE_MAX_WORDS:
         return False
     if len(words) == 1:
         return any(char.isalpha() for char in body)
-    return all(word in _DASH_ATTRIBUTION_PARTICLES or word[0].isupper()
+    return all(word in _NOTE_PARTICLES or word[0].isupper()
                for word in words)
 
 

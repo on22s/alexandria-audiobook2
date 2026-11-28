@@ -98,12 +98,34 @@ def _assert_straight_pair_scan_is_sane(case):
         raise AssertionError(f"{case}: plain straight pair returned {spans!r}")
 
 
+# Frozen copies of origin/main's (b219e63f9) pattern tables for the frozen-main
+# differential below (#2447 gate 1 low 2). Head's tables add `»…«`, `›…‹` and
+# `--`; main's control flow must see main's tables so a table-driven difference
+# is visible instead of hidden.
+_MAIN_OTHER_PAIRED = (
+    re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"),
+    re.compile(r"«([^«»]+)»"),
+    re.compile(r"‹([^‹›\n]+)›"),
+    re.compile(r"‚([^‚‘\n]+)‘"),
+    re.compile(r"„([^„“\n]+)“"),
+    re.compile(r"„([^„”\n]+)”"),
+)
+_MAIN_DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
+
+
 def _main_get_other_speech_spans(text, convention):
-    """Frozen origin/main (c0085045) original, used only as a differential.
+    """Frozen origin/main (b219e63f9) original, used only as a differential.
 
     #2360 is the only known difference: this version appends an unclosed
     opener even when its paragraph body is empty or whitespace-only, which
     returns the zero-length (start, start) range validate_spoken_spans refuses.
+
+    The two pattern tables are FROZEN COPIES of main's, not head's live
+    attributes (#2447 gate 1 low 2): reading `dialogue_spans.OTHER_PAIRED` and
+    `.DASH_LINE` would run main's control flow over head's tables, hiding every
+    difference the tables themselves cause (the added `»…«`/`›…‹` directions
+    and the `--` dash). The dedicated #2395/#2399 tests own those differences;
+    `_owns_intentional_difference` excludes their inputs from this comparison.
     """
     if convention is None:
         return []
@@ -122,13 +144,13 @@ def _main_get_other_speech_spans(text, convention):
         return index >= 0 and merged[index][1] >= end
 
     spans = [(match.start(1), match.end(1))
-             for pattern in dialogue_spans.OTHER_PAIRED
+             for pattern in _MAIN_OTHER_PAIRED
              for match in pattern.finditer(text)
              if dialogue_spans.BLANK_LINE.search(text, match.start(1), match.end(1)) is None
              and not inside_primary(match.start(1), match.end(1))]
     if convention != "dash_lines":
         spans += [(match.start(1), match.end(1))
-                  for match in dialogue_spans.DASH_LINE.finditer(text)]
+                  for match in _MAIN_DASH_LINE.finditer(text)]
     if convention != "paired_quotes":
         spans += pairs
     else:
@@ -174,6 +196,10 @@ def _owns_intentional_difference(text):
         if kind == "single_guillemet" and opener == "›" and pattern.search(text):
             return True
         if kind == "double_guillemet":
+            # The `»…«` direction itself is head-only (main has only `«…»`),
+            # so any text it matches is owned by the dedicated #2399 tests.
+            if opener == "»" and pattern.search(text):
+                return True
             for match in pattern.finditer(text):
                 if (match.start() in primary
                         or match.end() - 1 in primary):
@@ -2904,6 +2930,123 @@ class DashDialogueTagTests(unittest.TestCase):
             [{"speaker": "ALICE", "text": "Mamá"}], paired)["entries"][0]
         self.assertEqual("NARRATOR", row["speaker"])
         self.assertIs(False, row["spoken"])
+
+    def test_dash_convention_survives_a_stray_quoted_title(self):
+        """#2447 gate 1 blocker 1: a dash book with one quoted title runs dash
+        dialogue, so its unpunctuated vocatives keep main's SPOKEN label.
+
+        Whole-book `apply_dialogue_map` returns main's result in each language:
+        the detected convention is `dash_lines`, the vocative keeps its speaker
+        and is spoken. Before the fix any quote mark switched the convention
+        off and the vocative became a confident NARRATOR.
+        """
+        for quote, vocative in (
+            ("„Pana Tadeusza”", "— Mamo"),
+            ("„Известия“", "— Мама"),
+            ('"Figaro"', "— Maman"),
+            ("“Abierto”", "— Mamá"),
+        ):
+            with self.subTest(quote=quote, vocative=vocative):
+                book = "".join("— Dzień dobry %d — powiedziała.\n" % i
+                               for i in range(20))
+                book += vocative + "\n"
+                book += "".join("— Tak %d.\n" % i for i in range(20))
+                book += f"Czytał {quote} przy oknie.\n"
+                self.assertTrue(
+                    dialogue_spans.has_established_dash_convention(book))
+                mapped = apply_dialogue_map(
+                    [{"speaker": "ANA", "text": vocative.lstrip("— ")}], book)
+                self.assertEqual("dash_lines", mapped["convention"])
+                row = mapped["entries"][0]
+                self.assertEqual("ANA", row["speaker"])
+                self.assertIs(True, row["spoken"])
+                self.assertNotIn("dialogue_ambiguity", row)
+                self.assertEqual(0, mapped["ambiguous"])
+                self.assertEqual([], mapped["narration_changes"])
+
+    def test_ascii_attribution_lines_do_not_establish_a_dash_convention(self):
+        """#2447 gate 1 blocker 2: two `--` attribution/signature/ToC lines,
+        an epigraph with its `--_Ecclesiastes_` attribution, and lower-case
+        hard-wrapped continuations cannot establish the convention.
+
+        Main abstains on every shape below; before the fix each `--` line
+        counted and certified its own signatures as SPOKEN.
+        """
+        for chunk in (
+            ("Vanity of vanities, all is vanity.\n--Ecclesiastes\n"
+             "The paths of glory lead but to the grave.\n--Thomas Gray\n"
+             "The story begins.\n"),
+            "Yours very truly,\n--John Smith\n--Mary Smith\n",
+            "CONTENTS\n--Chapter One\n--Chapter Two\n--Chapter Three\n",
+            ("--Vanity of vanities, saith the Preacher.\n--_Ecclesiastes_\n"
+             "The story begins.\n"),
+            ("and I thought of her\n--and wept.\nThe rain fell\n"
+             "--the road was gone.\n"),
+        ):
+            with self.subTest(chunk=chunk):
+                self.assertFalse(
+                    dialogue_spans.has_established_dash_convention(chunk))
+                self.assertEqual(
+                    [], analyze_outer_quote_regions(chunk)["regions"])
+        # A real two-line `--` dialogue chunk is still evidence, and the
+        # caller's detected convention short-circuits the quote comparison
+        # (three quoted spans outnumber the two dash lines here).
+        real = "He walked in.\n-- Hello there.\n-- Hi.\nHe sat down.\n"
+        self.assertTrue(
+            dialogue_spans.has_established_dash_convention(real))
+        quoted = ('-- Hello there.\n-- Hi.\n'
+                  '"One." "Two." "Three."\n')
+        self.assertFalse(
+            dialogue_spans.has_established_dash_convention(quoted))
+        self.assertTrue(
+            dialogue_spans.has_established_dash_convention(
+                quoted, "dash_lines"))
+
+    def test_em_dash_signature_pair_still_certifies_like_main(self):
+        """#2447 gate 1 Limits: `—` signatures are main's certified SPOKEN.
+
+        The weak `--` attribution rule is deliberately narrower; strong `—`/`–`
+        lines keep main's behaviour, which main already certifies.
+        """
+        chunk = "—John Smith\n—Mary Smith\n"
+        self.assertTrue(dialogue_spans.has_established_dash_convention(chunk))
+        self.assertEqual(
+            [("SPOKEN", "John Smith"), ("SPOKEN", "Mary Smith")],
+            [(row["type"], row["text"])
+             for row in analyze_outer_quote_regions(chunk)["regions"]])
+
+    def test_ascii_dash_narration_in_paired_quote_book_routes_not_labels(self):
+        """#2447 gate 1 low 1: a narration paragraph opening with `--` in an
+        English paired-quote book is routed to the model (`other_convention`),
+        not confidently labelled. A safe direction, disclosed in the body.
+        """
+        book = "".join('"Line %d," said Tom.\n\n' % i for i in range(8))
+        book += "--and so the matter rested for a week.\n\n"
+        book += '"Done," said Tom.\n'
+        mapped = apply_dialogue_map(
+            [{"speaker": "NARRATOR",
+              "text": "and so the matter rested for a week."}], book)
+        self.assertEqual("paired_quotes", mapped["convention"])
+        row = mapped["entries"][0]
+        self.assertEqual("NARRATOR", row["speaker"])
+        self.assertEqual("other_convention", row["dialogue_ambiguity"])
+        self.assertEqual(1, mapped["ambiguous"])
+
+    def test_note_fragment_needs_a_letter_when_it_is_one_word(self):
+        """#2447 gate 1 nit 1: `«42»` is not a note.
+
+        Replacing the one-word branch with `return True` would surface the
+        digit-only body as a note, so this row kills that mutation.
+        """
+        self.assertFalse(dialogue_spans._is_note_fragment("42"))
+        text = "»First.« Seite «42» hier. »Second.«"
+        self.assertEqual(
+            [], dialogue_spans.get_other_speech_spans(text, "paired_quotes"))
+        note = "»First.« He called it «odd», then left. »Second.«"
+        self.assertEqual(
+            ["odd"],
+            [note[a:b] for a, b in
+             dialogue_spans.get_other_speech_spans(note, "paired_quotes")])
 
     def test_one_dash_table_drives_regex_separators_lengths_and_strength(self):
         """#2395 review 1 low 4 / nit 1: the dash definition is one table."""

@@ -713,9 +713,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     # marks uses those and treats a stray dash as narration punctuation.
     dash_is_dialogue = not any(mark in text for mark in QUOTE_MARKS)
     # "The dash convention is established" is ONE predicate in dialogue_spans
-    # (Rule 15): a quote-free chunk with at least two dash-opened lines. It
-    # gates the weak `--` certification (#2395 review 1 blocker 2) AND the
-    # attribution exclusion (#2395 review 2 low 1), so the two cannot disagree.
+    # (Rule 15): at least two lines of dialogue evidence and dashes outnumber
+    # paired-quote openers (`dash_lines` wins outright in a quote-free chunk).
+    # It gates the weak `--` certification (#2395 review 1 blocker 2) AND the
+    # attribution exclusion (#2395 review 2 low 1), so the two cannot disagree;
+    # a `--` line counts as evidence only when it opens like speech and is not
+    # attribution-shaped (#2447 gate 1 blocker 2).
     dash_established = _dash_established(text)
     quote_positions = [i for i, c in enumerate(text) if c in _QUOTE_CHARS]
     quote_at = {i: c for i, c in enumerate(text) if c in _QUOTE_CHARS}
