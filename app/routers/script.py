@@ -817,7 +817,8 @@ def _get_epub3_toc_entries(zf, manifest, *, report=None):
         try:
             # archive admitted by validate_epub_archive.
             root = ET.fromstring(zf.read(nav_item['path']))  # nosec B314
-        except (KeyError, ET.ParseError):
+        except (KeyError, ET.ParseError, LookupError):
+            # LookupError is an unknown declared encoding, not a parse error.
             decisions.append((nav_item['path'], 'missing_or_malformed_navigation'))
             continue
         for nav in root.iter():
@@ -857,7 +858,8 @@ def _get_epub2_toc_entries(zf, opf, opf_ns, manifest, *, report=None):
     try:
         # archive admitted by validate_epub_archive.
         root = ET.fromstring(zf.read(ncx_item['path']))  # nosec B314
-    except (KeyError, ET.ParseError):
+    except (KeyError, ET.ParseError, LookupError):
+        # LookupError is an unknown declared encoding, not a parse error.
         return [], [(ncx_item['path'], 'missing_or_malformed_navigation')]
     entries = []
     for nav_point in root.iter():

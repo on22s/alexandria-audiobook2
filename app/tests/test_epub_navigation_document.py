@@ -28,7 +28,7 @@ CHAPTERS = 'A Cold Morning\n\nStory begins.\n\nThe Bridge\n\nStory ends.'
 def navigation_epub(*, version='3.0', nav_in_spine=True, nav_linear=None,
                     nav_properties='nav', nav_body=None, include_ncx=False,
                     chapter_in_spine=True, cover=False, omit_nav_member=False,
-                    empty_body=False):
+                    empty_body=False, ncx_declaration='<?xml version="1.0"?>'):
     """Synthetic EPUB whose navigation document links to two chapters."""
     if nav_body is None:
         nav_body = ('<html xmlns="http://www.w3.org/1999/xhtml" '
@@ -63,7 +63,7 @@ def navigation_epub(*, version='3.0', nav_in_spine=True, nav_linear=None,
                '<dc:language>en</dc:language></metadata>'
                '<manifest>%s</manifest><spine%s>%s</spine></package>'
                % (version, manifest, spine_attributes, spine))
-    ncx = ('<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
+    ncx = (ncx_declaration + '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
            '<navMap><navPoint id="n1"><navLabel><text>A Cold Morning</text></navLabel>'
            '<content src="one.xhtml"/></navPoint><navPoint id="n2"><navLabel><text>The Bridge</text>'
            '</navLabel><content src="two.xhtml"/></navPoint></navMap></ncx>')
@@ -197,6 +197,28 @@ class EpubNavigationDocumentTests(unittest.TestCase):
                    if row['kind'] == 'navigation_target' and row['resource'] == 'nav.xhtml']
         self.assertEqual(['top', None], [row['fragment'] for row in targets])
         self.assertEqual(['navigation_document'], sorted({row['reason'] for row in targets}))
+
+    def test_unknown_navigation_encoding_is_recorded_as_malformed(self):
+        # #2370: ET.fromstring raises LookupError, not ET.ParseError, for an
+        # unknown declared encoding, and the navigation readers caught only
+        # KeyError/ET.ParseError.
+        bogus = '<?xml version="1.0" encoding="bogus"?>'
+        nav_body = (bogus + '<html xmlns="http://www.w3.org/1999/xhtml" '
+                    'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                    '<nav epub:type="toc"><a href="one.xhtml">A Cold Morning</a></nav>'
+                    '</body></html>')
+        text, report = extract(navigation_epub(nav_body=nav_body))
+        # Without a table of contents the chapter labels are not inserted.
+        self.assertEqual('Story begins.\n\nStory ends.', text)
+        self.assertIn('missing_or_malformed_navigation',
+                      [row.get('reason') for row in report['rows']])
+
+        epub2_text, epub2_report = extract(navigation_epub(
+            version='2.0', nav_in_spine=False, include_ncx=True,
+            nav_properties=None, ncx_declaration=bogus))
+        self.assertEqual('Story begins.\n\nStory ends.', epub2_text)
+        self.assertIn('missing_or_malformed_navigation',
+                      [row.get('reason') for row in epub2_report['rows']])
 
     def test_manifest_href_with_invalid_ipv6_authority_does_not_abort_import(self):
         # #2377: urlsplit('http://[') raises ValueError before the href can be
