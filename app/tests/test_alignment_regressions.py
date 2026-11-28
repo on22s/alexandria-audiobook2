@@ -63,6 +63,17 @@ class AlignmentCliRegressionTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, message):
                         alignment.validate_epub_archive(str(path))
 
+    def test_epub_preflight_rejects_an_entry_with_an_empty_filename(self):
+        # zipfile.ZipInfo.is_dir() indexes filename[-1], so an entry written
+        # with a zero-length name raised IndexError inside the preflight
+        # instead of being refused (#2367).
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, "w") as archive:
+            archive.writestr(zipfile.ZipInfo(""), b"")
+            archive.writestr("first.xhtml", "A" * 100)
+        with self.assertRaisesRegex(ValueError, "empty filename"):
+            alignment.validate_epub_archive("book.epub", archive_bytes=raw.getvalue())
+
     def test_epub_loader_rejects_archive_before_ebooklib_reads_it(self):
         with patch.object(alignment, "EPUB_AVAILABLE", True), \
              patch.object(alignment, "validate_epub_archive",
