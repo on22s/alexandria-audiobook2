@@ -2201,6 +2201,20 @@ class DashDialogueTagTests(unittest.TestCase):
                 self.assertEqual([], mapped["narration_changes"])
                 self.assertEqual(
                     "ANA", apply_source_narration([row])[0][0]["speaker"])
+        # A model split of a refused line into two entries routes BOTH halves:
+        # the refused range is the whole body, not its first character
+        # (#2447 gate 5 nit 2). With the shrunk range the second entry would
+        # be certified narration and overwritten with NARRATOR.
+        book = "\n".join(base + ["--Adelante, Sr. Licurgo."] + base)
+        split = apply_dialogue_map(
+            [{"speaker": "ANA", "text": "Adelante,"},
+             {"speaker": "ANA", "text": "Sr. Licurgo."}], book)
+        self.assertEqual(["weak_dash_ambiguity", "weak_dash_ambiguity"],
+                         [row["dialogue_ambiguity"]
+                          for row in split["entries"]])
+        self.assertEqual(["ANA", "ANA"],
+                         [row["speaker"] for row in split["entries"]])
+        self.assertEqual([], split["narration_changes"])
 
     def test_printed_label_lines_route_in_a_weak_dash_book(self):
         """#2447 r8 BLOCKER 2: Circe `NAME: …` lines keep the model's speaker.
@@ -2270,6 +2284,113 @@ class DashDialogueTagTests(unittest.TestCase):
         self.assertEqual("NARRATOR", row["speaker"])
         self.assertIs(False, row["spoken"])
         self.assertNotIn("dialogue_ambiguity", row)
+
+    def test_hard_wrapped_weak_dash_continuation_routes_instead_of_narrating(self):
+        """#2447 r9 BLOCKER 1: a wrapped `--` speech keeps the model's speaker.
+
+        Gutenberg plain text is hard-wrapped, and `DASH_LINE` captures only the
+        first physical line. On a quote-free `--` book main detects `None` and
+        keeps the model's speaker, so the rest of the speech must be routed,
+        not rewritten to NARRATOR. The paragraph break ends the speech; a
+        separate paragraph is narration again, exactly as main labels it.
+        """
+        base = ["--¿Vienes mañana a la feria? --preguntó Juan.",
+                "--No lo sé todavía --dijo Ana--. Depende del tiempo.",
+                "--¿Y si llueve? --insistió él.",
+                "--Entonces me quedo en casa.",
+                "--¡Qué pena! --exclamó Juan."]
+        wrapped = ("--Pues mira, yo no pienso ir porque mañana tengo\n"
+                   "que trabajar en el campo. Mi padre me espera.")
+        book = "\n".join(base) + "\n\n" + wrapped + "\n\n" + "\n".join(base)
+        self.assertEqual("dash_lines", detect_convention(book))
+        self.assertTrue(dialogue_spans._weak_dash_dialogue_established(book))
+        mapped = apply_dialogue_map(
+            [{"speaker": "ANA", "text": "Mi padre me espera."}], book)
+        row = mapped["entries"][0]
+        self.assertEqual("ANA", row["speaker"])
+        self.assertEqual("weak_dash_ambiguity", row["dialogue_ambiguity"])
+        self.assertNotIn("spoken", row)
+        self.assertEqual(1, mapped["ambiguous"])
+        self.assertEqual([], mapped["narration_changes"])
+        # Both wrapped lines are routed; the dash line itself is not part of
+        # the continuation ranges, and a new paragraph starts clean.
+        text = "--Pues mira, tengo\nque trabajar.\n\nOtra cosa.\n--No.\nSigue.\n"
+        ranges = dialogue_spans._weak_dash_continuation_ranges(text)
+        self.assertEqual(["que trabajar.", "Sigue."],
+                         [text[start:stop] for start, stop in ranges])
+        # With quote spans in the book, main detects a convention and labels
+        # the narration before the dash NARRATOR. Routing starts at the dash
+        # line, so that line keeps main's verdict.
+        quoted = ("\n".join(base)
+                  + '\n\nElla leyó "La Regenta" en voz alta.'
+                  + '\n\nÉl citó "unos versos".'
+                  + "\n\nAna miró al suelo.\n--No quiero ir.")
+        self.assertEqual("dash_lines", detect_convention(quoted))
+        self.assertTrue(dialogue_spans._weak_dash_dialogue_established(quoted))
+        for text, expected in (("Ana miró al suelo.", "NARRATOR"),
+                               ("No quiero ir.", "ANA")):
+            with self.subTest(text=text):
+                mapped = apply_dialogue_map(
+                    [{"speaker": "ANA", "text": text}], quoted)
+                row = mapped["entries"][0]
+                self.assertEqual(expected, row["speaker"])
+                if expected == "NARRATOR":
+                    self.assertIs(False, row["spoken"])
+                    self.assertEqual(1, len(mapped["narration_changes"]))
+                else:
+                    self.assertIs(True, row["spoken"])
+                    self.assertEqual([], mapped["narration_changes"])
+
+    def test_hard_wrapped_em_dash_continuation_keeps_main_behaviour(self):
+        """An em/en-dash book keeps main's wrapped-continuation narration.
+
+        Main has no weak `--` question: in a book whose dialogue is `—`, the
+        line after a wrapped `—` speech is narration and a model label is
+        corrected to NARRATOR. The weak-form continuation route must not be
+        reached there (#2447 r9 BLOCKER 1, decided scope).
+        """
+        em = "\n".join("—¿Vienes mañana %d? —preguntó Juan." % i
+                       for i in range(6))
+        book = em + "\n\n—Pues mira, tengo\nque trabajar en el campo."
+        self.assertEqual("dash_lines", detect_convention(book))
+        self.assertFalse(dialogue_spans._weak_dash_dialogue_established(book))
+        mapped = apply_dialogue_map(
+            [{"speaker": "ANA", "text": "que trabajar en el campo."}], book)
+        row = mapped["entries"][0]
+        self.assertEqual("NARRATOR", row["speaker"])
+        self.assertIs(False, row["spoken"])
+        self.assertNotIn("dialogue_ambiguity", row)
+        self.assertEqual(1, len(mapped["narration_changes"]))
+
+    def test_comma_tag_tail_is_spoken_in_a_weak_dash_book_like_the_em_form(self):
+        """#2447 r9 LOW 1: the inherited tag-resume tail is parity, not new.
+
+        `--Sí --dijo Juan, y salió de la casa` certifies the trailing narration
+        as spoken, because the comma-introduced tag resumes the speech. Main
+        does the same on the `—` form, so the weak form keeps that behaviour
+        and the limit is disclosed in the body. No speaker is changed: `spoken
+        True` never rewrites a speaker.
+        """
+        base = ["--¿Vienes mañana a la feria? --preguntó Juan.",
+                "--No lo sé todavía --dijo Ana--. Depende del tiempo.",
+                "--¿Y si llueve? --insistió él.",
+                "--Entonces me quedo en casa.",
+                "--¡Qué pena! --exclamó Juan."]
+        ascii_line = "--Sí --dijo Juan, y salió de la casa sin mirar atrás."
+        em_line = "—Sí —dijo Juan, y salió de la casa sin mirar atrás."
+        for separator, line in (("--", ascii_line), ("—", em_line)):
+            with self.subTest(separator=separator):
+                book = ("\n".join(base) if separator == "--" else
+                        "\n".join(value.replace("--", "—") for value in base))
+                book = book + "\n\n" + line + "\n"
+                mapped = apply_dialogue_map(
+                    [{"speaker": "JOHN",
+                      "text": "y salió de la casa sin mirar atrás."}], book)
+                row = mapped["entries"][0]
+                self.assertEqual("JOHN", row["speaker"])
+                self.assertIs(True, row["spoken"])
+                self.assertNotIn("dialogue_ambiguity", row)
+                self.assertEqual([], mapped["narration_changes"])
 
     def test_confident_comma_tag_keeps_the_source_map(self):
         line = "— Oui, répondit-il, je viens demain."

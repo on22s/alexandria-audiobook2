@@ -280,6 +280,45 @@ def _weak_dash_refused_ranges(text):
     return ranges
 
 
+def _weak_dash_continuation_ranges(text):
+    """-> body ranges of non-dash lines that continue weak `--` speech.
+
+    Gutenberg plain text is hard-wrapped, and `DASH_LINE` captures only the
+    first physical line of a `--` speech. Every later line of that speech is
+    outside every span, so `mark_entries` certified it narration and
+    `apply_source_narration` overwrote the model's speaker with NARRATOR.
+    Main has no `--` convention on such a book and keeps the model's speaker,
+    so this is a confident wrong label (#2447 r9 BLOCKER 1).
+
+    In a book whose weak `--` form is its dialogue, every non-dash line after
+    a weak `--` line and before the paragraph break that ends that speech is
+    routed instead (dialogue ambiguity, model speaker kept), never narration.
+    Paragraphs are read with the shared `_paragraph_breaks` reading, so this
+    cannot disagree with the rest of the module about where a paragraph ends
+    (Rule 15). The caller asks only when `_weak_dash_dialogue_established`
+    returned True, which refuses a book with any strong `—`/`–` line
+    (`has_strong_dash_line`), so every dash line inside this reading is the
+    weak form and an em/en-dash book keeps main's behaviour.
+    """
+    ranges = []
+    paragraph_start = 0
+    for at, after in _paragraph_breaks(text) + [(len(text), len(text))]:
+        seen_weak = False
+        for line in re.finditer(r"[^\r\n]+", text[paragraph_start:at]):
+            raw = line.group(0)
+            body = raw.lstrip(" \t")
+            start = paragraph_start + line.start() + len(raw) - len(body)
+            if get_dash_mark(text, start)[0]:
+                # Weak form only (the caller's book answer guarantees it):
+                # this line opens a new speech, so what follows may continue it.
+                seen_weak = True
+                continue
+            if seen_weak and body.strip():
+                ranges.append((start, paragraph_start + line.end()))
+        paragraph_start = after
+    return ranges
+
+
 def _weak_dash_is_anchored(body):
     """-> True when a weak `--` body carries a dialogue anchor.
 
@@ -2352,13 +2391,16 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
     other_speech, no_body_openers = _other_speech_spans(
         source_text, convention, weak_dash)
     # In a book that runs `--` dialogue, a `--` line the shared predicate
-    # refuses is dialogue-ambiguous, not narration (#2447 r8 BLOCKER 1), and a
+    # refuses is dialogue-ambiguous, not narration (#2447 r8 BLOCKER 1), a
     # printed `NAME: …` label line is main's `label_lines` speech
-    # (#2447 r8 BLOCKER 2). Both are routed, so the model's speaker is kept
-    # and neither becomes a confident NARRATOR.
+    # (#2447 r8 BLOCKER 2), and the wrapped continuation lines of a `--`
+    # speech are part of that speech (#2447 r9 BLOCKER 1). All are routed, so
+    # the model's speaker is kept and none becomes a confident NARRATOR.
     refused_weak = (_weak_dash_refused_ranges(source_text)
                     if weak_dash else [])
     label_lines = _label_line_ranges(source_text) if weak_dash else []
+    continued_weak = (_weak_dash_continuation_ranges(source_text)
+                      if weak_dash else [])
     # A line that straddles an unclosed opener with no paragraph body is still
     # "other convention", not narration: that was main's verdict, and this is a
     # contract fix, not a change to what reaches the audio. Those ranges are
@@ -2426,6 +2468,12 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
                     # A `--` line this book's own per-line predicate refused:
                     # dialogue-ambiguous, so keep the model's speaker rather
                     # than claiming narration (#2447 r8 BLOCKER 1).
+                    row["dialogue_ambiguity"] = "weak_dash_ambiguity"
+                elif not overlap and any(span_start < entry_end and entry_start < span_stop
+                                         for span_start, span_stop in continued_weak):
+                    # A wrapped continuation line of a `--` speech, which is
+                    # not itself a dash line: keep the model's speaker rather
+                    # than claiming narration (#2447 r9 BLOCKER 1).
                     row["dialogue_ambiguity"] = "weak_dash_ambiguity"
                 elif not overlap and any(span_start < entry_end and entry_start < span_stop
                                          for span_start, span_stop in label_lines):
