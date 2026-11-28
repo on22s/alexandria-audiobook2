@@ -1779,6 +1779,917 @@ class SourceNarrationTest(unittest.TestCase):
             self.assertIs(expected, get_review_source_narration(row))
 
 
+class DashDialogueTagTests(unittest.TestCase):
+    """#2329: split narrator tags out of dash dialogue only on tag evidence."""
+
+    def test_issue_rows_split_narrator_tags_out_of_spoken_spans(self):
+        cases = [
+            ("—Hola —dijo Ana—. Vamos.", ["Hola", "Vamos."], "dijo Ana"),
+            ("— Oui, répondit-il.", ["Oui,"], "répondit-il."),
+            ("— Yes, he replied.", ["Yes,"], "he replied."),
+        ]
+        for line, expected_spoken, tag in cases:
+            with self.subTest(line=line):
+                spans = spoken_spans(line, "dash_lines")
+                self.assertEqual(expected_spoken, [line[a:b] for a, b in spans])
+                entries = [{"speaker": "ANA", "text": expected_spoken[0]},
+                           {"speaker": "ANA", "text": tag}]
+                if len(expected_spoken) > 1:
+                    entries.append({"speaker": "ANA", "text": expected_spoken[1]})
+                source = line + "\n" + "\n".join(f"— Turn {i}." for i in range(5))
+                mapped = apply_dialogue_map(entries, source)
+                self.assertEqual("dash_lines", mapped["convention"])
+                self.assertTrue(mapped["entries"][0]["spoken"])
+                self.assertFalse(mapped["entries"][1]["spoken"])
+                self.assertEqual("NARRATOR", mapped["entries"][1]["speaker"])
+                if len(expected_spoken) > 1:
+                    self.assertTrue(mapped["entries"][2]["spoken"])
+
+    def test_reporting_verbs_cover_english_spanish_french_past_and_present(self):
+        cases = [
+            ("— Yes, he said.", ["Yes,"], ["he said."]),
+            ("— Yes, she says.", ["Yes,"], ["she says."]),
+            ("— Wait, Ana replies.", ["Wait,"], ["Ana replies."]),
+            ("— Go, whispered Tom.", ["Go,"], ["whispered Tom."]),
+            ("— Stop, he asks.", ["Stop,"], ["he asks."]),
+            ("—Hola —dijo Ana.", ["Hola"], ["dijo Ana."]),
+            ("—Hola —dice Ana—. Vamos.", ["Hola", "Vamos."], ["dice Ana"]),
+            ("—Sí —respondió Luis.", ["Sí"], ["respondió Luis."]),
+            ("—Sí —responde el guía.", ["Sí"], ["responde el guía."]),
+            ("—¿Quién? —preguntó Ana.", ["¿Quién?"], ["preguntó Ana."]),
+            ("—¿Quién? —pregunta Ana.", ["¿Quién?"], ["pregunta Ana."]),
+            ("— Oui, répondit-il.", ["Oui,"], ["répondit-il."]),
+            ("— Oui, répond-il.", ["Oui,"], ["répond-il."]),
+            ("— Non, dit-elle.", ["Non,"], ["dit-elle."]),
+            ("— Venez, s'écria-t-il.", ["Venez,"], ["s'écria-t-il."]),
+            ("— Venez, s’écrie-t-elle.", ["Venez,"], ["s’écrie-t-elle."]),
+            ("— Chut, murmura-t-elle.", ["Chut,"], ["murmura-t-elle."]),
+            ("— Bon, fit-il.", ["Bon,"], ["fit-il."]),
+            ("— Bon, fit-elle.", ["Bon,"], ["fit-elle."]),
+            ("— Bon, fit-on.", ["Bon,"], ["fit-on."]),
+            ("–Hola –dijo Ana–. Vamos.", ["Hola", "Vamos."], ["dijo Ana"]),
+            ("— Sí, —dijo Ana—. Vamos.", ["Sí,", "Vamos."], ["dijo Ana"]),
+            ("— Sí, señor —dijo Ana—. Vamos.", ["Sí, señor", "Vamos."], ["dijo Ana"]),
+            ("—Hola —dijo Ana—. Es tarde —añadió Juan.",
+             ["Hola", "Es tarde"], ["dijo Ana", "añadió Juan."]),
+        ]
+        for line, expected_spoken, expected_narrator in cases:
+            with self.subTest(line=line):
+                parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+                self.assertFalse(ambiguous)
+                self.assertEqual(
+                    expected_spoken,
+                    [line[a:b] for kind, a, b in parts if kind == "SPOKEN"],
+                )
+                self.assertEqual(
+                    expected_narrator,
+                    [line[a:b] for kind, a, b in parts if kind == "NARRATOR"],
+                )
+                self.assertEqual(
+                    expected_spoken,
+                    [line[a:b] for a, b in spoken_spans(line, "dash_lines")],
+                )
+
+    @staticmethod
+    def _parts(line):
+        parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+        return ambiguous, [(kind, line[a:b].strip()) for kind, a, b in parts]
+
+    def test_word_limit_and_boundary_guards_before_reporting_verb(self):
+        for line, expected_tag in (
+            ("— Yes, said John.", "said John."),
+            ("— Yes, he replied.", "he replied."),
+            ("— Yes, old John replied.", "old John replied."),
+        ):
+            with self.subTest(accepted=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(
+                    [("NARRATOR", expected_tag)],
+                    [part for part in parts if part[0] == "NARRATOR"],
+                )
+        for line in (
+            "— Yes, the old man replied.",
+            "—Hola —el viejo hombre dijo—. Vamos.",
+            "— Hola, el muy tonto dijo que no.",
+            "— Wait, I said nothing.",
+            "— Wait, it won't fit.",
+        ):
+            with self.subTest(rejected=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual(["SPOKEN"], [kind for kind, _text in parts])
+        for line in (
+            # The reporting verb is outside the 0-3 subject window, or is not a
+            # reporting form: the line is plain speech, not an unverified tag.
+            "— Yes, the tired old man replied.",
+            "— Wait, no. He said nothing.",
+            "— Please, don't ask.",
+            "— Please, continue.",
+        ):
+            with self.subTest(no_candidate=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(["SPOKEN"], [kind for kind, _text in parts])
+
+    def test_comma_introduced_tag_resumes_speech_and_period_tag_stays_narrator(self):
+        cases = (
+            ("— Oui, répondit-il, je viens demain.",
+             [("SPOKEN", "Oui,"), ("NARRATOR", "répondit-il,"),
+              ("SPOKEN", "je viens demain.")]),
+            ("— Non, dit-elle, jamais.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle,"),
+              ("SPOKEN", "jamais.")]),
+            ("— Non, dit-elle en souriant.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle en souriant.")]),
+            ("— Que vous seriez bon, monsieur, dit la dame, "
+             "de vouloir bien ramasser mon éventail.",
+             [("SPOKEN", "Que vous seriez bon, monsieur,"),
+              ("NARRATOR", "dit la dame,"),
+              ("SPOKEN", "de vouloir bien ramasser mon éventail.")]),
+            ("— Non, dit-elle. — Jamais.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle."),
+              ("SPOKEN", "Jamais.")]),
+        )
+        for line, expected in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_period_tag_with_continuation_is_not_vouched_for(self):
+        line = "— Partez! dit Emma. C'est se moquer, je vous chasse."
+        ambiguous, parts = self._parts(line)
+        self.assertTrue(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Partez!"),
+             ("NARRATOR", "dit Emma. C'est se moquer, je vous chasse.")],
+            parts,
+        )
+
+    def test_question_exclamation_and_ellipsis_introduced_tags(self):
+        cases = (
+            ("— Des moyens? répliqua M. Homais.",
+             [("SPOKEN", "Des moyens?"), ("NARRATOR", "répliqua M. Homais.")]),
+            ("— Artémise! criait la maîtresse d’auberge, de la voix.",
+             [("SPOKEN", "Artémise!"),
+              ("NARRATOR", "criait la maîtresse d’auberge,"),
+              ("SPOKEN", "de la voix.")]),
+            ("— Quel pauvre homme! quel pauvre homme! disait-elle tout bas, "
+             "en se mordant les lèvres.",
+             [("SPOKEN", "Quel pauvre homme! quel pauvre homme!"),
+              ("NARRATOR", "disait-elle tout bas,"),
+              ("SPOKEN", "en se mordant les lèvres.")]),
+            ("— Ma cas... fit timidement le nouveau, promenant autour de lui.",
+             [("SPOKEN", "Ma cas..."),
+              ("NARRATOR", "fit timidement le nouveau,"),
+              ("SPOKEN", "promenant autour de lui.")]),
+            ("— Je ne sais pas… dit-il.",
+             [("SPOKEN", "Je ne sais pas…"), ("NARRATOR", "dit-il.")]),
+            ("— Vraiment! s'écria-t-il.",
+             [("SPOKEN", "Vraiment!"), ("NARRATOR", "s'écria-t-il.")]),
+        )
+        for line, expected in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_false_tag_readings_inside_speech_stay_whole(self):
+        for line in (
+            "— Dije que no, dijo que sí",
+            "— Wait, I said nothing.",
+            "— Fine, that said nothing.",
+            "— Rien, autrement dit.",
+            "— Señor, dice Pepe que sea yo franco con usted.",
+            "— Bueno, como dice el refrán, no hay mal que dure.",
+            "— En efecto, le vi, y me dijeron su nombre.",
+            "— Hola, el muy tonto dijo que no.",
+            "— Hola, el viejo hombre dijo—. Vamos.",
+            "— Oui, comme on dit, c'est vrai.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual(["SPOKEN"], [kind for kind, _text in parts])
+                self.assertEqual([line[2:].strip()], [text for _kind, text in parts])
+
+    def test_first_person_reporting_forms_are_speech_not_tags(self):
+        for line in (
+            "— Pues allí tienes, digo, loca no, cuerda.",
+            "— Dije que no.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_spanish_enclitic_tags(self):
+        cases = (
+            ("— Vete, preguntóle.", "preguntóle."),
+            ("— Lárgate, díjole con rabia.", "díjole con rabia."),
+            ("— Lárgate, contestóles.", "contestóles."),
+            ("— Lárgate, preguntóle Ana.", "preguntóle Ana."),
+        )
+        for line, expected_tag in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(
+                    [("NARRATOR", expected_tag)],
+                    [part for part in parts if part[0] == "NARRATOR"],
+                )
+
+    def test_a_later_unverified_break_keeps_the_line_ambiguous(self):
+        for line in (
+            "—Hola —dijo Ana— y el tren —tarde otra vez— llegó.",
+            "—Hola —dijo Ana—. El tren —tarde otra vez— llegó.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertIn(("NARRATOR", "dijo Ana"), parts)
+        ambiguous, parts = self._parts("—Hola —dijo Ana—. Vamos.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")],
+            parts,
+        )
+
+    def test_negative_controls_and_degenerate_dash_lines(self):
+        for line, expected_ambiguous in (
+            ("— The train — late again — finally came.", True),
+            ("— Wait — I forgot the keys.", True),
+            ("— Wait, she turned away.", False),
+            ("— I was going to—", False),
+            ("— Primera línea.", False),
+        ):
+            with self.subTest(line=line):
+                parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+                self.assertEqual(expected_ambiguous, ambiguous)
+                self.assertEqual([line[2:]], [line[a:b] for a, b in spoken_spans(line, "dash_lines")])
+                self.assertEqual(["SPOKEN"], [kind for kind, _a, _b in parts])
+        self.assertEqual([], spoken_spans("The train — late again — finally came.", "dash_lines"))
+        paired = 'She sighed. "The train — late again — finally came." "Yes, he replied."'
+        self.assertEqual(
+            ["The train — late again — finally came.", "Yes, he replied."],
+            [paired[a:b] for a, b in spoken_spans(paired, "paired_quotes")],
+        )
+        mixed = "“Line.”\n" * 5 + "— Oui, répondit-il."
+        other = [mixed[a:b] for a, b in get_other_speech_spans(mixed, "paired_quotes")]
+        self.assertEqual(["Oui,"], other)
+        for edge in ("—   ", "— —dijo Ana.", "—Hola —dijo Ana—."):
+            with self.subTest(edge=edge):
+                spans = spoken_spans(edge, "dash_lines")
+                self.assertIs(True, validate_spoken_spans(spans, edge))
+
+    def test_period_tag_continuation_is_ambiguous_in_the_source_map(self):
+        """The unverified tail must not be voiced as NARRATOR by the map."""
+        line = "— Partez! dit Emma. C'est se moquer, je vous chasse."
+        source = "\n".join([line] + [f"— Filler {i} dit-il." for i in range(5)])
+        entries = [
+            {"speaker": "EMMA", "text": "Partez!"},
+            {"speaker": "NARRATOR", "text": "dit Emma."},
+            {"speaker": "EMMA", "text": "C'est se moquer, je vous chasse."},
+        ]
+        mapped = apply_dialogue_map(entries, source)["entries"]
+        self.assertTrue(mapped[0]["spoken"])
+        self.assertFalse(mapped[1]["spoken"])
+        self.assertNotIn("spoken", mapped[2])
+        self.assertEqual("unverified_dash_tail", mapped[2]["dialogue_ambiguity"])
+        self.assertEqual("EMMA", mapped[2]["speaker"])
+        self.assertEqual([], apply_dialogue_map(entries, source)["narration_changes"])
+        # The same line through both production callers leaves the speaker.
+        self.assertEqual("EMMA", apply_source_narration(mapped)[0][2]["speaker"])
+
+    def test_confident_comma_tag_keeps_the_source_map(self):
+        line = "— Oui, répondit-il, je viens demain."
+        source = "\n".join([line] + [f"— Filler {i} dit-il." for i in range(5)])
+        entries = [
+            {"speaker": "CHARLES", "text": "Oui,"},
+            {"speaker": "NARRATOR", "text": "répondit-il,"},
+            {"speaker": "CHARLES", "text": "je viens demain."},
+        ]
+        mapped = apply_dialogue_map(entries, source)
+        self.assertEqual([True, False, True], [row["spoken"] for row in mapped["entries"]])
+        self.assertEqual([], mapped["narration_changes"])
+
+    def test_relative_clause_after_the_subject_does_not_reject_the_tag(self):
+        cases = (
+            ("—Olor no, sino peste de ellos —replicó un viejo ladino que montaba "
+             "el burro delantero—.",
+             "replicó un viejo ladino que montaba el burro delantero"),
+            ("—Es de mi madre —dijo Calpena mirando el papel que la condesa de "
+             "Luchana puso ante sus ojos.",
+             "dijo Calpena mirando el papel que la condesa de Luchana puso ante sus ojos."),
+            ("—Los que hemos visto la subida de Banderas —indicó don Fernando— "
+             "estamos curados de asombro.",
+             "indicó don Fernando"),
+        )
+        for line, expected_tag in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertIn(("NARRATOR", expected_tag), parts)
+
+    def test_penser_songer_objecter_and_pronominal_clitic_tags(self):
+        cases = (
+            ("— Pauvre garçon! pensait-elle.",
+             [("SPOKEN", "Pauvre garçon!"), ("NARRATOR", "pensait-elle.")]),
+            ("— Quelle folie! se disait-il, comme les autres.",
+             [("SPOKEN", "Quelle folie!"), ("NARRATOR", "se disait-il,"),
+              ("SPOKEN", "comme les autres.")]),
+            ("— Comment vais-je signer, maintenant? se dit-il.",
+             [("SPOKEN", "Comment vais-je signer, maintenant?"),
+              ("NARRATOR", "se dit-il.")]),
+            ("— Cependant…, objectait madame Bovary.",
+             [("SPOKEN", "Cependant…,"), ("NARRATOR", "objectait madame Bovary.")]),
+            ("— On dit pourtant qu'il a des moyens, objecta l'hôtesse.",
+             [("SPOKEN", "On dit pourtant qu'il a des moyens,"),
+              ("NARRATOR", "objecta l'hôtesse.")]),
+            ("— Ah! non, ici, pensa-t-elle, je serai bien.",
+             [("SPOKEN", "Ah! non, ici,"), ("NARRATOR", "pensa-t-elle,"),
+              ("SPOKEN", "je serai bien.")]),
+        )
+        for line, expected in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_dit_on_and_dizque_are_idioms_not_tags(self):
+        for line in ("— Rien, dit-on.", "— Nada, dizque.",
+                     "— Ça lui a passé, dit-on."):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_dit_on_exclusion_is_shared_with_the_evidence_scan(self):
+        """One predicate decides "tabled tag token" for both scans.
+
+        `dit-on` is never the split point, even when a real tag shares the
+        clause; the line is then routed whole instead of splitting at the
+        idiom (#2390 review 3 finding 6).
+        """
+        ambiguous, parts = self._parts("— Rien, dit-on et dit-elle.")
+        self.assertTrue(ambiguous)
+        self.assertEqual([("SPOKEN", "Rien, dit-on et dit-elle.")], parts)
+        self.assertNotIn("NARRATOR", [kind for kind, _text in parts])
+        # A comma after the idiom still lets the real tag be found.
+        ambiguous, parts = self._parts("— Rien, dit-on, dit-elle.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Rien, dit-on,"), ("NARRATOR", "dit-elle.")], parts)
+
+    def test_spanish_pense_participle_is_speech_not_a_tag(self):
+        """The tabled Spanish 1sg `pensé` must not become a confident tag.
+
+        Bare French participles (`pensé`, `songé`) are not tags either
+        (#2390 review 3 finding 1).
+        """
+        for line in (
+            "— No, pensé, es tarde.",
+            "— Buena persona, pensé, y me fui.",
+            "— Buena persona, pensé para mí.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        # The French past simple is still a tag, including the inverted form.
+        ambiguous, parts = self._parts("— Oui, pensa-t-elle.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Oui,"), ("NARRATOR", "pensa-t-elle.")], parts)
+
+    def test_whole_line_reporting_verbs_from_the_measured_books(self):
+        """`faisait`, `fit`, `concéda`, `repartit` are tags (#2390 finding 2)."""
+        cases = (
+            ("— Oh! c'est vrai! faisait l'autre en caressant sa mâchoire, "
+             "avec un air de dédain mêlé de satisfaction.",
+             "faisait l'autre en caressant sa mâchoire,"),
+            ("— C'est vrai! c'est vrai! concéda le bonhomme en se rasseyant "
+             "sur sa chaise.",
+             "concéda le bonhomme en se rasseyant sur sa chaise."),
+            ("— Non, repartit-il.", "repartit-il."),
+            ("— Bon, fit-elle.", "fit-elle."),
+            ("— Non, concédait-il.", "concédait-il."),
+        )
+        for line, expected_tag in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertIn(("NARRATOR", expected_tag), parts)
+
+    def test_spanish_compound_tags_need_a_subject_shape(self):
+        """`ha dicho Ana` is a tag; `ha dicho:` inside speech is not.
+
+        (#2390 review 3 finding 5.)
+        """
+        for line, expected_tag in (
+            ("— Sí, ha dicho Ana.", "ha dicho Ana."),
+            ("— Sí, había dicho Ana.", "había dicho Ana."),
+            ("— Sí, habían contestado ellas.", "habían contestado ellas."),
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(
+                    [("SPOKEN", line[2:].split(",")[0] + ","),
+                     ("NARRATOR", expected_tag)], parts)
+        for line in (
+            "— Me ha dicho que vengas.",
+            "— Sí, ha dicho que viene.",
+            "— Sí, lo ha dicho.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        # The measured Vergara shape: a colon announces reported speech.
+        ambiguous, parts = self._parts(
+            "— El señor Arias, ha dicho: «Señor, los brutos llevarán a "
+            "Vuestra Majestad a Madrid».")
+        self.assertNotIn("NARRATOR", [kind for kind, _text in parts])
+
+    def test_object_complements_are_speech_not_subjects(self):
+        """A tag names a subject; `ha dicho la verdad` names an object.
+
+        The compound shape has to pass the same subject gate as a simple verb
+        (#2390 review 4 finding 2). A determiner + object noun (`la verdad`,
+        `una mentira`), a bare object (`eso`, `esto`, `cosas`) and the French
+        equivalents (`cela`, `ça`, `ceci`) are speech, so the line is routed
+        whole instead of confidently splitting at a non-tag. The real tag
+        `ha dicho Ana` still splits.
+        """
+        for line in (
+            "— Sí, ha dicho la verdad.",
+            "— Sí, ha dicho eso.",
+            "— Sí, ha dicho esto.",
+            "— Sí, ha dicho cosas.",
+            "— Sí, ha dicho una mentira.",
+            "— Sí, dijo la verdad.",
+            "— Sí, había contestado la verdad.",
+            "— Sí, han respondido eso.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        ambiguous, parts = self._parts("— Sí, ha dicho Ana.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Sí,"), ("NARRATOR", "ha dicho Ana.")], parts)
+
+    def test_plain_verb_clauses_with_an_object_stay_speech(self):
+        """`faisait`/`firent` reading a plain clause as a tag is refused.
+
+        The widened table must not table ordinary speech: a third-person
+        pronoun + `faisait`/`firent`/`fit` + `cela` is a clause, not a tag
+        (#2390 review 4 finding 3). The two measured Flaubert lines still
+        split, because their subject is a name.
+        """
+        for line in (
+            "— Oui, il faisait cela pour moi.",
+            "— Oui, elle faisait cela souvent.",
+            "— Oui, ils firent cela.",
+            "— Oui, il fit cela pour moi.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        ambiguous, parts = self._parts(
+            "— Oh! c'est vrai! faisait l'autre en caressant sa mâchoire, "
+            "avec un air de dédain mêlé de satisfaction.")
+        self.assertFalse(ambiguous)
+        self.assertIn(("NARRATOR", "faisait l'autre en caressant sa mâchoire,"),
+                      parts)
+        # Inverted, so G2 cannot help: the object list is what refuses `cela`.
+        ambiguous, parts = self._parts("— Oui, fit cela.")
+        self.assertTrue(ambiguous)
+        self.assertEqual([("SPOKEN", "Oui, fit cela.")], parts)
+
+    def test_segun_and_a_relative_clause_are_not_subjects(self):
+        """`según me dijo` is speech inside the line, not a narrator tag.
+
+        The measured Galdós line kept `según me dijo` in `NARRATOR`, because
+        `según` was missing from the pre-verb stopwords and `me` is a clitic
+        (#2390 review 4 finding 4).
+        """
+        ambiguous, parts = self._parts("— Era, según me dijo, amigo.")
+        self.assertTrue(ambiguous)
+        self.assertEqual([("SPOKEN", "Era, según me dijo, amigo.")], parts)
+
+    def test_subjectless_present_imperatives_are_routed(self):
+        """A tabled imperative is not a narrator tag after a comma.
+
+        The Spanish `tú` imperative and the French `tu` imperative of an -er
+        verb share the 3sg present spelling, so `— Vamos, continúa.` must be
+        routed rather than split at `continúa` (#2390 gate 1 G1). A real
+        subjectless past-tense tag is still a tag.
+        """
+        for line in (
+            "— Vamos, continúa.",
+            "— Anda, contesta la carta.",
+            "— Allons, avoue!",
+            "— Eh bien, demande!",
+            "— Allons, demande-lui pardon.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        ambiguous, parts = self._parts("— Vamos, dijo.")
+        self.assertFalse(ambiguous)
+        self.assertEqual([("SPOKEN", "Vamos,"), ("NARRATOR", "dijo.")], parts)
+        # A present -re/-ir form is not an imperative, so a real inverted tag
+        # with a determiner subject still splits.
+        ambiguous, parts = self._parts("— Oui, dit le pharmacien.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Oui,"), ("NARRATOR", "dit le pharmacien.")], parts)
+        # A name after the verb is a subject, so the imperative reading does
+        # not apply (#2390 gate 2 T-1).
+        for line, expected in (
+            ("— Bien, continúa Ana.", [("SPOKEN", "Bien,"),
+                                       ("NARRATOR", "continúa Ana.")]),
+            ("— Oui, ajoute Emma.", [("SPOKEN", "Oui,"),
+                                     ("NARRATOR", "ajoute Emma.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_every_imperative_present_form_is_routed_subjectless(self):
+        """The set itself is pinned, not just three sample forms.
+
+        A table-driven line for every member kills the mutants that drop a
+        single entry (`explique`, `pregunta`) from the set
+        (#2390 gate 2 T-1).
+        """
+        for form in sorted(dialogue_spans._DASH_PRESENT_IMPERATIVE):
+            line = f"— Allons, {form}."
+            with self.subTest(form=form):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_the_imperative_present_set_covers_every_french_er_form(self):
+        """A French -er 3sg present is its own `tu` imperative.
+
+        Every such form in the one table belongs in the set, so leaving one
+        out is a slip rather than a trade; `demande` was the one omission
+        (#2390 gate 2 G1-a).
+        """
+        forms = dialogue_spans._DASH_REPORTING_VERBS.split("|")
+        french = forms[forms.index("dit"):]
+        expected = {
+            form for form in french
+            if form.endswith("e") and not form.endswith(("ait", "aient"))
+        }
+        self.assertLessEqual(expected, dialogue_spans._DASH_PRESENT_IMPERATIVE)
+
+    def test_a_subjectless_french_tag_at_the_end_is_speech(self):
+        """A French incise always carries an inverted subject.
+
+        `— …, disait:` has no subject after the verb, so it is the character
+        speaking, not a tag (#2390 gate 2 B1). `disait-il`, `dit Emma` and
+        `s'écria-t-elle` still carry their subjects and still split.
+        """
+        for line in (
+            "— Pourtant l'autre, celui d'hier, disait:",
+            "— Mais celui qui est venu, disait:",
+            "— Et l'autre, ce matin, répondait.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— Oui, dit-il.", [("SPOKEN", "Oui,"),
+                                ("NARRATOR", "dit-il.")]),
+            ("— Allons, disait-elle.", [("SPOKEN", "Allons,"),
+                                        ("NARRATOR", "disait-elle.")]),
+            ("— Ah! s'écria-t-elle.", [("SPOKEN", "Ah!"),
+                                       ("NARRATOR", "s'écria-t-elle.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+        # These four forms are also Spanish 3sg present tags, so a subjectless
+        # one is a tag, not French-only speech; a later tag on the same line
+        # must not turn the real tag into a confident `SPOKEN` label
+        # (#2390 gate 3 N-1).
+        for line, verb, expected in (
+            ("— No es verdad —protesta—, pero ya lo sabes —dice Ana.",
+             "protesta",
+             [("SPOKEN", "No es verdad"), ("NARRATOR", "protesta"),
+              ("SPOKEN", "pero ya lo sabes"), ("NARRATOR", "dice Ana.")]),
+            ("— ¡Qué horror! —exclama—. ¡Fuera de aquí! —grita Ana.",
+             "exclama",
+             [("SPOKEN", "¡Qué horror!"), ("NARRATOR", "exclama"),
+              ("SPOKEN", "¡Fuera de aquí!"), ("NARRATOR", "grita Ana.")]),
+            ("— Basta —murmura—. Vete, responde Ana.",
+             "murmura",
+             [("SPOKEN", "Basta"), ("NARRATOR", "murmura"),
+              ("SPOKEN", "Vete,"), ("NARRATOR", "responde Ana.")]),
+            ("— Ya basta —insiste—. No me hagas repetirlo —añade.",
+             "insiste",
+             [("SPOKEN", "Ya basta"), ("NARRATOR", "insiste"),
+              ("SPOKEN", "No me hagas repetirlo"), ("NARRATOR", "añade.")]),
+        ):
+            with self.subTest(spanish_present_tag=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertIn(("NARRATOR", verb), parts)
+                self.assertEqual(expected, parts)
+
+    def test_imperatives_after_speech_punctuation_are_still_imperatives(self):
+        """`!`/`?`/`…` introduce the same subjectless imperative as a comma.
+
+        G1 is not comma-only: 19th-century French writes a lower-case verb
+        after `!` routinely, and that verb is still the character's command
+        (#2390 gate 2 G1-c).
+        """
+        for line in (
+            "— Allons! avoue.",
+            "— Voyons! explique-toi.",
+            "— Ah! répète-le.",
+            "— ¡Vamos! contesta.",
+            "— Eh bien… explique.",
+            # A Spanish form is not French-only, so B1 cannot route it: the
+            # ellipsis introducer itself must do the work (#2390 gate 3 T-2).
+            "— Bueno… contesta.",
+            "— Bueno... contesta.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_a_preposition_after_an_imperative_opens_an_object(self):
+        """`pregunta a Ana` names the person addressed, not a tag subject.
+
+        A window that starts with a preposition has no subject, so the
+        imperative reading applies (#2390 gate 2 G1-b). A name directly
+        after the verb is still a subject and still splits.
+        """
+        for line in (
+            "— Anda, pregunta a Ana.",
+            "— Allons, explique à Emma.",
+            "— Allons, avoue à Charles!",
+            "— Venga, pregunta por Juan.",
+            "— Anda, explica a Pedro lo que pasó.",
+            "— Anda, pregunta por él.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— Bien, continúa Ana.", [("SPOKEN", "Bien,"),
+                                       ("NARRATOR", "continúa Ana.")]),
+            ("— Oui, répète-t-il.", [("SPOKEN", "Oui,"),
+                                     ("NARRATOR", "répète-t-il.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_a_clitic_before_the_imperative_does_not_hide_it(self):
+        """A pro-drop imperative keeps its reading behind an object clitic.
+
+        G1 requires an empty pre-verb window; a clitic alone is still no
+        subject (#2390 gate 2 G1-d). A clitic before an inverted tag still
+        splits.
+        """
+        for line in (
+            "— Sí, le pregunta la hora.",
+            "— Sí, les explica la lección.",
+            "— Sí, le repite la pregunta.",
+            "— Oui, lui explique la leçon.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line in ("— Oui, lui dit-il.", "— Sí, me dijo Ana."):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertTrue(any(kind == "NARRATOR" for kind, _ in parts))
+
+    def test_past_tense_collisions_route_only_when_nothing_follows(self):
+        """The five French -er forms that are also passés simples.
+
+        With nothing after the verb they are the character's command
+        (`— Venga, observa.`); a word after them keeps the real tag
+        (`observa le clerc`) (#2390 gate 2 G1-a).
+        """
+        for line in (
+            "— Venga, observa.",
+            "— Anda, protesta.",
+            "— Vamos, declara.",
+            "— Vamos, exclama.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— En effet, observa le clerc.",
+             [("SPOKEN", "En effet,"), ("NARRATOR", "observa le clerc.")]),
+            ("— Sí, observa Ana.",
+             [("SPOKEN", "Sí,"), ("NARRATOR", "observa Ana.")]),
+            ("— Venga, observa el cielo.",
+             [("SPOKEN", "Venga,"), ("NARRATOR", "observa el cielo.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_a_subject_and_object_pronoun_before_the_verb_is_a_clause(self):
+        """The object is before the verb, where G2's tail test cannot see it.
+
+        `— Non, il le dit.` is speech, not a tag (#2390 gate 2 G2-a). A
+        subject with nothing after it (`— Yes, he said.`) and a clitic before
+        an inverted tag (`— Oui, lui dit-il.`) still split.
+        """
+        for line in (
+            "— Non, il le dit.",
+            "— Oui, elle le demande.",
+            "— Oui, Dieu le dit.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— Yes, he said.", [("SPOKEN", "Yes,"),
+                                 ("NARRATOR", "he said.")]),
+            ("— Oui, lui dit-il.", [("SPOKEN", "Oui,"),
+                                    ("NARRATOR", "lui dit-il.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_the_imperative_present_set_is_a_subset_of_the_tag_table(self):
+        """The G1 classification must not drift from the one verb table.
+
+        `_DASH_PRESENT_IMPERATIVE` is a property of a subset of the tabled
+        forms, not a second verb list; a form removed from the table must not
+        linger here.
+        """
+        table = set(dialogue_spans._DASH_REPORTING_VERBS.split("|"))
+        self.assertLessEqual(dialogue_spans._DASH_PRESENT_IMPERATIVE, table)
+        # The French-only set is derived from the one table and must exclude
+        # every form that is also a Spanish present tag: `exclama`,
+        # `insiste`, `murmura` and `protesta` occur in both halves, and
+        # treating them as French-only made a later tag leave them in
+        # `SPOKEN` (#2390 gate 3 N-1).
+        forms = dialogue_spans._DASH_REPORTING_VERBS.split("|")
+        spanish = set(forms[:forms.index("dit")])
+        self.assertFalse(spanish & dialogue_spans._DASH_FRENCH_ONLY_VERBS)
+        self.assertLessEqual(dialogue_spans._DASH_FRENCH_ONLY_VERBS, table)
+
+    def test_a_real_subject_with_words_after_the_verb_is_routed(self):
+        """Subject + tabled verb + object is a clause, not a tag.
+
+        A tag with a real subject before the verb has nothing after it but
+        adverbs; any word here is an object, so the line is routed
+        (#2390 gate 1 G2). The inverted halves still split.
+        """
+        for line in (
+            "— Oui, il disait des bêtises.",
+            "— Sí, Ana contestó la carta.",
+            "— Yes, he called the police.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— Oui, dit-il.", [("SPOKEN", "Oui,"),
+                                ("NARRATOR", "dit-il.")]),
+            ("— Sí —dijo Ana—.", [("SPOKEN", "Sí"),
+                                  ("NARRATOR", "dijo Ana")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_a_bare_infinitive_is_not_a_reporting_verb(self):
+        """`seguir` was a table slip: `seguir adelante` is a subject.
+
+        (#2390 gate 1 G3.)
+        """
+        for line in (
+            "— Bueno, seguir adelante es lo mejor.",
+            "— Ahora, seguir es inútil.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_speech_punctuation_introducer_requires_a_lower_case_verb(self):
+        """`!`/`?`/`…` before an upper-case word starts a new sentence.
+
+        Without the lower-case rule these confident splits appear
+        (#2390 gate 1 N-a).
+        """
+        for line in (
+            "— Arrête! Demande-lui pardon.",
+            "— Ah! Répète-le.",
+            "— Assez! Explique-toi.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_a_later_evidenced_tag_is_not_swallowed_by_an_unverified_range(self):
+        """The unverified range stops at the next evidenced split.
+
+        (#2390 review 3 finding 4.)
+        """
+        line = (
+            "— Donc, reprit celle-ci faisant une révérence, si ce n'était pas "
+            "trop vous demander..., — elle salua encore une fois, — quand "
+            "vous voudrez, — et son regard suppliait, — un cruchon "
+            "d'eau-de-vie, dit-elle enfin, et j'en frotterai les pieds de "
+            "votre petite, qui les a tendres comme la langue.")
+        ambiguous, parts = self._parts(line)
+        self.assertTrue(ambiguous)
+        self.assertIn(("NARRATOR", "dit-elle enfin,"), parts)
+        tails = [line[a:b].strip() for a, b in
+                 dialogue_spans.dash_line_unverified_tails(line)]
+        self.assertTrue(tails)
+        self.assertFalse(any("dit-elle" in tail for tail in tails))
+        source = line + "\n" + "\n".join(f"— Turn {i}." for i in range(5))
+        entries = []
+        speaker = 0
+        for kind, a, b in dialogue_spans.split_dash_line(line, 1, len(line))[0]:
+            text = line[a:b].strip()
+            if not text:
+                continue
+            if kind == "SPOKEN":
+                speaker += 1
+                entries.append({"speaker": f"CHAR{speaker}", "text": text})
+            else:
+                entries.append({"speaker": "NARRATOR", "text": text})
+        mapped = apply_dialogue_map(entries, source)["entries"]
+        tag = next(row for row in mapped if row["text"].startswith("dit-elle"))
+        self.assertEqual("NARRATOR", tag["speaker"])
+        self.assertIs(False, tag["spoken"])
+        self.assertNotIn("dialogue_ambiguity", tag)
+
+
+    def test_first_person_reporting_forms_stay_speech_in_the_comma_path(self):
+        # `dije` is absent from the table; `decíamos` is tabled and is still
+        # refused by the first-person guard, so the rule has one test that
+        # actually reaches the guard (#2390 review 6).
+        for line in ("— No, dije, es tarde.", "— Pues, decíamos, no es tarde."):
+            with self.subTest(line=line):
+                _ambiguous, parts = self._parts(line)
+                self.assertEqual(["SPOKEN"], [kind for kind, _text in parts])
+
+    def test_introducer_tags_need_a_lower_case_verb_behind_at_most_one_clitic(self):
+        self.assertEqual(
+            [("SPOKEN", "Vraiment! Marie s'écria.")],
+            self._parts("— Vraiment! Marie s'écria.")[1],
+        )
+        # A capitalised name after speech punctuation is a new sentence, not a
+        # tag: without the introducer gate `Anna demanda` would split away.
+        ambiguous, parts = self._parts("— Vraiment! Anna demanda une explication.")
+        self.assertFalse(ambiguous)
+        self.assertEqual([("SPOKEN", "Vraiment! Anna demanda une explication.")], parts)
+        for line, expected in (
+            ("— Vraiment! s'écria-t-il.",
+             [("SPOKEN", "Vraiment!"), ("NARRATOR", "s'écria-t-il.")]),
+            ("— Quelle folie! se disait-il.",
+             [("SPOKEN", "Quelle folie!"), ("NARRATOR", "se disait-il.")]),
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_leading_indented_dash_line_is_dialogue(self):
+        line = "  —Hola —dijo Ana—. Vamos."
+        self.assertEqual(
+            ["Hola", "Vamos."],
+            [line[a:b] for a, b in spoken_spans(line, "dash_lines")],
+        )
+
 class QuoteConventionTableAndRegexTests(unittest.TestCase):
     """Cover every paired, secondary, unclosed and dash/label convention."""
 
