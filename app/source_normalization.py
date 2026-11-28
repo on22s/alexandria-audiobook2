@@ -465,6 +465,16 @@ def _is_whole_repetition_run(text, match, unit):
     return after_pattern.match(text[match.end():]) is None
 
 
+def _is_recorded_offset(value):
+    """True for a recorded offset: an integer character index or None.
+
+    ``bool`` is excluded even though it is an ``int`` subclass: no producer
+    records it, and ``True == 1`` would silently share an identity with a real
+    offset.
+    """
+    return value is None or type(value) is int
+
+
 def get_valid_recorded_normalizations(changes):
     """Validate recorded source normalizations and return them in pipeline stage order.
 
@@ -472,9 +482,10 @@ def get_valid_recorded_normalizations(changes):
     where ``unit`` is the repeated token sequence for an
     ``extreme_phrase_repetition`` record and None otherwise. Unrecognized
     rules, malformed shapes, forged entries that do not match their rule's
-    contract, and exact duplicate records (same offset, rule, before and
-    after) are rejected so an unrecorded mismatch is never admitted and one
-    recorded change cannot authorize two occurrences.
+    contract, records whose ``rule`` or ``offset`` is not the recorded type,
+    and exact duplicate records (same offset, rule, before and after) are
+    rejected so an unrecorded mismatch is never admitted and one recorded
+    change cannot authorize two occurrences.
     """
     if not isinstance(changes, (list, tuple)):
         return []
@@ -484,13 +495,19 @@ def get_valid_recorded_normalizations(changes):
         if not isinstance(change, dict):
             continue
         rule = change.get("rule")
-        if rule not in _NORMALIZATION_STAGE_ORDER:
+        if not isinstance(rule, (str, type(None))) or rule not in _NORMALIZATION_STAGE_ORDER:
             continue
         before = change.get("before")
         after = change.get("after")
         if not isinstance(before, str) or not isinstance(after, str) or before == after:
             continue
-        identity = (change.get("offset"), rule, before, after)
+        offset = change.get("offset")
+        if not _is_recorded_offset(offset):
+            # Checked before ``identity in seen``: a JSON list or object is
+            # unhashable and would otherwise raise ``TypeError`` out of the
+            # read-aloud build instead of failing closed like main.
+            continue
+        identity = (offset, rule, before, after)
         if identity in seen:
             continue
         seen.add(identity)

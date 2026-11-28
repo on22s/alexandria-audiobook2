@@ -50,6 +50,7 @@ from routers.script import extract_epub_text
 from source_normalization import (
     EXTREME_PHRASE_REPEAT_KEEP,
     EXTREME_PHRASE_REPEAT_MIN,
+    get_valid_recorded_normalizations,
     map_recorded_source_normalizations,
     normalize_extreme_phrase_repetitions,
     normalize_homoglyph_words,
@@ -197,6 +198,17 @@ def _quality_manifest_doc(source_path, changes):
     }
 
 
+def _malformed_record_variants(record):
+    """Gate-4 L1 repro shapes: JSON-supplied fields that are never hashed as-is."""
+    return (
+        dict(record, offset=[record["offset"]]),
+        dict(record, offset={"start": record["offset"]}),
+        dict(record, offset=True),
+        dict(record, rule=[record["rule"]]),
+        dict(record, rule={}),
+    )
+
+
 class RecordedNormalizationHelperTests(unittest.TestCase):
     """Shared helper applies only valid, unconsumed recorded changes."""
 
@@ -268,6 +280,29 @@ class RecordedNormalizationHelperTests(unittest.TestCase):
         mapped, used = map_recorded_source_normalizations(source, forged)
         self.assertEqual(source, mapped)
         self.assertEqual((), used)
+
+    def test_record_fields_are_type_checked_before_identity_hashing(self):
+        # L1: JSON can supply a list or an object for a field that joins the
+        # duplicate-identity tuple. Those records are dropped before
+        # ``identity in seen``, which would raise TypeError: unhashable type.
+        repeated = " ".join(["Hello"] * 20)
+        _normalized, changes = normalize_extreme_phrase_repetitions(f"“{repeated}?”")
+        valid = changes[0]
+        self.assertEqual(1, len(get_valid_recorded_normalizations([valid])))
+        for forged in _malformed_record_variants(valid):
+            with self.subTest(fields=sorted(forged)):
+                self.assertEqual([], get_valid_recorded_normalizations([forged]))
+                # A valid record next to the malformed one still authorizes its
+                # own collapse in either order; only the malformed entry is
+                # dropped, so no unambiguous synchronization is lost.
+                self.assertEqual(
+                    1, len(get_valid_recorded_normalizations([valid, forged])))
+                self.assertEqual(
+                    1, len(get_valid_recorded_normalizations([forged, valid])))
+                mapped, used = map_recorded_source_normalizations(
+                    f"“{repeated}?”", [forged])
+                self.assertEqual(f"“{repeated}?”", mapped)
+                self.assertEqual((), used)
 
     def test_other_normalization_rules_keep_existing_behavior_and_map_when_recorded(self):
         padding = "The patient gardener carefully tended the tall flowers beside the stone wall. " * 20
@@ -902,6 +937,43 @@ class SavedScriptNormalizationWriterTests(unittest.TestCase):
         chunks = _script_chunks_from_normalized(normalized)
         return repeated, epub, changes, [dict(row) for row in chunks]
 
+    def _prepare_saved_book_export(self, root, script_path, entries):
+        """Write the chunks, state, config and audio ``build_epub_export`` needs.
+
+        The saved script is the selected source; the Editor rows are the
+        normalized (collapsed) rows a loaded saved book renders.
+        """
+        (root / "annotated_script.json").write_text(
+            json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+        (root / "state.json").write_text(json.dumps(
+            {"input_file_path": str(script_path), "active_book_id": "book-2440"}),
+            encoding="utf-8")
+        (root / "config.json").write_text(
+            json.dumps({"generation": {}}), encoding="utf-8")
+        manager = ProjectManager(str(root))
+        chunks = manager.load_chunks()
+        audio_dir = root / "audio"
+        audio_dir.mkdir(exist_ok=True)
+        for idx, chunk in enumerate(chunks):
+            wav_path = audio_dir / f"chunk_{idx}.wav"
+            AudioSegment.silent(duration=500, frame_rate=24000).export(
+                str(wav_path), format="wav").close()
+            chunk["audio_path"] = str(wav_path)
+            chunk["status"] = "completed"
+        manager.save_chunks(chunks)
+        return manager
+
+    def _build_saved_book_export(self, manager, root, script_path, epub):
+        # Only the saved-book retained-EPUB walk and the published-selection
+        # gate are stubbed; the real export still reads and validates the
+        # companion, assembles audio, maps rows and writes the EPUB.
+        with patch.object(readalong_export, "_locate_retained_epub",
+                          lambda *args, **kwargs: (epub, str(script_path))), \
+             patch("script_selection_binding.require_published_selection",
+                   lambda *args, **kwargs: None), \
+             patch.object(core, "UPLOADS_DIR", str(root / "uploads")):
+            return readalong_export.build_epub_export(manager, lambda: False)
+
     def test_saved_repair_refreshes_the_digest_and_still_builds_readaloud(self):
         from routers import scripts_library
 
@@ -1061,10 +1133,12 @@ class SavedScriptNormalizationWriterTests(unittest.TestCase):
                         None, str(script_path)))
             self.assertIn("is not valid JSON (ValueError)", "\n".join(captured.output))
 
-    def test_saved_meta_with_oversized_integer_does_not_block_readaloud_export(self):
-        # The export reads the companion before it builds (readalong_export.py).
-        # An oversized integer used to escape that read as an unhandled
-        # ValueError, failing a book main exports unchanged.
+    def test_saved_meta_with_oversized_integer_does_not_block_build_epub_export(self):
+        # The real export reads the saved companion before it builds
+        # (readalong_export.py:1918). An oversized integer used to escape that
+        # read as an unhandled ValueError, failing a book main exports
+        # unchanged. The last assertions verify the build published a valid
+        # read-aloud EPUB and its receipt, not merely that a file was untouched.
         body = (
             "<h1>Chapter One</h1>"
             "<p>The lantern flickered in the hall.</p>"
@@ -1083,23 +1157,136 @@ class SavedScriptNormalizationWriterTests(unittest.TestCase):
             (scripts_dir / "book.meta.json").write_text(
                 '{"book_id": "book-book", "legacy_counter": 1' + "1" * 4400 + "}",
                 encoding="utf-8")
+            manager = self._prepare_saved_book_export(root, script_path, entries)
             with self.assertLogs("readalong_export", level="WARNING") as captured:
-                source_normalizations = readalong_export.get_recorded_source_normalizations(
-                    None, str(script_path))
-            self.assertEqual([], source_normalizations)
+                ok, message = self._build_saved_book_export(
+                    manager, root, script_path, epub)
             self.assertIn("is not valid JSON (ValueError)", "\n".join(captured.output))
             # Same as main: no readable records, and the ordinary book builds.
-            entries_from_audio, _aligned = _make_entries_from_texts(
-                [row["text"] for row in entries])
-            built, _report = build_epub_readaloud(
-                retained_epub_bytes=epub,
-                audio_bytes=b"\xff\xfbmp3",
-                audio_filename="audiobook.mp3",
-                script_entries=entries_from_audio,
-                source_normalizations=source_normalizations,
-            )
-            validate_epub_readaloud(built)
+            self.assertTrue(ok, message)
+            built_bytes = (root / "readaloud.epub").read_bytes()
+            self.assertTrue(built_bytes)
+            validate_epub_readaloud(built_bytes)
+            self.assertTrue((root / "readaloud.receipt.json").is_file())
             self.assertEqual(saved_bytes, script_path.read_bytes())
+
+    def test_saved_meta_with_malformed_record_fields_fails_closed_in_build_epub_export(self):
+        # L1 export path: the gate's digest-valid companion with a list/dict
+        # ``offset`` or ``rule`` (and a bool offset) must not raise TypeError
+        # out of the real export; the build must refuse with main's exact
+        # synchronization error and publish nothing.
+        repeated, epub, changes, entries = self._read_repro_book()
+        valid = changes[0]
+        for forged in _malformed_record_variants(valid):
+            with self.subTest(fields=sorted(forged)), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                scripts_dir = root / "scripts"
+                scripts_dir.mkdir()
+                script_path, _saved = _write_saved_book_with_records(
+                    scripts_dir, [forged], entries)
+                manager = self._prepare_saved_book_export(root, script_path, entries)
+                ok, message = self._build_saved_book_export(
+                    manager, root, script_path, epub)
+                self.assertFalse(ok, message)
+                self.assertIn("No unambiguous synchronization", message)
+                self.assertNotIn("unhashable type", message)
+                self.assertFalse((root / "readaloud.epub").exists())
+                # The same malformed entry beside the valid record still
+                # authorizes the valid collapse and builds normally.
+                _write_saved_book_with_records(
+                    scripts_dir, [valid, forged], entries)
+                ok, message = self._build_saved_book_export(
+                    manager, root, script_path, epub)
+                self.assertTrue(ok, message)
+                built_bytes = (root / "readaloud.epub").read_bytes()
+                validate_epub_readaloud(built_bytes)
+                self.assertTrue(any(text == f"“{repeated}?”"
+                                    for _id, text, _b, _e in _highlighted_texts(built_bytes)))
+
+    def test_saved_repair_proceeds_when_the_companion_nests_past_the_decoder_limit(self):
+        # L2: json.loads raises RecursionError past the C decoder's nesting
+        # limit. The reader must report that as unreadable, not escape, so the
+        # repair still proceeds and the companion keeps failing closed.
+        from routers import scripts_library
+
+        _repeated, _epub, changes, entries = self._read_repro_book()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts_dir = root / "scripts"
+            scripts_dir.mkdir()
+            script_path, saved_bytes = _write_saved_book_with_records(
+                scripts_dir, changes, entries)
+            meta_path = scripts_dir / "book.meta.json"
+            nested = ('{"book_id": "book-book", "x": '
+                      + "[" * 100000 + "]" * 100000 + "}")
+            meta_path.write_text(nested, encoding="utf-8")
+            repaired = [dict(reversed(list(row.items()))) for row in entries]
+            with patch.object(scripts_library, "DATA_DIR", str(root)), \
+                 patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)), \
+                 self.assertLogs("readalong_export", level="WARNING") as captured:
+                scripts_library._publish_saved_repair(str(script_path), repaired)
+            self.assertIn("is not valid JSON (RecursionError)", "\n".join(captured.output))
+            self.assertEqual(
+                json.dumps(repaired, ensure_ascii=False, indent=2).encode("utf-8"),
+                script_path.read_bytes())
+            self.assertNotEqual(saved_bytes, script_path.read_bytes())
+            # The unreadable companion is untouched, so it keeps failing closed.
+            self.assertEqual(nested, meta_path.read_text(encoding="utf-8"))
+            with self.assertLogs("readalong_export", level="WARNING") as captured:
+                self.assertEqual(
+                    [],
+                    readalong_export.get_recorded_source_normalizations(
+                        None, str(script_path)))
+            self.assertIn("is not valid JSON (RecursionError)", "\n".join(captured.output))
+
+    def test_saved_repair_proceeds_when_records_have_malformed_field_types(self):
+        # L1 repair path: a digest-valid companion can carry a record whose
+        # ``offset`` or ``rule`` is a JSON list/object or a bool offset. The
+        # repair must proceed (main rewrites the script) and the build must
+        # refuse with main's error instead of raising TypeError.
+        from routers import scripts_library
+
+        repeated, epub, changes, entries = self._read_repro_book()
+        valid = changes[0]
+        entries_from_audio, _aligned = _make_entries_from_texts(
+            [row["text"] for row in entries])
+        for forged in _malformed_record_variants(valid):
+            with self.subTest(fields=sorted(forged)), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                scripts_dir = root / "scripts"
+                scripts_dir.mkdir()
+                script_path, _old_bytes = _write_saved_book_with_records(
+                    scripts_dir, [forged], entries)
+                repaired = [dict(reversed(list(row.items()))) for row in entries]
+                with patch.object(scripts_library, "DATA_DIR", str(root)), \
+                     patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)):
+                    scripts_library._publish_saved_repair(str(script_path), repaired)
+                    # The repaired companion still binds the malformed record.
+                    self.assertEqual(
+                        [forged],
+                        readalong_export.get_recorded_source_normalizations(
+                            None, str(script_path)))
+                    with self.assertRaisesRegex(
+                            ValueError, "No unambiguous synchronization"):
+                        build_epub_readaloud(
+                            retained_epub_bytes=epub,
+                            audio_bytes=b"\xff\xfbmp3",
+                            audio_filename="audiobook.mp3",
+                            script_entries=entries_from_audio,
+                            source_normalizations=(
+                                readalong_export.get_recorded_source_normalizations(
+                                    None, str(script_path))),
+                        )
+                    built, _report = build_epub_readaloud(
+                        retained_epub_bytes=epub,
+                        audio_bytes=b"\xff\xfbmp3",
+                        audio_filename="audiobook.mp3",
+                        script_entries=entries_from_audio,
+                        source_normalizations=[valid, forged],
+                    )
+                validate_epub_readaloud(built)
+                self.assertTrue(any(text == f"“{repeated}?”"
+                                    for _id, text, _b, _e in _highlighted_texts(built)))
 
     def test_speaker_repair_refreshes_the_digest(self):
         from routers import scripts_library
