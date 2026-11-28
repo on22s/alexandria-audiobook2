@@ -1230,14 +1230,15 @@ def _is_same_tag_identity(speaker, expected, established_pool):
 # only when the quotation carries no tag of its own. The continuation matcher
 # is a BARE tag: one clause, anchored, with no object or second name. It is
 # built from the same verb/adverb/name vocabulary as the direct speech-tag
-# check (#2388), so any tag shape the direct check recognises is recognised
-# here too (Rule 15) - only the evidence role differs.
+# check (#2388), with the direct rule's `to <name>` / `told <name>` object form
+# deliberately absent (a bare tag has no object). Only the evidence role
+# differs.
 _CONTINUATION_TAG_CORE = (
     rf"^[ \t]*(?:[,;][ \t]*)?(?:"
     rf"(?P<before>{_TAG_NAME})"
-    rf"(?:[ \t]+{_TAG_ADVERB}[ \t]+{_SOURCE_TAG_VERBS}|"
-    rf"[ \t]+{_SOURCE_TAG_VERBS}(?:[ \t]+{_TAG_ADVERB})?)|"
-    rf"{_SOURCE_TAG_VERBS}[ \t]+(?P<after>{_TAG_NAME})(?:[ \t]+{_TAG_ADVERB})?)"
+    rf"(?:[ \t]+{_TAG_ADVERB}[ \t]+(?P<verb_a>{_SOURCE_TAG_VERBS})|"
+    rf"[ \t]+(?P<verb_b>{_SOURCE_TAG_VERBS})(?:[ \t]+{_TAG_ADVERB})?)|"
+    rf"(?P<verb_c>{_SOURCE_TAG_VERBS})[ \t]+(?P<after>{_TAG_NAME})(?:[ \t]+{_TAG_ADVERB})?)"
 )
 _BARE_CONTINUATION_TAG = re.compile(
     _CONTINUATION_TAG_CORE + r"[ \t]*[,.!?:;][ \t]*$", re.IGNORECASE)
@@ -1254,6 +1255,20 @@ _CONTINUATION_TAG_PRONOUNS = frozenset({
     "he", "she", "they", "it", "we", "you", "i",
 })
 _CONTINUATION_TAG_PRONOUN_ALT = "|".join(sorted(_CONTINUATION_TAG_PRONOUNS))
+# A clause subject is a named/articled subject: a capitalised name ("Kit") or
+# a determiner/possessive plus up to three words ("the man", "his mother",
+# "the old man"). _TAG_NAME already caps the subject at four words. A bare
+# lowercase non-determiner ("somebody") does not count, so the guard is not
+# simply "any subject".
+_CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS = frozenset({
+    "the", "a", "an", "his", "her", "their", "my", "your", "our", "its",
+})
+# A bare reply after a question is very often the other speaker, so a
+# continuation that follows a question abstains instead of inheriting.
+_CONTINUATION_QUESTION_VERBS = frozenset({
+    "asked", "asks", "inquired", "inquires", "enquired", "enquires",
+    "demanded", "demands",
+})
 # The same four-word subject cap as _TAG_NAME, then a clause verb. The dash
 # introducer belongs here: "No"-Kit began. is still the quotation's own tag.
 _CONTINUATION_OWN_TAG_CLAUSE = re.compile(
@@ -1264,6 +1279,21 @@ _CONTINUATION_OWN_TAG_CLAUSE = re.compile(
 # own tag for the continuation guard. It must NOT become direct-tag evidence:
 # #2388 disclosed the em-dash gap and this PR leaves it in place.
 _DASH_TAG_INTRODUCER = re.compile(r"^[ \t]*[\u2014\u2013-][ \t]*")
+
+
+def _quote_ends_with_question(text):
+    """Whether a quotation's own text ends in a question mark (incl. ?!)."""
+    text = text.rstrip()
+    return text.endswith("?") or text.endswith("?!")
+
+
+def _continuation_tag_verb(match):
+    """The speech verb a bare continuation tag carries, casefolded."""
+    for group in ("verb_a", "verb_b", "verb_c"):
+        value = match.group(group)
+        if value:
+            return value.casefold()
+    return None
 
 
 def _has_continuation_own_tag(tail):
@@ -1286,7 +1316,9 @@ def _has_continuation_own_tag(tail):
         return False
     if clause.group("pronoun"):
         return True
-    return clause.group("subject")[:1].isupper()
+    subject = clause.group("subject").split()
+    return (subject[0][:1].isupper()
+            or subject[0].casefold() in _CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS)
 
 
 def get_attribution_source_digest(source_text):
@@ -1356,21 +1388,21 @@ def _get_silent_folded_source_spans(source_text, needle_text):
 
 
 def get_attribution_tag_proofs(entries, source_text, established_names=(),
-                                 speaker_aliases=None, *,
-                                 continuation_evidence=None):
-    """Map batch indexes to uniquely resolved, immediately following tags.
+                               speaker_aliases=None):
+    """Map batch indexes to uniquely resolved tags on the quotations they follow.
 
     Repeated text and incomplete quotation spans are deliberately uncheckable.
     Source matching is one shared traversal per batch, outside the retry loop.
 
-    `continuation_evidence`, when supplied, receives only the speaker name for a
-    quotation that continues a paragraph's bare speech tag (``“Go,” Nita said.
-    “Now.”``). Continuations never produce a full proof: they cannot feed the
-    exact-shift repair, which needs reporting-tag/name offsets. Callers that
-    need them pass a dict and merge it into the legacy name evidence.
+    Returns ``(proofs, continuation_evidence)``. A continuation entry receives
+    only the speaker name for a quotation that continues a paragraph's bare
+    speech tag (``“Go,” Nita said. “Now.”``). Continuations never produce a
+    full proof: they cannot feed the exact-shift repair, which needs
+    reporting-tag/name offsets. Callers that need them pass both maps to
+    get_attribution_tag_evidence_projection.
     """
     if not source_text:
-        return {}
+        return {}, {}
     from dialogue_spans import get_source_match_positions, spoken_spans
     from speaker_identity import get_speaker_identity_key, get_speaker_label_index
     aliases = speaker_aliases or {}
@@ -1431,7 +1463,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
     context_digest = get_attribution_snapshot_digest([sorted(established_names), aliases])
 
     def resolve_tag_speaker(match):
-        """Speaker named by a continuation tag, or None when it is uncertain."""
+        """Speaker named by a direct or continuation tag, or None when unsure."""
         name = remove_silent_word_characters(match.group("before") or match.group("after"))
         if not _is_valid_tag_name(name):
             return None
@@ -1446,6 +1478,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         return None
 
     evidence = {}
+    continuation_evidence = {}
     for index, entry in enumerate(entries):
         if entry.get("type") != "SPOKEN":
             continue
@@ -1487,20 +1520,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
                 if (obj_clean not in _TAG_OBJECT_PRONOUNS
                         and not _is_valid_tag_name(obj_clean)):
                     continue
-            name = remove_silent_word_characters(
-                tag.group("before") or tag.group("after"))
-            if not _is_valid_tag_name(name):
-                continue
-            key = next(iter(get_speaker_label_index([name])), None)
-            candidates = identities.get(key, set())
-            if len(candidates) == 1:
-                speaker = next(iter(candidates))
-            elif not candidates and is_attested_name(name, source_text):
-                # A source-attested character need not have spoken in an
-                # earlier batch. Ambiguous identities must still abstain.
-                speaker = name.upper()
-            else:
-                speaker = None
+            speaker = resolve_tag_speaker(tag)
             if speaker is None:
                 continue
             # Identity uses only fields the original evidence decision reads.
@@ -1525,7 +1545,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         # No direct tag after this quotation. A dash-attached tag or a
         # clause-shaped tag ("Kit began.", "Kit went on.") is still the
         # quotation's own tag, so it abstains instead of inheriting one.
-        if continuation_evidence is None or _has_continuation_own_tag(tail):
+        if _has_continuation_own_tag(tail):
             continue
         # Otherwise a bare tag between this quotation and the previous one in
         # the same paragraph (``"Go," Nita said. "Now."``) names this
@@ -1546,10 +1566,17 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         cont_tag = _BARE_CONTINUATION_TAG.match(between)
         if not cont_tag:
             continue
+        # A bare reply after a question is very often the other speaker. A
+        # question quotation (including ?! and a closing mark that follows the
+        # ?) or a question tag verb therefore abstains instead of inheriting.
+        if _quote_ends_with_question(source_text[prev_start:prev_end]):
+            continue
+        if _continuation_tag_verb(cont_tag) in _CONTINUATION_QUESTION_VERBS:
+            continue
         speaker = resolve_tag_speaker(cont_tag)
         if speaker is not None:
             continuation_evidence[index] = speaker
-    return evidence
+    return evidence, continuation_evidence
 
 
 def get_attribution_tag_evidence_projection(proofs, continuation_evidence=None):
@@ -1568,10 +1595,8 @@ def get_attribution_tag_evidence_projection(proofs, continuation_evidence=None):
 def get_attribution_tag_evidence(entries, source_text, established_names=(),
                                  speaker_aliases=None):
     """Legacy name evidence, projected from the shared source proof."""
-    continuations = {}
-    proofs = get_attribution_tag_proofs(
-        entries, source_text, established_names, speaker_aliases,
-        continuation_evidence=continuations)
+    proofs, continuations = get_attribution_tag_proofs(
+        entries, source_text, established_names, speaker_aliases)
     return get_attribution_tag_evidence_projection(proofs, continuations)
 
 

@@ -1029,10 +1029,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     established_names = set(roster or ())
     aliases = (cast or {}).get("alias_to_name") or {}
     if repair_exact_shift:
-        continuations = {}
-        proofs = get_attribution_tag_proofs(
-            frozen_batch, source_text, established_names | known_names, aliases,
-            continuation_evidence=continuations)
+        proofs, continuations = get_attribution_tag_proofs(
+            frozen_batch, source_text, established_names | known_names, aliases)
         tag_evidence = get_attribution_tag_evidence_projection(proofs, continuations)
         snapshot = get_attribution_snapshot_digest([
             frozen_batch, sorted(established_names), sorted(known_names), aliases])

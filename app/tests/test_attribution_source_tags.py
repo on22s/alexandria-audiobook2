@@ -175,6 +175,19 @@ class SourceTagTests(unittest.TestCase):
                 cont_source = f'“Go,” {tag_text} “Now.”'
                 self.assertEqual({0: expected}, get_attribution_tag_evidence(
                     [{'type': 'SPOKEN', 'text': 'Now.'}], cont_source, tag_names))
+        # Guillemet and low-high quote pairs inherit exactly like curly quotes
+        # (the continuation pairing is _TAG_QUOTE_PAIRS, not a literal dict).
+        guillemet_frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'Now.'},
+        ]
+        for source in ('«Go,» Nita said. «Now.»',
+                       '„Go,“ Nita said. „Now.“'):
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA', 2: 'NITA'},
+                                 get_attribution_tag_evidence(
+                                     guillemet_frozen, source, {'NITA', 'KIT'}))
 
     def test_continuation_own_tag_rule_and_broader_clause_verbs(self):
         names = {'NITA', 'KIT'}
@@ -208,6 +221,21 @@ class SourceTagTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
                     frozen, source, names | {'KIT VANCE'}))
+        # An articled/possessive subject is a named subject too: "the man" and
+        # "his mother" must be recognised exactly like "Kit", or a correct
+        # answer inherits Nita's speaker.
+        for source in (
+                '“Go,” Nita said. “No,” his mother began.',
+                '“Go,” Nita said. “No,” the man began.',
+                '“Go,” Nita said. “No,” the old man went on.'):
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+                    frozen, source, names))
+        # Control: a lowercase non-determiner subject is not treated as a name,
+        # so the guard is not simply "any subject" (the mutant that returns
+        # True for every subject dies here).
+        self.assertEqual({0: 'NITA', 2: 'NITA'}, get_attribution_tag_evidence(
+            frozen, '“Go,” Nita said. “No,” somebody began.', names))
         # The continuation matcher itself reads the tag shape main recognises,
         # not only the nine old reporting verbs (#2388, Rule 15).
         now = [
@@ -222,6 +250,35 @@ class SourceTagTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual({0: 'NITA', 2: 'NITA'},
                                  get_attribution_tag_evidence(now, source, names))
+
+    def test_continuation_abstains_after_a_question(self):
+        names = {'NITA', 'KIT'}
+        cont = [{'type': 'SPOKEN', 'text': 'No.'}]
+        question_frozen = [
+            {'type': 'SPOKEN', 'text': 'Go?'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No.'},
+        ]
+        # A bare reply after a question is very often the other speaker, so a
+        # question quotation abstains even when its own tag is not a question
+        # verb (the body asks about the question mark, not only the verb).
+        for source in (
+                '“Go?” Nita said. “No.”',
+                '“Go?!” Nita said. “No.”',
+                # Tag verb is a question verb while the quotation is not a
+                # question: abstain too.
+                '“Go,” Nita asked. “No.”',
+                '“Go,” Nita inquired. “No.”',
+                '“Go,” Nita enquired. “No.”',
+                '“Go,” Nita demanded. “No.”'):
+            with self.subTest(source=source):
+                self.assertEqual({}, get_attribution_tag_evidence(
+                    cont, source, names))
+        # Control: a non-question continuation still inherits the tag speaker.
+        self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+            cont, '“Go,” Nita said. “No.”', names))
+        self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+            question_frozen, '“Go?” Nita said. “No.”', names))
 
     def test_dash_attached_tag_is_own_tag_but_never_direct_evidence(self):
         names = {'NITA', 'KIT'}
@@ -244,6 +301,16 @@ class SourceTagTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual({0: 'NITA'},
                                  get_attribution_tag_evidence(frozen, source, names))
+        # Positive half: an untagged continuation in the same shape inherits
+        # its tag speaker. origin/main has no continuation path, so the test as
+        # a whole fails before the fix, not only kills a mutant.
+        positive_frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No.'},
+        ]
+        self.assertEqual({0: 'NITA', 2: 'NITA'}, get_attribution_tag_evidence(
+            positive_frozen, '“Go,” Nita said. “No.”', names))
 
     def test_continuation_abstains_on_action_other_name_paragraph_own_tag_and_uncertain_quotes(self):
         frozen_cont = [{'type': 'SPOKEN', 'text': 'Now.'}]

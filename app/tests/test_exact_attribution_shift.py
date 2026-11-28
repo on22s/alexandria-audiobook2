@@ -56,7 +56,8 @@ class ExactShiftTests(unittest.TestCase):
         frozen = copy.deepcopy(FROZEN) if frozen is None else frozen
         answer = copy.deepcopy(SHIFT) if answer is None else answer
         aliases = aliases or {}
-        proofs = pq.get_attribution_tag_proofs(frozen, source, names, aliases)
+        proofs, _continuations = pq.get_attribution_tag_proofs(
+            frozen, source, names, aliases)
         evidence = {i: p['speaker'] for i,p in proofs.items()}
         snapshot = pq.get_attribution_snapshot_digest([frozen, sorted(names), [], aliases])
         return pq.get_exact_attribution_shift_repair(frozen, answer, source, proofs, evidence,
@@ -153,7 +154,7 @@ class ExactShiftTests(unittest.TestCase):
         answer += [{'n':4,'speaker':'NARRATOR'}]
         self.assertNotIn('accepted_metadata',self.repair(frozen,answer,source,('ALICE','BOB')))
     def test_changed_source_uid_or_alias_snapshot_refuses_stale_proof(self):
-        proofs=pq.get_attribution_tag_proofs(FROZEN,SOURCE,['ALICE'])
+        proofs=pq.get_attribution_tag_proofs(FROZEN,SOURCE,['ALICE'])[0]
         snapshot=pq.get_attribution_snapshot_digest([FROZEN,['ALICE'],[],{}])
         for frozen,source,aliases in [([{**FROZEN[0],'uid':'changed'},FROZEN[1]],SOURCE,{}),
                                      (FROZEN,'Earlier. '+SOURCE,{}),(FROZEN,SOURCE,{'ALLY':'ALICE'})]:
@@ -413,9 +414,8 @@ class ExactShiftTests(unittest.TestCase):
             {'type': 'NARRATOR', 'text': 'Alice waited.'},
         ]
         names = ('ALICE', 'BOB')
-        continuations = {}
-        proofs = pq.get_attribution_tag_proofs(
-            frozen, source, names, continuation_evidence=continuations)
+        proofs, continuations = pq.get_attribution_tag_proofs(
+            frozen, source, names)
         self.assertEqual({0}, set(proofs))
         self.assertEqual(
             {'speaker', 'source_sha256', 'entry_identity_sha256', 'quote_bounds',
