@@ -44,8 +44,18 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
             raise ValueError('EPUB package XML exceeds the review limit or changed')
         return raw
 
-    # bounded member read (size-capped, review mode).
-    container = ET.fromstring(read_member('META-INF/container.xml'))  # nosec B314
+    # bounded member read (size-capped, review mode). Read outside the handler:
+    # a missing container.xml raises KeyError from getinfo, which is also a
+    # LookupError and must not be reported as a broken declaration.
+    container_xml = read_member('META-INF/container.xml')
+    try:
+        container = ET.fromstring(container_xml)  # nosec B314
+    except LookupError as error:
+        # ET.fromstring raises LookupError, not ET.ParseError, for an unknown
+        # declared encoding. Every caller already handles ValueError for a
+        # malformed package (#2375).
+        raise ValueError(
+            'Invalid EPUB: container.xml declares an unknown encoding') from error
     ns = {'c': 'urn:oasis:names:tc:opendocument:xmlns:container'}
     rootfiles = container.findall('.//c:rootfile', ns)
     if not rootfiles:
@@ -58,6 +68,9 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
     try:
         # bounded member read (size-capped, review mode).
         package = ET.fromstring(opf_xml)  # nosec B314
+    except LookupError as error:
+        raise ValueError(
+            'Invalid EPUB: package document declares an unknown encoding') from error
     except ET.ParseError:
         # Preserve the narrow repair used for two verified Sigil-generated
         # books; unrelated malformed XML must still fail.

@@ -50,6 +50,29 @@ class EpubPackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'ambiguous publication'):
                 get_epub_package(archive, max_xml_bytes=4096, require_unique=True)
 
+    def test_an_unknown_declared_encoding_is_a_value_error(self):
+        # #2375: ET.fromstring raises LookupError (not ET.ParseError) for an
+        # unknown declared encoding, escaping both parse sites.
+        container = ('<?xml version="1.0" encoding="bogus"?>'
+                     '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                     '<rootfiles><rootfile full-path="book.opf"/></rootfiles></container>')
+        with self.archive(container=container) as archive:
+            with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                get_epub_package(archive)
+        with self.archive('<?xml version="1.0" encoding="bogus"?><package/>') as archive:
+            with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                get_epub_package(archive)
+
+    def test_a_missing_container_is_not_reported_as_an_encoding_problem(self):
+        # #2375: read_member's KeyError is a LookupError too, so the encoding
+        # handler must not absorb a missing META-INF/container.xml.
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, 'w') as archive:
+            archive.writestr('mimetype', 'application/epub+zip')
+        with zipfile.ZipFile(io.BytesIO(raw.getvalue())) as archive:
+            with self.assertRaises(KeyError):
+                get_epub_package(archive)
+
     def test_missing_rootfile_fails_in_both_modes(self):
         with self.archive(roots=[]) as archive:
             for options in ({}, {'max_xml_bytes': 4096, 'require_unique': True}):

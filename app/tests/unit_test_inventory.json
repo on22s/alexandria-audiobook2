@@ -6119,7 +6119,8 @@
     , "tests.test_epub_navigation_document.NavigationOnlyImportTests.test_a_navigation_only_refusal_uses_the_single_extraction_pass"
   ]
   , "test_epub_package": [
-    "tests.test_epub_package.EpubPackageTests.test_missing_rootfile_fails_in_both_modes"
+    "tests.test_epub_package.EpubPackageTests.test_an_unknown_declared_encoding_is_a_value_error"
+    , "tests.test_epub_package.EpubPackageTests.test_missing_rootfile_fails_in_both_modes"
     , "tests.test_epub_package.EpubPackageTests.test_only_known_sigil_fragment_is_repaired"
     , "tests.test_epub_package.EpubPackageTests.test_package_preserves_epub2_and_epub3_namespaces"
     , "tests.test_epub_package.EpubPackageTests.test_review_bounds_container_and_opf_without_changing_default_parser"
