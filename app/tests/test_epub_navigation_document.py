@@ -198,6 +198,27 @@ class EpubNavigationDocumentTests(unittest.TestCase):
         self.assertEqual(['top', None], [row['fragment'] for row in targets])
         self.assertEqual(['navigation_document'], sorted({row['reason'] for row in targets}))
 
+    def test_manifest_href_with_invalid_ipv6_authority_does_not_abort_import(self):
+        # #2377: urlsplit('http://[') raises ValueError before the href can be
+        # classified as external, aborting the whole import.
+        self.assertEqual((None, None), script._resolve_epub_href('book.opf', 'http://['))
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, 'w') as archive:
+            archive.writestr('mimetype', 'application/epub+zip')
+            archive.writestr(
+                'META-INF/container.xml',
+                '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                '<rootfile full-path="book.opf"/></container>')
+            archive.writestr(
+                'book.opf',
+                '<package><manifest>'
+                '<item id="bad" href="http://[" media-type="application/xhtml+xml"/>'
+                '<item id="one" href="one.xhtml" media-type="application/xhtml+xml"/>'
+                '</manifest><spine><itemref idref="bad"/><itemref idref="one"/></spine></package>')
+            archive.writestr('one.xhtml', '<html><body><p>Story begins.</p></body></html>')
+        text, _report = extract(raw.getvalue())
+        self.assertIn('Story begins.', text)
+
     def test_epub2_properties_in_the_spine_is_still_the_navigation_document(self):
         # Non-conforming EPUB 2 carrying the EPUB 3 ``properties="nav"`` token:
         # extraction skips the document, as read-aloud already did (#2327).

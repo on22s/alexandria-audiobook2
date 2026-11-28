@@ -789,7 +789,13 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
 
 def _resolve_epub_href(base_path, href):
     """Resolve an internal EPUB href to a ZIP path and optional fragment."""
-    parsed = urlsplit(href)
+    try:
+        parsed = urlsplit(href)
+    except ValueError:
+        # An unbalanced IPv6 bracket (`http://[`) makes urlsplit raise before
+        # the href can be classified as external. It cannot name an internal
+        # EPUB member, so treat it like any other external reference (#2377).
+        return None, None
     if parsed.scheme or parsed.netloc or (not parsed.path and not parsed.fragment):
         return None, None
     decoded_path = unquote(parsed.path)
