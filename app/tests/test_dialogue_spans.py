@@ -2379,6 +2379,33 @@ class DashDialogueTagTests(unittest.TestCase):
                 ambiguous, parts = self._parts(line)
                 self.assertFalse(ambiguous)
                 self.assertEqual(expected, parts)
+        # These four forms are also Spanish 3sg present tags, so a subjectless
+        # one is a tag, not French-only speech; a later tag on the same line
+        # must not turn the real tag into a confident `SPOKEN` label
+        # (#2390 gate 3 N-1).
+        for line, verb, expected in (
+            ("— No es verdad —protesta—, pero ya lo sabes —dice Ana.",
+             "protesta",
+             [("SPOKEN", "No es verdad"), ("NARRATOR", "protesta"),
+              ("SPOKEN", "pero ya lo sabes"), ("NARRATOR", "dice Ana.")]),
+            ("— ¡Qué horror! —exclama—. ¡Fuera de aquí! —grita Ana.",
+             "exclama",
+             [("SPOKEN", "¡Qué horror!"), ("NARRATOR", "exclama"),
+              ("SPOKEN", "¡Fuera de aquí!"), ("NARRATOR", "grita Ana.")]),
+            ("— Basta —murmura—. Vete, responde Ana.",
+             "murmura",
+             [("SPOKEN", "Basta"), ("NARRATOR", "murmura"),
+              ("SPOKEN", "Vete,"), ("NARRATOR", "responde Ana.")]),
+            ("— Ya basta —insiste—. No me hagas repetirlo —añade.",
+             "insiste",
+             [("SPOKEN", "Ya basta"), ("NARRATOR", "insiste"),
+              ("SPOKEN", "No me hagas repetirlo"), ("NARRATOR", "añade.")]),
+        ):
+            with self.subTest(spanish_present_tag=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertIn(("NARRATOR", verb), parts)
+                self.assertEqual(expected, parts)
 
     def test_imperatives_after_speech_punctuation_are_still_imperatives(self):
         """`!`/`?`/`…` introduce the same subjectless imperative as a comma.
@@ -2393,6 +2420,10 @@ class DashDialogueTagTests(unittest.TestCase):
             "— Ah! répète-le.",
             "— ¡Vamos! contesta.",
             "— Eh bien… explique.",
+            # A Spanish form is not French-only, so B1 cannot route it: the
+            # ellipsis introducer itself must do the work (#2390 gate 3 T-2).
+            "— Bueno… contesta.",
+            "— Bueno... contesta.",
         ):
             with self.subTest(routed=line):
                 ambiguous, parts = self._parts(line)
@@ -2518,6 +2549,15 @@ class DashDialogueTagTests(unittest.TestCase):
         """
         table = set(dialogue_spans._DASH_REPORTING_VERBS.split("|"))
         self.assertLessEqual(dialogue_spans._DASH_PRESENT_IMPERATIVE, table)
+        # The French-only set is derived from the one table and must exclude
+        # every form that is also a Spanish present tag: `exclama`,
+        # `insiste`, `murmura` and `protesta` occur in both halves, and
+        # treating them as French-only made a later tag leave them in
+        # `SPOKEN` (#2390 gate 3 N-1).
+        forms = dialogue_spans._DASH_REPORTING_VERBS.split("|")
+        spanish = set(forms[:forms.index("dit")])
+        self.assertFalse(spanish & dialogue_spans._DASH_FRENCH_ONLY_VERBS)
+        self.assertLessEqual(dialogue_spans._DASH_FRENCH_ONLY_VERBS, table)
 
     def test_a_real_subject_with_words_after_the_verb_is_routed(self):
         """Subject + tabled verb + object is a clause, not a tag.

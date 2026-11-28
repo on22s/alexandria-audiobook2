@@ -185,10 +185,16 @@ _DASH_FIRST_PERSON = frozenset(
 # (`disait-il`, `dit Emma`), so a subjectless French-only form with nothing
 # after it is speech, never a tag (`— …, disait:`, #2390 gate 2 B1). Derived
 # from the table itself so a new French form is covered without a second list
-# (Rule 15).
+# (Rule 15). Four forms occur in both halves (`exclama`, `insiste`,
+# `murmura`, `protesta`) and are common Spanish 3sg present tags, so the
+# Spanish half is subtracted; the set stays derived from the one table
+# (#2390 gate 3 N-1).
 _DASH_TAG_FORMS = tuple(_DASH_REPORTING_VERBS.split("|"))
-_DASH_FRENCH_ONLY_VERBS = frozenset(
-    _DASH_TAG_FORMS[_DASH_TAG_FORMS.index("dit"):])
+_DASH_SPANISH_VERBS = frozenset(
+    _DASH_TAG_FORMS[:_DASH_TAG_FORMS.index("dit")])
+_DASH_FRENCH_ONLY_VERBS = (
+    frozenset(_DASH_TAG_FORMS[_DASH_TAG_FORMS.index("dit"):])
+    - _DASH_SPANISH_VERBS)
 # Present-tense 3sg forms that are also the `tú`/`tu` imperative, in the
 # table above. In Spanish and in French -er verbs the imperative has the same
 # spelling as the 3sg present (`contesta`, `avoue`), so a comma-introduced
