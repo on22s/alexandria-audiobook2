@@ -280,66 +280,67 @@ def _weak_dash_refused_ranges(text):
     return ranges
 
 
-# A printed line number can sit before a dialogue dash at the start of a line
-# in a school edition: `[25] --Sr. Caballuco--dijo…`. Only this bracketed form
-# is stripped before the dash; any other text before a `--` is narration
-# unless the dash follows `:` or a spaced sentence end. A `25. --No quiero`
-# item number is covered by the sentence-end rule (the stop and the space).
-_WEAK_DASH_PRINTED_PREFIX = re.compile(r"[ \t]*(?:\[[0-9]{1,4}\])[ \t]*")
-# A speech can open in the middle of a hard-wrapped line after a colon or a
-# finished sentence: `…le dijo: --Señora, yo no` / `…consentir. --No quiero`.
-_WEAK_DASH_SENTENCE_BEFORE = frozenset(":.!?…")
-# `--- No quiero` is a typo of the weak `--` opener. A hyphen run of three or
-# more is not in the dash table (a rule or a longer mark), so it is accepted
-# here only at a line start and only when padding and a speech body follow.
+# In a book whose whole-book convention is the weak `--` form, ANY hyphen run
+# of two or more opens the line's speech unless it joins two word characters
+# (`word--word`) that are not a reporting-verb tag. This is the ONE rule
+# (#2447 r11 BLOCKER 1) and it covers every printed opener the earlier rounds
+# found: a line-start `--`, a printed `[25]` or `25.` prefix, `(--`, a tight
+# `.--` / `?--` / `!--` after a finished sentence, `dijo:--Yo`, a `--- ` typo,
+# and an interior `?--preguntó X--.` or `días--dijo X--` tag line whose
+# opening dash the edition dropped. There is deliberately no spacing guard:
+# the tight form is also how these books open speech after narration, and the
+# guard certified such speech NARRATOR where main keeps the model's speaker.
+# Routing is the safe direction.
 _WEAK_DASH_RUN = re.compile(r"-{2,}")
+
+
+def _weak_dash_run_joins_words(text, start, stop):
+    """-> True when the hyphen run at [start, stop) is a narration join.
+
+    A word character on BOTH sides is the interruption form (`crecía--y`,
+    `word--word`), which is narration and never opens speech. One side alone
+    is a printed opener (`25.--No`, `?--preguntó`, `(--¡Animal!`).
+
+    A reporting verb on the right is the exception: `Hace días--dijo
+    Golfín--que…` is a speech tag that abuts the preceding word, not a
+    compound, so it opens speech like any other interior tag (#2447 r11
+    BLOCKER 1, the gate's no-opener class). The verb vocabulary is the one
+    dash table below, not a second list (Rule 15).
+    """
+    if not (start > 0 and stop < len(text)):
+        return False
+    left_word = text[start - 1].isalnum() or text[start - 1] == "_"
+    right_word = text[stop].isalnum() or text[stop] == "_"
+    if not (left_word and right_word):
+        return False
+    return not _DASH_VERB.match(text, stop)
 
 
 def _get_weak_dash_speech_body_start(text, start, end):
     """-> offset of the speech a weak `--` opens on this line, or None.
 
-    The ONE opener question (Rule 15, #2447 r10 BLOCKER 1): a weak `--` opens
-    speech when it starts the line (after spaces and an optional printed
-    `[25]` prefix), or when it follows `:` or a spaced sentence end inside the
-    line (`25. --` is that second case). `word--word` is neither, so a
-    narration interruption never starts a route. A run of three or more
-    hyphens at a line start with a padded body is accepted as the printed typo
-    of the same opener. `start` is the first non-space character of the line
-    and `end` its end offset.
+    The ONE opener question (Rule 15, #2447 r11 BLOCKER 1): any hyphen run of
+    two or more on the line opens speech unless a word character sits on BOTH
+    sides of it (`word--word`). A reporting verb on the right is a tag, not a
+    join (`Hace días--dijo Golfín--que…`), so it opens like the other interior
+    tags. The dash's own strength and the text before it are not consulted, so
+    `.--`, `?--`, `!--`, `(--`, `25.--No`, `25.-- No`, `dijo:--Yo` and the
+    `--- ` typo are the same opener. `start` is the first non-space character
+    of the line and `end` its end offset.
 
     The body offset returned is where the speech itself begins (after the
-    dash, run padding removed), so a caller can route the speech and every
-    later line of its paragraph without claiming narration (#2447 r9).
+    dash and its padding). The caller routes the WHOLE line and every later
+    line of the paragraph through it, so a speech whose tag sits after a
+    dropped opening dash (`¿En dónde…?--preguntó X--.`) is routed too
+    (#2447 r9, r10, r11).
     """
     for run in _WEAK_DASH_RUN.finditer(text, start, end):
-        index = run.start()
-        length, strength = get_dash_mark(text, index)
-        if strength != "weak":
-            if (strength is not None or len(run.group(0)) < 3
-                    or index + len(run.group(0)) >= end
-                    or text[index + len(run.group(0))] not in " \t"):
-                continue
-            length = len(run.group(0))
-        body = index + length
+        if _weak_dash_run_joins_words(text, run.start(), run.end()):
+            continue
+        body = run.end()
         while body < end and text[body] in " \t":
             body += 1
-        if body >= end:
-            continue
-        prefix = text[start:index]
-        if not prefix.strip(" \t") or _WEAK_DASH_PRINTED_PREFIX.fullmatch(prefix):
-            return body
-        before = prefix.rstrip(" \t")
-        if not before or before[-1] not in _WEAK_DASH_SENTENCE_BEFORE:
-            continue
-        if before[-1] == ":":
-            # `dijo:--Yo tengo…` is the ordinary Spanish no-space opener.
-            return body
-        # After a full stop, a tight `.--` is the em-dash interruption that
-        # narration and an edition's notes use (`…tranquila.--Los Aceros`,
-        # `=Rumores.--Temores=`, `journey's end--what / heart?--bearing`),
-        # not a speech. A real sentence-end opener is separated from the
-        # finished sentence by a space (`…consentir. --Señora`).
-        if prefix[-1] in " \t":
+        if body < end:
             return body
     return None
 
@@ -385,12 +386,13 @@ def _weak_dash_continuation_ranges(text):
                 # Already inside a speech: the whole line is its continuation.
                 ranges.append((start, end))
                 continue
-            opener = _get_weak_dash_speech_body_start(text, start, end)
-            if opener is not None:
-                # The speech opens mid-line (or behind a printed prefix), so
-                # the line is not a `DASH_LINE` and needs its own route.
+            if _get_weak_dash_speech_body_start(text, start, end) is not None:
+                # The line carries a weak `--` opener anywhere in it. The WHOLE
+                # line is routed, not only the text after the dash, so a speech
+                # whose tag follows a dropped opening dash keeps the model's
+                # speaker (#2447 r11 BLOCKER 1).
                 seen_weak = True
-                ranges.append((opener, end))
+                ranges.append((start, end))
         paragraph_start = after
     return ranges
 

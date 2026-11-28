@@ -5289,6 +5289,7 @@
     , "tests.test_dialogue_spans.DashDialogueTagTests.test_em_dash_interior_ascii_dash_certifies_like_main"
     , "tests.test_dialogue_spans.DashDialogueTagTests.test_em_dash_signature_pair_still_certifies_like_main"
     , "tests.test_dialogue_spans.DashDialogueTagTests.test_every_imperative_present_form_is_routed_subjectless"
+    , "tests.test_dialogue_spans.DashDialogueTagTests.test_every_non_word_join_weak_dash_opens_a_route"
     , "tests.test_dialogue_spans.DashDialogueTagTests.test_false_tag_readings_inside_speech_stay_whole"
     , "tests.test_dialogue_spans.DashDialogueTagTests.test_first_person_reporting_forms_are_speech_not_tags"
     , "tests.test_dialogue_spans.DashDialogueTagTests.test_first_person_reporting_forms_stay_speech_in_the_comma_path"
