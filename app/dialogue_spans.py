@@ -180,6 +180,15 @@ _DASH_FIRST_PERSON = frozenset(
     "repliqué interrumpí insistí expliqué comenté suspiré musité inquirí "
     "balbuceé gruñí espeté supliqué protesté advertí ordené confesé aclaré "
     "concluí declaré manifesté observé objeté indiqué".split())
+# The one table is a single string, Spanish forms first and French forms from
+# `dit` on. A French dash tag always carries an inverted subject
+# (`disait-il`, `dit Emma`), so a subjectless French-only form with nothing
+# after it is speech, never a tag (`— …, disait:`, #2390 gate 2 B1). Derived
+# from the table itself so a new French form is covered without a second list
+# (Rule 15).
+_DASH_TAG_FORMS = tuple(_DASH_REPORTING_VERBS.split("|"))
+_DASH_FRENCH_ONLY_VERBS = frozenset(
+    _DASH_TAG_FORMS[_DASH_TAG_FORMS.index("dit"):])
 # Present-tense 3sg forms that are also the `tú`/`tu` imperative, in the
 # table above. In Spanish and in French -er verbs the imperative has the same
 # spelling as the 3sg present (`contesta`, `avoue`), so a comma-introduced
@@ -190,9 +199,10 @@ _DASH_FIRST_PERSON = frozenset(
 #     the common real tags on the measured books;
 #   - `dice`/`dicen`/`repone` have a different or no `tú` imperative;
 #   - a form that is also a French passé simple (`murmura`, `exclama`,
-#     `protesta`, `declara`, `observa`) stays out, because the table is
-#     language-agnostic and `observa le clerc` is a real French tag on
-#     Bovary.
+#     `protesta`, `declara`, `observa`) stays out of this set, because the
+#     table is language-agnostic and `observa le clerc` is a real French tag
+#     on Bovary. Those forms route through
+#     `_DASH_PAST_COLLISION_IMPERATIVES` only when nothing follows the verb.
 # First-person forms are absent on purpose: they are speech even when they
 # are grammatically present (`digo`).
 _DASH_PRESENT_IMPERATIVE = frozenset(
@@ -205,7 +215,22 @@ _DASH_PRESENT_IMPERATIVE = frozenset(
     "murmure chuchote crie écrie exclame ajoute répète réplique rétorque "
     "insiste explique questionne interroge hurle souffle soupire balbutie "
     "bégaie bégaye grommelle grogne supplie proteste avoue déclare annonce "
-    "remarque hasarde bredouille concède objecte objectent".split())
+    "remarque hasarde bredouille concède objecte objectent demande".split())
+# French 3sg forms that are also a passé simple and so can be a real tag
+# (`observa le clerc`). When nothing follows the verb they are the character
+# continuing their command (`— Venga, observa.`, #2390 gate 2 G1-a); a word
+# after them keeps the tag reading.
+_DASH_PAST_COLLISION_IMPERATIVES = frozenset(
+    "murmura exclama protesta declara observa".split())
+# Prepositions that open an object phrase after an imperative, never a
+# subject (`— Anda, pregunta a Ana.`, `— Allons, explique à Emma.`;
+# #2390 gate 2 G1-b).
+_DASH_IMPERATIVE_OBJECT_PREPOSITIONS = frozenset(
+    "a à al au aux por para con de del to with for avec pour sur en".split())
+# Breaks after which a lower-case imperative is still the character
+# continuing their command (`— Allons! avoue.`, `— ¡Vamos! contesta.`;
+# #2390 gate 2 G1-c).
+_DASH_IMPERATIVE_INTRODUCERS = (",", "!", "?", "…", "...")
 _DASH_BREAK = re.compile(r"\.{3}|[—–,!?…]")
 _DASH_TAG_INTRODUCERS = "!?…"
 # A possible turn after narration, with a second dash introducing its tag.
@@ -1104,6 +1129,15 @@ def _dash_tag_tokens(text, start, end):
     return list(_DASH_TAG_TOKEN.finditer(text, start, end))
 
 
+def _dash_word_looks_like_subject(word):
+    """Is one word a name or a third-person pronoun, not an object or adverb?
+
+    This is the single word-level subject test used by every dash-tag helper,
+    so the three callers cannot drift apart (Rule 15; #2390 gate 2 R-1).
+    """
+    return word.lower() in _DASH_THIRD_PERSON or word[:1].isupper()
+
+
 def _dash_preverb_is_subject(words):
     """Are the words before a reporting verb a subject, not speech?
 
@@ -1117,10 +1151,8 @@ def _dash_preverb_is_subject(words):
     if any(word in _DASH_TAG_STOPWORDS or word in _DASH_OTHER_PERSON
            for word in lowered):
         return False
-    last = words[-1]
-    return (last.lower() in _DASH_THIRD_PERSON
-            or last.lower() in _DASH_CLITICS
-            or last[:1].isupper())
+    return (_dash_preverb_is_real_subject(words)
+            or words[-1].lower() in _DASH_CLITICS)
 
 
 def _dash_preverb_is_real_subject(words):
@@ -1130,25 +1162,48 @@ def _dash_preverb_is_real_subject(words):
     are inverted tags, and their real subject follows the verb (#2390 gate 1
     G2).
     """
-    last = words[-1]
-    return last.lower() in _DASH_THIRD_PERSON or last[:1].isupper()
+    return _dash_word_looks_like_subject(words[-1])
+
+
+def _dash_preverb_is_subject_then_clitics(words):
+    """Is a real subject followed only by object clitics before the verb?
+
+    `il le dit`, `Dieu le dit`, `elle le demande`: the object is before the
+    verb, so the post-verb window cannot see it. A subject followed by at
+    least one clitic is a clause, not a tag (#2390 gate 2 G2-a). An inverted
+    tag puts its subject after the verb, so this never matches `lui dit-il`.
+    """
+    for index, word in enumerate(words):
+        if _dash_word_looks_like_subject(word):
+            rest = words[index + 1:]
+            return bool(rest) and all(
+                other.lower() in _DASH_CLITICS for other in rest)
+    return False
 
 
 def _dash_present_tense_is_subjectless(words, verb_index, subject_index):
-    """Is a comma-introduced present form a subjectless imperative?
+    """Is a present form with no subject a subjectless imperative?
 
     The `tú`/`tu` imperative of a tabled Spanish/French verb shares the 3sg
     present spelling (`contesta`, `avoue`). With no subject before the verb
     and no name or pronoun after it, the form is the character continuing
     their command, not a narrator tag, so the line must be routed
     (#2390 gate 1 G1). A determiner + noun after the verb (`contesta la
-    carta`) is an object here, not a subject.
+    carta`) is an object here, not a subject; a preposition opens an object
+    too (`pregunta a Ana`, #2390 gate 2 G1-b). The five past-tense collisions
+    (`observa`, `murmura`, ...) are subjectless only when nothing follows the
+    verb (#2390 gate 2 G1-a).
     """
-    if words[verb_index].group().lower() not in _DASH_PRESENT_IMPERATIVE:
+    form = words[verb_index].group().lower()
+    if form in _DASH_PAST_COLLISION_IMPERATIVES:
+        return not words[subject_index:]
+    if form not in _DASH_PRESENT_IMPERATIVE:
         return False
     window = [word.group() for word in words[subject_index:subject_index + 3]]
-    return not any(word.lower() in _DASH_THIRD_PERSON or word[:1].isupper()
-                   for word in window)
+    if window and (window[0].lower()
+                   in _DASH_IMPERATIVE_OBJECT_PREPOSITIONS):
+        return True
+    return not any(_dash_word_looks_like_subject(word) for word in window)
 
 
 def _dash_inverted_is_tag(tail):
@@ -1273,17 +1328,37 @@ def _dash_tag_evidence(text, pos, limit, introducer):
     else:
         before = [word.group() for word in words[:verb_index]]
     if not before:
-        if (introducer == ","
+        if (introducer in _DASH_IMPERATIVE_INTRODUCERS
                 and _dash_present_tense_is_subjectless(
                     words, verb_index, subject_index)):
             return False
+        if (not tail
+                and words[verb_index].group().lower()
+                in _DASH_FRENCH_ONLY_VERBS):
+            # A French incise always carries an inverted subject, so a
+            # subjectless French-only verb is speech, not a tag
+            # (#2390 gate 2 B1).
+            return False
         return _dash_inverted_is_tag(tail)
+    if (introducer == ","
+            and all(word.lower() in _DASH_CLITICS for word in before)
+            and _dash_present_tense_is_subjectless(
+                words, verb_index, subject_index)):
+        # A Spanish pro-drop imperative can carry an object clitic; the
+        # clitic must not hide the subjectless form
+        # (`— Sí, le pregunta la hora.`, #2390 gate 2 G1-d).
+        return False
+    if _dash_preverb_is_subject_then_clitics(before):
+        # `il le dit`: a real subject and an object pronoun before the verb
+        # are a clause, not a tag (#2390 gate 2 G2-a).
+        return False
     if _dash_preverb_is_real_subject(before) and tail:
-        # A real subject before the verb leaves nothing after it in a tag but
-        # adverbs; any word here is an object, so the clause is speech and the
-        # line is routed (#2390 gate 1 G2). The inverted half (`dijo lo mismo`
-        # vs `dijo Ana`) stays decided by the object list in
-        # `_dash_inverted_is_tag`.
+        # A real subject before the verb can leave only adverbs after it in
+        # a tag, and this routes even those (`— Yes, he said quietly.`); any
+        # word here is treated as an object, so the clause is speech and the
+        # line is routed (#2390 gate 1 G2; comment corrected in #2390 gate 2
+        # C-1). The inverted half (`dijo lo mismo` vs `dijo Ana`) stays
+        # decided by the object list in `_dash_inverted_is_tag`.
         return False
     return _dash_preverb_is_subject(before) and _dash_inverted_is_tag(tail)
 

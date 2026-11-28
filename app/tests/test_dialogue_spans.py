@@ -2194,6 +2194,8 @@ class DashDialogueTagTests(unittest.TestCase):
             "— Vamos, continúa.",
             "— Anda, contesta la carta.",
             "— Allons, avoue!",
+            "— Eh bien, demande!",
+            "— Allons, demande-lui pardon.",
         ):
             with self.subTest(routed=line):
                 ambiguous, parts = self._parts(line)
@@ -2208,6 +2210,205 @@ class DashDialogueTagTests(unittest.TestCase):
         self.assertFalse(ambiguous)
         self.assertEqual(
             [("SPOKEN", "Oui,"), ("NARRATOR", "dit le pharmacien.")], parts)
+        # A name after the verb is a subject, so the imperative reading does
+        # not apply (#2390 gate 2 T-1).
+        for line, expected in (
+            ("— Bien, continúa Ana.", [("SPOKEN", "Bien,"),
+                                       ("NARRATOR", "continúa Ana.")]),
+            ("— Oui, ajoute Emma.", [("SPOKEN", "Oui,"),
+                                     ("NARRATOR", "ajoute Emma.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_every_imperative_present_form_is_routed_subjectless(self):
+        """The set itself is pinned, not just three sample forms.
+
+        A table-driven line for every member kills the mutants that drop a
+        single entry (`explique`, `pregunta`) from the set
+        (#2390 gate 2 T-1).
+        """
+        for form in sorted(dialogue_spans._DASH_PRESENT_IMPERATIVE):
+            line = f"— Allons, {form}."
+            with self.subTest(form=form):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_the_imperative_present_set_covers_every_french_er_form(self):
+        """A French -er 3sg present is its own `tu` imperative.
+
+        Every such form in the one table belongs in the set, so leaving one
+        out is a slip rather than a trade; `demande` was the one omission
+        (#2390 gate 2 G1-a).
+        """
+        forms = dialogue_spans._DASH_REPORTING_VERBS.split("|")
+        french = forms[forms.index("dit"):]
+        expected = {
+            form for form in french
+            if form.endswith("e") and not form.endswith(("ait", "aient"))
+        }
+        self.assertLessEqual(expected, dialogue_spans._DASH_PRESENT_IMPERATIVE)
+
+    def test_a_subjectless_french_tag_at_the_end_is_speech(self):
+        """A French incise always carries an inverted subject.
+
+        `— …, disait:` has no subject after the verb, so it is the character
+        speaking, not a tag (#2390 gate 2 B1). `disait-il`, `dit Emma` and
+        `s'écria-t-elle` still carry their subjects and still split.
+        """
+        for line in (
+            "— Pourtant l'autre, celui d'hier, disait:",
+            "— Mais celui qui est venu, disait:",
+            "— Et l'autre, ce matin, répondait.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— Oui, dit-il.", [("SPOKEN", "Oui,"),
+                                ("NARRATOR", "dit-il.")]),
+            ("— Allons, disait-elle.", [("SPOKEN", "Allons,"),
+                                        ("NARRATOR", "disait-elle.")]),
+            ("— Ah! s'écria-t-elle.", [("SPOKEN", "Ah!"),
+                                       ("NARRATOR", "s'écria-t-elle.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_imperatives_after_speech_punctuation_are_still_imperatives(self):
+        """`!`/`?`/`…` introduce the same subjectless imperative as a comma.
+
+        G1 is not comma-only: 19th-century French writes a lower-case verb
+        after `!` routinely, and that verb is still the character's command
+        (#2390 gate 2 G1-c).
+        """
+        for line in (
+            "— Allons! avoue.",
+            "— Voyons! explique-toi.",
+            "— Ah! répète-le.",
+            "— ¡Vamos! contesta.",
+            "— Eh bien… explique.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_a_preposition_after_an_imperative_opens_an_object(self):
+        """`pregunta a Ana` names the person addressed, not a tag subject.
+
+        A window that starts with a preposition has no subject, so the
+        imperative reading applies (#2390 gate 2 G1-b). A name directly
+        after the verb is still a subject and still splits.
+        """
+        for line in (
+            "— Anda, pregunta a Ana.",
+            "— Allons, explique à Emma.",
+            "— Allons, avoue à Charles!",
+            "— Venga, pregunta por Juan.",
+            "— Anda, explica a Pedro lo que pasó.",
+            "— Anda, pregunta por él.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— Bien, continúa Ana.", [("SPOKEN", "Bien,"),
+                                       ("NARRATOR", "continúa Ana.")]),
+            ("— Oui, répète-t-il.", [("SPOKEN", "Oui,"),
+                                     ("NARRATOR", "répète-t-il.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_a_clitic_before_the_imperative_does_not_hide_it(self):
+        """A pro-drop imperative keeps its reading behind an object clitic.
+
+        G1 requires an empty pre-verb window; a clitic alone is still no
+        subject (#2390 gate 2 G1-d). A clitic before an inverted tag still
+        splits.
+        """
+        for line in (
+            "— Sí, le pregunta la hora.",
+            "— Sí, les explica la lección.",
+            "— Sí, le repite la pregunta.",
+            "— Oui, lui explique la leçon.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line in ("— Oui, lui dit-il.", "— Sí, me dijo Ana."):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertTrue(any(kind == "NARRATOR" for kind, _ in parts))
+
+    def test_past_tense_collisions_route_only_when_nothing_follows(self):
+        """The five French -er forms that are also passés simples.
+
+        With nothing after the verb they are the character's command
+        (`— Venga, observa.`); a word after them keeps the real tag
+        (`observa le clerc`) (#2390 gate 2 G1-a).
+        """
+        for line in (
+            "— Venga, observa.",
+            "— Anda, protesta.",
+            "— Vamos, declara.",
+            "— Vamos, exclama.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— En effet, observa le clerc.",
+             [("SPOKEN", "En effet,"), ("NARRATOR", "observa le clerc.")]),
+            ("— Sí, observa Ana.",
+             [("SPOKEN", "Sí,"), ("NARRATOR", "observa Ana.")]),
+            ("— Venga, observa el cielo.",
+             [("SPOKEN", "Venga,"), ("NARRATOR", "observa el cielo.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_a_subject_and_object_pronoun_before_the_verb_is_a_clause(self):
+        """The object is before the verb, where G2's tail test cannot see it.
+
+        `— Non, il le dit.` is speech, not a tag (#2390 gate 2 G2-a). A
+        subject with nothing after it (`— Yes, he said.`) and a clitic before
+        an inverted tag (`— Oui, lui dit-il.`) still split.
+        """
+        for line in (
+            "— Non, il le dit.",
+            "— Oui, elle le demande.",
+            "— Oui, Dieu le dit.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— Yes, he said.", [("SPOKEN", "Yes,"),
+                                 ("NARRATOR", "he said.")]),
+            ("— Oui, lui dit-il.", [("SPOKEN", "Oui,"),
+                                    ("NARRATOR", "lui dit-il.")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
 
     def test_the_imperative_present_set_is_a_subset_of_the_tag_table(self):
         """The G1 classification must not drift from the one verb table.
