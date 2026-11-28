@@ -217,7 +217,10 @@ class AlignmentCliRegressionTests(unittest.TestCase):
             source_start=None, source_start_text=None, no_auto_anchor=True,
             review_preanchor=False,
         )
-        refusal = alignment.EpubMarkupRefusal(
+        # Use the class compare itself imported: this module loads
+        # alexandria_alignment dynamically, and an earlier test in the same
+        # process may already own sys.modules['alexandria_alignment'].
+        refusal = compare.EpubMarkupRefusal(
             "EPUB resource is UTF-32 encoded, which EPUB 3.3 does not allow: "
             "'ch1.xhtml'")
         with patch.object(compare.argparse.ArgumentParser, "parse_args",
