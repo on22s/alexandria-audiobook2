@@ -64,6 +64,37 @@ def extract(raw, *, report=False):
         'synthetic.epub', archive_bytes=raw, include_report=report)
 
 
+class UnclosedRubyTests(unittest.TestCase):
+    def test_unclosed_ruby_at_eof_keeps_its_base_text(self):
+        # #2383: RubyCollector emitted only on </ruby>, so an element left open
+        # at EOF lost text a browser shows.
+        raw = make_epub('<html><body><p>Before.</p><ruby>BaseWithoutClose',
+                        middle_media_type='text/html')
+        self.assertIn('Before.BaseWithoutClose', extract(raw))
+
+    def test_unclosed_reading_at_eof_matches_the_closed_markup(self):
+        # L2: HTMLParser never synthesizes </rt> either. An <rt> left open at
+        # EOF (or before </ruby>) must narrate exactly like closed markup: the
+        # kana reading replaces its base, and a reading with no base is kept.
+        rows = {
+            'base_then_reading': (
+                '<ruby>漢字<rt>かんじ', '<ruby>漢字<rt>かんじ</rt></ruby>'),
+            'reading_without_base': (
+                '<ruby><rt>かんじ', '<ruby><rt>かんじ</rt></ruby>'),
+            'closed_ruby_open_reading': (
+                '<ruby>漢字<rt>かんじ</ruby>', '<ruby>漢字<rt>かんじ</rt></ruby>'),
+        }
+        for name, (truncated, closed) in rows.items():
+            with self.subTest(case=name):
+                prefix = '<html><body><p>Before.</p>'
+                open_text = extract(make_epub(
+                    prefix + truncated, middle_media_type='text/html'))
+                closed_text = extract(make_epub(
+                    prefix + closed, middle_media_type='text/html'))
+                self.assertEqual(closed_text, open_text)
+                self.assertIn('Before.かんじ', open_text)
+
+
 class UnclosedSkipTagTests(unittest.TestCase):
     def test_each_unclosed_skip_tag_in_middle_raises_bytes_and_path(self):
         for tag in ('title', 'style', 'script'):
@@ -438,42 +469,35 @@ class UnclosedSkipTagTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r'invalid XML'):
             script._omit_xml_ignored_subtrees(broken)
 
-    def test_declared_codec_surrogate_fails_closed_with_actionable_error(self):
-        # The existing decoder accepts arbitrary declared Python codecs.
-        # 'unicode_escape' turns the literal ASCII sequence \ud800 into a
-        # lone surrogate in the decoded string, which cannot be encoded
-        # as UTF-8 for the XML pass. That must fail closed with an
-        # actionable error, not silently fall back to the raw-HTML path
-        # that drops the middle chapter.
+    def test_python_only_codec_declaration_is_invalid_and_imports_safely(self):
+        # L1 rev2: Python-only transform codecs (unicode_escape and friends)
+        # are invalid XML encoding declarations. The decoder must fall back to
+        # strict UTF-8 instead of honouring the transform, so the literal
+        # ``\ud800`` stays text - never a lone surrogate in the decoded
+        # resource - and the middle chapter still imports.
         payload = (b'<?xml version="1.0" encoding="unicode_escape"?>'
                    b'<html><body><script><![CDATA[var t = "\\ud800"; '
                    b'var u = "</script><style>";]]></script>'
                    b'<p>Middle readable chapter.</p>'
                    b'<style>p{}</style></body></html>')
         decoded = script.get_epub_xhtml_text(payload)
-        # Setup premise: the actual production decoder yields a surrogate.
-        self.assertTrue(any(0xD800 <= ord(char) <= 0xDFFF for char in decoded))
+        self.assertFalse(any(0xD800 <= ord(char) <= 0xDFFF for char in decoded))
+        self.assertIn('encoding="utf-8"', decoded.split('?>', 1)[0])
+        expected = ('First readable chapter.\n\nMiddle readable chapter.\n\n'
+                    'Final readable chapter.')
         raw = make_epub(payload)
-        for report in (False, True):
-            with self.subTest(report=report):
-                with self.assertRaisesRegex(ValueError, r'spine index 1') as caught:
-                    extract(raw, report=report)
-                message = str(caught.exception)
-                self.assertIn('invalid Unicode', message)
-                self.assertIn('middle.xhtml', message)
-                self.assertNotIn('Middle readable chapter', message)
-                self.assertNotIn('\\ud800', message)
-        # Control: the same declared codec with an ordinary payload (no
-        # surrogate escape) still extracts exactly - the codec itself is
-        # not blanket-rejected.
-        control = (b'<?xml version="1.0" encoding="unicode_escape"?>'
-                   b'<html><body><script><![CDATA[var t = "plain"; '
-                   b'var u = "</script><style>";]]></script>'
-                   b'<p>Middle readable chapter.</p>'
-                   b'<style>p{}</style></body></html>')
-        self.assertEqual(
-            'First readable chapter.\n\nMiddle readable chapter.\n\n'
-            'Final readable chapter.', extract(make_epub(control)))
+        self.assertEqual(expected, extract(raw))
+        reported, _report = extract(raw, report=True)
+        self.assertEqual(expected, reported)
+
+    def test_a_lone_surrogate_from_another_source_still_fails_closed(self):
+        # The decoding fallback no longer produces surrogates, but the XML
+        # pass must still refuse a resource whose text carries one rather
+        # than drop the chapter the cut would otherwise hide.
+        with self.assertRaisesRegex(ValueError, r'invalid Unicode'):
+            script._omit_xml_ignored_subtrees(
+                '<html><body><p hidden="">SECRET</p>'
+                '<p>Before.\ud800After.</p></body></html>')
 
     def test_malformed_xhtml_with_skip_markup_is_rejected(self):
         # Deterministic XML errors on XHTML involving ignored content must
@@ -1154,44 +1178,27 @@ class UnclosedSkipTagUploadTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(200, selected.status_code, selected.text)
             self.assertIn(b'book.txt', (root / 'state.json').read_bytes())
 
-    async def test_declared_codec_surrogate_upload_is_safe_refusal(self):
+    async def test_python_only_codec_upload_declaration_imports_safely(self):
+        # L1 rev2: unicode_escape is not a character encoding. The upload
+        # falls back to strict UTF-8 instead of honouring the transform, so
+        # the import succeeds and never stores a decoded surrogate.
         payload = (b'<?xml version="1.0" encoding="unicode_escape"?>'
                    b'<html><body><script><![CDATA[var t = "\\ud800"; '
                    b'var u = "</script><style>";]]></script>'
                    b'<p>Middle readable chapter.</p>'
                    b'<style>p{}</style></body></html>')
-        bad = make_epub(payload)
-        good = make_epub(GOOD_MIDDLE)
+        raw = make_epub(payload)
         async with uploads.UploadPublicationSourceTests().environment() as (
                 root, directory, client):
-            first = await client.post(
+            response = await client.post(
                 '/api/upload?select_active=true',
-                files={'file': ('book.epub', good, 'application/epub+zip')})
-            self.assertEqual(200, first.status_code, first.text)
-            before = {item.name: item.read_bytes() for item in directory.iterdir()}
-            state_before = (root / 'state.json').read_bytes()
-            for name, params in (
-                    ('default', {}),
-                    ('report', {'include_extraction_report': 'true',
-                                'select_active': 'false'})):
-                with self.subTest(mode=name):
-                    query = '&'.join(f'{key}={value}' for key, value in params.items())
-                    url = '/api/upload' + (f'?{query}' if query else '')
-                    response = await client.post(
-                        url, files={'file': ('book.epub', bad,
-                                             'application/epub+zip')})
-                    self.assertEqual(400, response.status_code, response.text)
-                    detail = response.json()['detail']
-                    self.assertIn('invalid Unicode', detail)
-                    self.assertIn('spine index 1', detail)
-                    self.assertIn('middle.xhtml', detail)
-                    self.assertNotIn('Middle readable chapter', detail)
-                    self.assertEqual(
-                        before,
-                        {item.name: item.read_bytes()
-                         for item in directory.iterdir()})
-                    self.assertEqual(state_before,
-                                     (root / 'state.json').read_bytes())
+                files={'file': ('book.epub', raw, 'application/epub+zip')})
+            self.assertEqual(200, response.status_code, response.text)
+            persisted = (directory / 'book.txt').read_bytes()
+            self.assertIn(b'First readable chapter.', persisted)
+            self.assertIn(b'Middle readable chapter.', persisted)
+            self.assertIn(b'Final readable chapter.', persisted)
+            self.assertIn(b'book.txt', (root / 'state.json').read_bytes())
 
     async def test_malformed_xhtml_upload_is_safe_refusal(self):
         cases = [

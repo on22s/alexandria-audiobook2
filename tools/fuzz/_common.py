@@ -11,20 +11,13 @@ from pathlib import Path
 import sys
 import tempfile
 import types
-import urllib.parse
-import xml.etree.ElementTree as ET
 import zipfile
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APP_DIR = REPO_ROOT / "app"
 CORPUS_ROOT = Path(__file__).resolve().parent / "corpus"
 
-_SCRIPT_ROUTER_PATH = (APP_DIR / "routers" / "script.py").resolve()
-_EPUB_PACKAGE_PATH = (APP_DIR / "epub_package.py").resolve()
-_ALEXANDRIA_ALIGNMENT_PATH = (REPO_ROOT / "alexandria_alignment.py").resolve()
 _ZIPFILE_PATH = Path(zipfile.__file__).resolve()
-_ELEMENTTREE_PATH = Path(ET.__file__).resolve()
-_URLLIB_PARSE_PATH = Path(urllib.parse.__file__).resolve()
 
 # Keep instrumentation scoped to the target importer/normalizer modules so
 # startup stays fast (~1 s) and coverage feedback stays focused instead of
@@ -178,16 +171,12 @@ def _resolved_path(filename: str) -> Path | None:
 # differ across interpreter versions (``LOAD_METHOD`` is gone in 3.12,
 # ``CALL_METHOD`` in 3.13), and Atheris rewrites the code objects it
 # instruments, so an instruction window is a CPython-3.10-only assumption.
-# Each filtered function has one reachable failure site (or, for
-# get_epub_xhtml_text, two decode statements that are the same documented bug),
-# so file+function+type is exactly as narrow there while staying portable
-# across CPython versions and Atheris instrumentation.
+# Each filtered function has one reachable failure site, so file+function+type
+# is exactly as narrow there while staying portable across CPython versions and
+# Atheris instrumentation. The #2367/#2368/#2370/#2375/#2377 exemptions are
+# retired: those fixes are now in the harness, so a recurrence must crash it.
 def _is_zipfile_frame(tb: types.TracebackType) -> bool:
     return _resolved_path(tb.tb_frame.f_code.co_filename) == _ZIPFILE_PATH
-
-
-def _is_elementtree_frame(tb: types.TracebackType) -> bool:
-    return _resolved_path(tb.tb_frame.f_code.co_filename) == _ELEMENTTREE_PATH
 
 
 def _is_ebooklib_epub_frame(tb: types.TracebackType) -> bool:
@@ -266,113 +255,6 @@ def is_expected_zip_value_error(exc: BaseException) -> bool:
     return _is_zipfile_frame(frames[-1])
 
 
-def is_known_empty_zip_member_index_error(exc: IndexError) -> bool:
-    """Known bug #2367: validate_epub_archive -> ZipInfo.is_dir() IndexError on '' filename.
-
-    ``validate_epub_archive`` calls ``member.is_dir()`` at exactly one site, so
-    file+function+type identifies the documented call site without bytecode.
-    """
-    frames = _traceback_frames(exc)
-    if len(frames) < 2:
-        return False
-    caller, last = frames[-2], frames[-1]
-    return (
-        _is_zipfile_frame(last)
-        and last.tb_frame.f_code.co_name == "is_dir"
-        and _resolved_path(caller.tb_frame.f_code.co_filename) == _ALEXANDRIA_ALIGNMENT_PATH
-        and caller.tb_frame.f_code.co_name == "validate_epub_archive"
-    )
-
-
-# codecs.lookup() (used by bytes.decode) raises ValueError with this message
-# when the codec name itself contains NUL, e.g. an XHTML XML declaration of
-# `encoding="ut\x00f-8"`. get_epub_xhtml_text passes the declaration bytes to
-# bytes.decode, so this is the same tracked bug as #2368.
-_EMBEDDED_NULL_VALUE_ERROR = "embedded null character"
-
-# get_epub_xhtml_text delegates to alexandria_alignment's one encoding sniff
-# (Rule 15), so the declaration decode now raises inside these two functions.
-# Both are the same #2368 failure; the router frame is kept for older trees.
-_ALIGNMENT_XHTML_DECODE_FUNCTIONS = frozenset(
-    {"decode_epub_markup", "_decode_head_encoding"})
-
-
-def is_known_xhtml_encoding_error(exc: BaseException) -> bool:
-    """Known bug #2368: XHTML decode error on a bad XML encoding declaration.
-
-    The declaration decode and the resource ``data.decode(...)`` run in
-    ``alexandria_alignment.decode_epub_markup`` (its ``_decode_head_encoding``
-    helper decodes the declared name) since the router's
-    ``get_epub_xhtml_text`` became a thin delegate to that shared sniff. Both
-    live in those two functions, which have no other language-level decode
-    failure, so file+function is the scope; the old
-    ``get_epub_xhtml_text`` site is still accepted. Besides
-    LookupError/UnicodeError, ``codecs`` raises ``ValueError("embedded null
-    character")`` when the declaration-supplied codec name contains NUL.
-    """
-    if not isinstance(exc, (LookupError, UnicodeError)):
-        if not (isinstance(exc, ValueError) and str(exc) == _EMBEDDED_NULL_VALUE_ERROR):
-            return False
-    frames = _traceback_frames(exc)
-    if not frames:
-        return False
-    last = frames[-1]
-    name = last.tb_frame.f_code.co_name
-    path = _resolved_path(last.tb_frame.f_code.co_filename)
-    if path == _SCRIPT_ROUTER_PATH:
-        return name == "get_epub_xhtml_text"
-    return (path == _ALEXANDRIA_ALIGNMENT_PATH
-            and name in _ALIGNMENT_XHTML_DECODE_FUNCTIONS)
-
-
-# ET.fromstring(bytes) refuses an XML encoding declaration it cannot process in
-# two ways on CPython 3.10: LookupError("unknown encoding: ...") for a codec
-# expat does not know, and ValueError("multi-byte encodings are not supported")
-# for a declared encoding expat cannot stream (utf-16-le/utf-16-be/shift_jis/
-# ...; a BOM-carrying utf-16 document is fine). Both are the same tracked
-# encoding-declaration bug in the caller that only catches ET.ParseError, so
-# the #2370 / #2375 predicates accept both exception types.
-_MULTIBYTE_ENCODING_VALUE_ERROR = "multi-byte encodings are not supported"
-
-
-def _is_et_encoding_refusal(exc: BaseException) -> bool:
-    if isinstance(exc, LookupError):
-        return True
-    return isinstance(exc, ValueError) and str(exc) == _MULTIBYTE_ENCODING_VALUE_ERROR
-
-
-def is_known_xml_toc_encoding_error(exc: BaseException) -> bool:
-    """Known bug #2370: _get_epub3_toc_entries / _get_epub2_toc_entries ET.fromstring encoding refusal."""
-    if not _is_et_encoding_refusal(exc):
-        return False
-    frames = _traceback_frames(exc)
-    if len(frames) < 2:
-        return False
-    caller, last = frames[-2], frames[-1]
-    return (
-        _is_elementtree_frame(last)
-        and last.tb_frame.f_code.co_name == "XML"
-        and _resolved_path(caller.tb_frame.f_code.co_filename) == _SCRIPT_ROUTER_PATH
-        and caller.tb_frame.f_code.co_name in ("_get_epub3_toc_entries", "_get_epub2_toc_entries")
-    )
-
-
-def is_known_package_xml_encoding_error(exc: BaseException) -> bool:
-    """Known bug #2375: get_epub_package ET.fromstring encoding refusal on OPF/container.xml."""
-    if not _is_et_encoding_refusal(exc):
-        return False
-    frames = _traceback_frames(exc)
-    if len(frames) < 2:
-        return False
-    caller, last = frames[-2], frames[-1]
-    return (
-        _is_elementtree_frame(last)
-        and last.tb_frame.f_code.co_name == "XML"
-        and _resolved_path(caller.tb_frame.f_code.co_filename) == _EPUB_PACKAGE_PATH
-        and caller.tb_frame.f_code.co_name == "get_epub_package"
-    )
-
-
 def is_known_ebooklib_parse_nav_index_error(exc: IndexError) -> bool:
     """Known bug #2371: ebooklib._parse_nav xpath('//nav[@*="toc"]')[0] IndexError.
 
@@ -386,29 +268,6 @@ def is_known_ebooklib_parse_nav_index_error(exc: IndexError) -> bool:
     return (
         _is_ebooklib_epub_frame(last)
         and last.tb_frame.f_code.co_name == "_parse_nav"
-    )
-
-
-def is_known_href_ipv6_value_error(exc: BaseException) -> bool:
-    """Known bug #2377: _resolve_epub_href urlsplit() ValueError on a bad IPv6 authority.
-
-    A manifest or navigation href with an unbalanced IPv6 bracket (e.g.
-    ``http://[``) makes ``urllib.parse.urlsplit`` raise
-    ``ValueError("Invalid IPv6 URL")`` before ``_resolve_epub_href`` can reject
-    the external URL. Scoped to that one caller and message; anything else
-    raised while resolving an href must still crash the harness.
-    """
-    if not (isinstance(exc, ValueError) and str(exc) == "Invalid IPv6 URL"):
-        return False
-    frames = _traceback_frames(exc)
-    if len(frames) < 2:
-        return False
-    caller, last = frames[-2], frames[-1]
-    return (
-        _resolved_path(last.tb_frame.f_code.co_filename) == _URLLIB_PARSE_PATH
-        and last.tb_frame.f_code.co_name == "urlsplit"
-        and _resolved_path(caller.tb_frame.f_code.co_filename) == _SCRIPT_ROUTER_PATH
-        and caller.tb_frame.f_code.co_name == "_resolve_epub_href"
     )
 
 
@@ -428,6 +287,7 @@ def is_known_href_ipv6_value_error(exc: BaseException) -> bool:
 _ARCHIVE_ADMISSION_VALUE_ERROR_PREFIXES = (
     "captured EPUB archive must be bytes",
     "EPUB archive exceeds the 512 MB input limit",
+    "EPUB archive has an entry with an empty filename",
     "EPUB archive has too many entries",
     "EPUB archive expands beyond 256 MB",
     "EPUB archive has an excessive expansion ratio",
@@ -443,6 +303,15 @@ _EXTRACT_VALUE_ERROR_PREFIXES = _ARCHIVE_ADMISSION_VALUE_ERROR_PREFIXES + (
     "Invalid EPUB package member",
     "Unsafe EPUB package member",
     "Invalid EPUB: no rootfile found in container.xml",
+    # app.epub_package.get_epub_package's documented refusals (#2375): an XML
+    # encoding declaration Expat cannot process is reported as a malformed
+    # package, from the container and from the OPF.
+    "Invalid EPUB: container.xml declares an unknown encoding",
+    "Invalid EPUB: package document declares an unknown encoding",
+    # alexandria_alignment.decode_epub_markup's strict UTF-8 fallback refusal
+    # (#2368): the declaration is unreadable and the bytes are not UTF-8, so
+    # there is no decoded text that could be narrated truthfully.
+    "EPUB resource declares an unreadable encoding",
 )
 
 # extract_epub_text's per-spine-resource wrapper (app/routers/script.py). The
@@ -477,8 +346,7 @@ def is_expected_epub_extract_value_error(exc: BaseException) -> bool:
     Beyond the production messages, the stdlib zipfile corrupt-offset refusal
     is accepted: it is a malformed-archive refusal like ``BadZipFile`` (raised
     from ``zipfile``'s read path, and the upload route already answers it with
-    HTTP 400), not an unexpected extractor failure. Known bug #2377's
-    urlsplit refusal is accepted only from ``_resolve_epub_href``.
+    HTTP 400), not an unexpected extractor failure.
     """
     if not isinstance(exc, ValueError):
         return False
@@ -492,7 +360,6 @@ def is_expected_epub_extract_value_error(exc: BaseException) -> bool:
     return (
         message.startswith(_EXTRACT_VALUE_ERROR_PREFIXES)
         or is_expected_zip_value_error(exc)
-        or is_known_href_ipv6_value_error(exc)
     )
 
 

@@ -44,16 +44,20 @@ import posixpath
 import re
 import zipfile
 from pathlib import PurePosixPath
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import quote, unquote
 import unicodedata
 import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
 from alexandria_alignment import (
+    _EPUB_XML_DECL_MAX_BYTES,
     html_hidden_handling_applies,
     is_html_hidden_attrs,
 )
-from epub_package import get_epub_package, is_navigation_document
+from epub_package import (EpubXmlEncodingError, get_epub_declaration_refusal,
+                         get_epub_encoding_refusal, get_epub_package,
+                         is_navigation_document, parse_epub_xml,
+                         split_epub_href)
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from qwen_align import (get_normalized_stream, get_stream_chars,
                         get_token_key, get_validated_aligner_tokens,
@@ -214,8 +218,8 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                 continue
             if item_id in manifest:
                 raise ValueError("Retained EPUB has duplicate manifest ids.")
-            parsed = urlsplit(href)
-            if parsed.scheme or parsed.netloc or parsed.query:
+            parsed = split_epub_href(href)
+            if parsed is None or parsed.scheme or parsed.netloc or parsed.query:
                 raise ValueError("Retained EPUB has an external manifest reference.")
             if parsed.fragment:
                 raise ValueError("Retained EPUB manifest reference must not carry a fragment.")
@@ -250,9 +254,9 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                     continue
                 try:
                     # size-bounded archive member.
-                    root = ET.fromstring(_read_archive_member_bounded(  # nosec B314
+                    root = parse_epub_xml(_read_archive_member_bounded(
                         archive, item['path'], _get_retained_xml_limit(), member_index=member_index))
-                except ET.ParseError:
+                except (ET.ParseError, EpubXmlEncodingError):
                     continue
                 for nav in root.iter():
                     if nav.tag.rsplit('}', 1)[-1] != 'nav':
@@ -265,8 +269,9 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                             continue
                         label = ' '.join(''.join(link.itertext()).split())
                         href = link.get('href') or ''
-                        parsed = urlsplit(href)
-                        if not label or parsed.scheme or parsed.netloc or parsed.query:
+                        parsed = split_epub_href(href)
+                        if (not label or parsed is None or parsed.scheme
+                                or parsed.netloc or parsed.query):
                             continue
                         base = PurePosixPath(item['path']).parent
                         target = _resolve_uri_path(parsed.path, str(base), "nav href")
@@ -495,8 +500,10 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
         raw = _read_archive_member_bounded(archive, path, max_xml_bytes, member_index=member_index)
     try:
         # size-bounded archive member.
-        root = ET.fromstring(raw)  # nosec B314
-    except ET.ParseError as error:
+        root = parse_epub_xml(raw)
+    except (ET.ParseError, EpubXmlEncodingError) as error:
+        # An unprocessable encoding declaration is malformed input here, not
+        # an unhandled ValueError (#2370).
         raise ValueError(f"Spine document is malformed: {path}") from error
     if _namespace(root.tag) != XHTML_NS:
         raise ValueError(f"Spine document is not in the XHTML namespace: {path}")
@@ -1099,7 +1106,9 @@ def _svg_has_text(stream, cancel_check=None):
     ``<text>`` element (including nested ``tspan``/CDATA, which
     surface as text data) with non-whitespace content returns
     True; CDATA and entity text are delivered as data by the
-    parser. Malformed XML raises ET.ParseError to the caller.
+    parser. Malformed XML raises ET.ParseError to the caller; a declaration
+    Expat cannot honour raises ``EpubXmlEncodingError`` (the shared refusal),
+    which the SVG spine probe skips like any other malformed SVG.
     The target retains no tree or text. Expat may still buffer a
     single large XML token; chunked input is not a constant-memory
     guarantee for arbitrary attributes or markup.
@@ -1139,17 +1148,37 @@ def _svg_has_text(stream, cancel_check=None):
     target = _Target()
     # streaming target, no tree retained.
     parser = ET.XMLParser(target=target)  # nosec B314
+    # Classify the declaration from the first stream chunk with the same
+    # shared decision the tree parser uses: Expat would hand punycode/idna/
+    # undefined to Python's codec and raise raw UnicodeError text. Read the
+    # classifier's own bound plus a UTF-8 BOM, so the probe's declaration
+    # extent is exactly the tree parser's and not a few bytes tighter (review
+    # 3 N4). The extra bytes only shift the following chunks.
+    chunk = stream.read(_EPUB_XML_DECL_MAX_BYTES + 3)
+    if chunk:
+        refusal = get_epub_declaration_refusal(chunk)
+        if refusal is not None:
+            raise refusal
     # Feed the FULL document before close: an early-found text
     # element must not turn close() into an incomplete-document
     # ParseError (which callers treat as malformed/tolerated).
-    while True:
-        if cancel_check is not None and cancel_check():
-            raise ValueError("EPUB read-aloud cancelled.")
-        chunk = stream.read(64 * 1024)
-        if not chunk:
-            break
-        parser.feed(chunk)
-    parser.close()
+    try:
+        while True:
+            if cancel_check is not None and cancel_check():
+                raise ValueError("EPUB read-aloud cancelled.")
+            if not chunk:
+                break
+            parser.feed(chunk)
+            chunk = stream.read(64 * 1024)
+        parser.close()
+    except (LookupError, ValueError) as error:
+        # An Expat refusal class that remains (an unknown name or a codec it
+        # cannot stream) is the same malformed input as at the tree sites, so
+        # callers can skip it (Rule 15).
+        refusal = get_epub_encoding_refusal(error)
+        if refusal is not None:
+            raise refusal from error
+        raise
     return target.found
 
 
@@ -1869,8 +1898,9 @@ def validate_epub_readaloud(archive_bytes):
                 raise ValueError("Built EPUB has a duplicate manifest id.")
             if item.get('fallback') is not None:
                 raise ValueError("Built EPUB manifest must not use fallback chains.")
-            parsed = urlsplit(href)
-            if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
+            parsed = split_epub_href(href)
+            if (parsed is None or parsed.scheme or parsed.netloc
+                    or parsed.query or parsed.fragment):
                 raise ValueError("Built EPUB manifest has an external/fragment reference.")
             path = _resolve_uri_path(parsed.path, str(PurePosixPath(opf_path).parent),
                                      "manifest href")
@@ -1932,8 +1962,8 @@ def validate_epub_readaloud(archive_bytes):
                     archive, path, _get_retained_xml_limit(), member_index=member_index)
                 try:
                     # size-bounded archive member.
-                    root = ET.fromstring(raw)  # nosec B314
-                except ET.ParseError as error:
+                    root = parse_epub_xml(raw)
+                except (ET.ParseError, EpubXmlEncodingError) as error:
                     raise ValueError("Built EPUB XHTML is malformed.") from error
                 ids = set()
                 for el in root.iter():
@@ -1959,8 +1989,9 @@ def validate_epub_readaloud(archive_bytes):
                 for a in el.iter():
                     if _local(a.tag) == 'a' and (a.get('href') or ''):
                         href = a.get('href') or ''
-                        parsed = urlsplit(href)
-                        if parsed.scheme or parsed.netloc or parsed.query:
+                        parsed = split_epub_href(href)
+                        if (parsed is None or parsed.scheme or parsed.netloc
+                                or parsed.query):
                             raise ValueError("Built EPUB nav link is external.")
                         target = _resolve_uri_path(parsed.path,
                                                    str(PurePosixPath(nav_path).parent),
@@ -2009,8 +2040,8 @@ def validate_epub_readaloud(archive_bytes):
                 archive, smil_path, MAX_EPUB_READALOUD_XML_BYTES, member_index=member_index)
             try:
                 # size-bounded archive member.
-                smil_root = ET.fromstring(raw)  # nosec B314
-            except ET.ParseError as error:
+                smil_root = parse_epub_xml(raw)
+            except (ET.ParseError, EpubXmlEncodingError) as error:
                 raise ValueError("Built EPUB SMIL is malformed.") from error
             if not smil_root.get('version'):
                 raise ValueError("Built EPUB SMIL lacks a version.")
@@ -2062,8 +2093,9 @@ def validate_epub_readaloud(archive_bytes):
                 asrc = audio.get('src') or ''
                 if not asrc or asrc.startswith('/'):
                     raise ValueError("Built EPUB SMIL audio reference is invalid.")
-                audio_parsed = urlsplit(asrc)
-                if audio_parsed.scheme or audio_parsed.netloc or audio_parsed.query or audio_parsed.fragment:
+                audio_parsed = split_epub_href(asrc)
+                if (audio_parsed is None or audio_parsed.scheme or audio_parsed.netloc
+                        or audio_parsed.query or audio_parsed.fragment):
                     raise ValueError("Built EPUB SMIL audio reference is invalid.")
                 audio_path = _resolve_uri_path(audio_parsed.path,
                                                str(PurePosixPath(smil_path).parent),
@@ -2171,8 +2203,8 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
             archive, ncx_path, _get_retained_xml_limit(), member_index=member_index)
     try:
         # size-bounded archive member.
-        root = ET.fromstring(raw)  # nosec B314
-    except ET.ParseError:
+        root = parse_epub_xml(raw)
+    except (ET.ParseError, EpubXmlEncodingError):
         return []
     nav_map = root.find('.//{%s}navMap' % 'http://www.daisy.org/z3986/2005/ncx/')
     if nav_map is None:
@@ -2205,8 +2237,9 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
         if not href:
             return {"label": label, "href": href, "full": "",
                     "fragment": None, "children": children}
-        parsed_href = urlsplit(href)
-        if parsed_href.scheme or parsed_href.netloc or parsed_href.query:
+        parsed_href = split_epub_href(href)
+        if (parsed_href is None or parsed_href.scheme or parsed_href.netloc
+                or parsed_href.query):
             raise ValueError("Retained EPUB NCX has an external NCX reference.")
         full = _resolve_uri_path(parsed_href.path, ncx_dir, "NCX href")
         return {"label": label, "href": href, "full": full,
@@ -2308,7 +2341,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                         if _svg_has_text(_stream, cancel_check=cancel_check):
                             raise ValueError(
                                 "SVG spine documents with text are unsupported; failing closed.")
-                except (KeyError, ET.ParseError):
+                except (KeyError, ET.ParseError, EpubXmlEncodingError):
                     continue
             continue
         if mtype != XHTML_MEDIA_TYPE and 'html' not in mtype:
@@ -2423,8 +2456,9 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     for item in package.findall(namespace + 'manifest/' + namespace + 'item'):
         if item.get('media-type') == SMIL_MEDIA_TYPE:
             href = item.get('href') or ''
-            parsed = urlsplit(href)
-            if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
+            parsed = split_epub_href(href)
+            if (parsed is None or parsed.scheme or parsed.netloc
+                    or parsed.query or parsed.fragment):
                 raise ValueError("Retained EPUB has an external/fragment SMIL reference.")
             old_smil_paths.add(_resolve_uri_path(parsed.path, base_dir, "SMIL href"))
     for record in smil_records:
@@ -2601,8 +2635,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             raise ValueError("Retained EPUB lacks META-INF/container.xml.") from error
     try:
         # size-bounded archive member.
-        container = ET.fromstring(container_raw)  # nosec B314
-    except ET.ParseError as error:
+        container = parse_epub_xml(container_raw)
+    except (ET.ParseError, EpubXmlEncodingError) as error:
         raise ValueError("Retained EPUB container is malformed.") from error
     container_ns = container.tag.split('}')[0] + '}' if '}' in container.tag else ''
     if container_ns != '{%s}' % CONTAINER_NS:

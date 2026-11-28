@@ -39,7 +39,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 from math import ceil
 from typing import Any, Dict, List, Literal, Optional
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
@@ -115,7 +115,9 @@ from alexandria_alignment import (
     is_well_formed_xml,
     validate_epub_archive,
 )
-from epub_package import get_epub_package, is_navigation_document
+from epub_package import (EpubXmlEncodingError, get_epub_package,
+                         is_navigation_document, parse_epub_xml,
+                         split_epub_href)
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from epub_extraction_report import EpubExtractionReport
 from project_scope_files import capture_scope_file
@@ -586,9 +588,30 @@ class _HTMLTextExtractor(HTMLParser):
             elif tag == RUBY_FALLBACK_TAG and self._ruby_fallback_depth:
                 self._ruby_fallback_depth -= 1
             elif tag == RUBY_TAG:
-                spoken, self._ruby, self._ruby_fallback_depth = self._ruby.get_spoken_text(), None, 0
-                if spoken:
-                    self._append_text(spoken)
+                self._flush_ruby()
+
+    def _flush_ruby(self):
+        """Emit the open ruby collector's text, if any."""
+        if self._ruby is None:
+            return
+        # An <rt> left open (at EOF, or before </ruby>) never delivered its
+        # end tag. Close it here so the truncated element narrates exactly like
+        # the closed markup, including a kana reading that replaces its base.
+        self._ruby.end_reading()
+        spoken, self._ruby, self._ruby_fallback_depth = (
+            self._ruby.get_spoken_text(), None, 0)
+        if spoken:
+            self._append_text(spoken)
+
+    def flush_unclosed_ruby(self):
+        """Emit an unterminated <ruby> collector's text at end of document.
+
+        HTMLParser never synthesizes the closing tag at EOF, so a <ruby> left
+        open dropped its base text even though a browser shows it (#2383).
+        This is deliberately not HTMLParser.close(): extraction keeps
+        feed-only semantics for every other incomplete EOF element.
+        """
+        self._flush_ruby()
 
     def handle_data(self, data):
         if self._skip_stack or self._ruby_fallback_depth:
@@ -800,7 +823,13 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
 
 def _resolve_epub_href(base_path, href):
     """Resolve an internal EPUB href to a ZIP path and optional fragment."""
-    parsed = urlsplit(href)
+    parsed = split_epub_href(href)
+    if parsed is None:
+        # An unbalanced IPv6 bracket (`http://[`) cannot be split, so it
+        # cannot name an internal EPUB member: treat it like any other
+        # external reference (#2377). ``split_epub_href`` is the one copy of
+        # that decision, shared with read-aloud and publication review.
+        return None, None
     if parsed.scheme or parsed.netloc or (not parsed.path and not parsed.fragment):
         return None, None
     decoded_path = unquote(parsed.path)
@@ -821,8 +850,10 @@ def _get_epub3_toc_entries(zf, manifest, *, report=None):
     for nav_item in nav_items:
         try:
             # archive admitted by validate_epub_archive.
-            root = ET.fromstring(zf.read(nav_item['path']))  # nosec B314
-        except (KeyError, ET.ParseError):
+            root = parse_epub_xml(zf.read(nav_item['path']))
+        except (KeyError, ET.ParseError, EpubXmlEncodingError):
+            # An unprocessable encoding declaration is malformed navigation
+            # (#2370), not an unhandled import failure.
             decisions.append((nav_item['path'], 'missing_or_malformed_navigation'))
             continue
         for nav in root.iter():
@@ -861,8 +892,9 @@ def _get_epub2_toc_entries(zf, opf, opf_ns, manifest, *, report=None):
         return [], [(None, 'no_epub2_navigation')]
     try:
         # archive admitted by validate_epub_archive.
-        root = ET.fromstring(zf.read(ncx_item['path']))  # nosec B314
-    except (KeyError, ET.ParseError):
+        root = parse_epub_xml(zf.read(ncx_item['path']))
+    except (KeyError, ET.ParseError, EpubXmlEncodingError):
+        # An unprocessable encoding declaration is malformed navigation (#2370).
         return [], [(ncx_item['path'], 'missing_or_malformed_navigation')]
     entries = []
     for nav_point in root.iter():
@@ -983,9 +1015,14 @@ def _insert_epub_toc_titles(text, anchor_positions, toc_targets, *, decisions=No
     return text
 
 
-def get_epub_xhtml_text(data: bytes) -> str:
-    """Decode XHTML using its Unicode byte order or XML encoding declaration."""
-    return decode_epub_markup(data)
+def get_epub_xhtml_text(data: bytes, *, resource=None) -> str:
+    """Decode XHTML using its Unicode byte order or XML encoding declaration.
+
+    ``resource`` names the archive member in the refusal raised when the
+    declaration is unreadable and the bytes are not valid UTF-8, so the
+    diagnostic identifies the one member that must be fixed.
+    """
+    return decode_epub_markup(data, resource=resource)
 
 
 def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, include_report=False,
@@ -1111,7 +1148,6 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                     report.apply_row('spine', index=spine_index, item_id=item_id, resource=href,
                                      reason='missing_archive_resource')
                 continue
-            html_content = get_epub_xhtml_text(html_bytes)
             targets = toc_by_path.get(href, [])
             anchor_ids = {fragment for fragment, _ in targets if fragment}
             # text/html RCDATA (<title>, <textarea>) keeps literal markup as
@@ -1121,6 +1157,11 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 html_rcdata=media_type != 'application/xhtml+xml')
             xml_stats = {'hidden_elements': 0, 'first_hidden_location': None, 'hidden_anchors': set()}
             try:
+                # Decode inside this wrapper: #2368's strict-fallback refusal
+                # must name the spine index and resource like every other
+                # malformed-resource refusal, not escape as a bare ValueError
+                # before the documented message is built.
+                html_content = get_epub_xhtml_text(html_bytes, resource=href)
                 # XHTML resources are XML: omit true ignored subtrees via
                 # the strict XML path (a malformed XHTML resource with a
                 # skip-tag opening rejects actionably, exactly as before this
@@ -1154,6 +1195,8 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 # close() is deliberately not called here: it would flush
                 # incomplete EOF markup (and decode buffered skipped
                 # content) into extraction, changing feed-only semantics.
+                # Ruby is the one collector that must still emit at EOF.
+                extractor.flush_unclosed_ruby()
                 text, anchor_positions = extractor.get_text_with_anchor_positions()
             except ValueError as error:
                 # Report and ordinary extraction share this path, so a
