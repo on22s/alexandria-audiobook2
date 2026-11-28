@@ -332,26 +332,35 @@ class SourceTagTests(unittest.TestCase):
         # word was how r4 lost the gate-2 fix, so every title is pinned in both
         # orders here. Verb-first keeps main's direct read: a title outside
         # #2388's vocabulary is still read there as a bare name.
+        # #2391 r7 LOW 2: "&" is the same coordinated form; the guard
+        # normalises it to "and" before matching, so every title and both orders
+        # must behave exactly as for "and".
         in_vocabulary = {'Mr.', 'Mrs.', 'Ms.', 'Dr.'}
-        for title in (title for title, _subject in (
+        titles = [title for title, _subject in (
                 ('Mr.', 'Bennet'), ('Mrs.', 'Bennet'), ('Ms.', 'Bennet'),
                 ('Dr.', 'Kit'), ('St.', 'John'), ('Prof.', 'Vale'),
                 ('Rev.', 'Vale'), ('Capt.', 'Vale'), ('Col.', 'Brandon'),
                 ('Gen.', 'Vale'), ('Lt.', 'Vale'), ('Sgt.', 'Vale'),
                 ('M.', 'Vale'), ('Mlle.', 'Vale'), ('Mme.', 'Vale'),
                 ('Fr.', 'Vale'), ('Hon.', 'Vale'), ('Sr.', 'Vale'),
-                ('Messrs.', 'Vale'))):
-            source = f'“Go,” Nita said. “No,” {title} and Mrs. Brandon said.'
-            with self.subTest(title=title, source=source):
-                self.assertEqual({0: 'NITA'},
-                                 get_attribution_tag_evidence(
-                                     frozen, source, names))
-            source = f'“Go,” Nita said. “No,” said {title} and Mrs. Brandon.'
-            expected = ({0: 'NITA'} if title in in_vocabulary else
-                        {0: 'NITA', 2: title.rstrip('.').upper()})
-            with self.subTest(title=title, source=source):
-                self.assertEqual(expected, get_attribution_tag_evidence(
-                    frozen, source, names))
+                ('Messrs.', 'Vale'))]
+        for conjunction in ('and', '&'):
+            for title in titles:
+                source = (f'“Go,” Nita said. “No,” {title} {conjunction} '
+                          'Mrs. Brandon said.')
+                with self.subTest(title=title, conjunction=conjunction,
+                                  source=source):
+                    self.assertEqual({0: 'NITA'},
+                                     get_attribution_tag_evidence(
+                                         frozen, source, names))
+                source = (f'“Go,” Nita said. “No,” said {title} '
+                          f'{conjunction} Mrs. Brandon.')
+                expected = ({0: 'NITA'} if title in in_vocabulary else
+                            {0: 'NITA', 2: title.rstrip('.').upper()})
+                with self.subTest(title=title, conjunction=conjunction,
+                                  source=source):
+                    self.assertEqual(expected, get_attribution_tag_evidence(
+                        frozen, source, names))
 
     def test_continuation_abstains_on_an_action_beat_naming_another_character(self):
         # A clause after the quotation that names a different character is an
@@ -368,6 +377,9 @@ class SourceTagTests(unittest.TestCase):
                 '“Go,” Nita said. “No.” Kit shook his head.',
                 '“Go,” Nita said. “No.” Kit, however, crossed his arms.',
                 '“Go,” Nita said. “No.” Mrs. Bennet smiled.',
+                # #2391 r7 LOW 2: the "&" coordinated beat is read like "and",
+                # so the named character still abstains.
+                '“Go,” Nita said. “No.” Mr. & Mrs. Bennet smiled.',
                 '“Go,” Nita said. “No.” Bram crossed his arms.',
                 # A sentence-opening conjunction/adverb before the subject does
                 # not hide the beat (LOW 1).
@@ -386,7 +398,13 @@ class SourceTagTests(unittest.TestCase):
                 '“Go,” Nita said. “No.” Then, Kit laughed.',
                 '“Go,” Nita said. “No.” Still, Kit laughed.',
                 '“Go,” Nita said. “No.” Then suddenly Kit laughed.',
-                '“Go,” Nita said. “No.” Yet quietly, Kit laughed.'):
+                '“Go,” Nita said. “No.” Yet quietly, Kit laughed.',
+                # #2391 r7 LOW 1: a coordinated adverb phrase before the
+                # subject is the adverb slot, not the beat's subject.
+                '“Go,” Nita said. “No.” Slowly and carefully, Kit shook his '
+                'head.',
+                '“Go,” Nita said. “No.” Quietly and slowly, Kit laughed.',
+                '“Go,” Nita said. “No.” Slowly, carefully, Kit shook his head.'):
             with self.subTest(source=source):
                 self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
                     frozen, source, names))
@@ -400,6 +418,8 @@ class SourceTagTests(unittest.TestCase):
                 '“Go,” Nita said. “No.” But she left.',
                 '“Go,” Nita said. “No.” Then again she left.',
                 '“Go,” Nita said. “No.” Quietly, she left.',
+                '“Go,” Nita said. “No.” Slowly and carefully, she shook her '
+                'head.',
                 '“Go,” Nita said. “No.” Then, she left.',
                 '“Go,” Nita said. “No.” Still, she left.'):
             with self.subTest(source=source):
@@ -534,6 +554,13 @@ class SourceTagTests(unittest.TestCase):
         for wrapped, expected in (
                 ('“Go,” Nita said.\n“No,” said Kit. “Yes.”',
                  {0: 'NITA', 2: 'KIT'}),
+                # #2391 r7 BLOCKER 1: CRLF is one line break, so the backward
+                # two-speaker gap is not cut at it; CRLF and lone-CR spellings
+                # behave exactly like LF.
+                ('“Go,” Nita said.\r\n“No,” said Kit. “Yes.”',
+                 {0: 'NITA', 2: 'KIT'}),
+                ('“Go,” Nita said.\r“No,” said Kit. “Yes.”',
+                 {0: 'NITA', 2: 'KIT'}),
                 # A wrap inside B's own tag keeps the continuation guard's
                 # abstention; the line-local direct read simply loses B's direct
                 # evidence, which is still safer than inheriting Nita.
@@ -661,22 +688,64 @@ class SourceTagTests(unittest.TestCase):
                 wrapped = source.replace(" ", "\n")
                 for opener in ('“', '"'):
                     wrapped = wrapped.replace("\n" + opener, " " + opener)
+                expected = get_attribution_tag_evidence(cont, wrapped, names)
                 self.assertEqual(
                     get_attribution_tag_evidence(cont, source, names),
-                    get_attribution_tag_evidence(cont, wrapped, names))
+                    expected)
+                # #2391 r7 BLOCKER 1: CRLF is ONE line break, so both the CRLF
+                # and the lone-CR spelling of this wrap behave exactly like LF.
+                for break_form in ('\r\n', '\r'):
+                    with self.subTest(source=source, break_form=break_form):
+                        self.assertEqual(
+                            expected,
+                            get_attribution_tag_evidence(
+                                cont, wrapped.replace("\n", break_form), names))
         # A quotation that starts its own line is a new turn even without a
         # blank line, so the continuation inherits nothing (#2391 r6).
         started_own_line = '“Go,” Nita said. “No.”'.replace(" ", "\n")
         self.assertEqual(
             get_attribution_tag_evidence(cont, started_own_line, names), {})
-        # A blank line still ends the paragraph: no inheritance across it.
+        # A blank line still ends the paragraph: no inheritance across it. A
+        # CRLF blank line is two CRLF breaks, not three (#2391 r7).
         self.assertEqual({}, get_attribution_tag_evidence(
             cont, '“Go,” Nita said.\n\n“No.”', names))
+        self.assertEqual({}, get_attribution_tag_evidence(
+            cont, '“Go,” Nita said.\r\n\r\n“No.”', names))
+        # #2391 r7 BLOCKER 1: the reviewer's three CRLF repros. A bare CRLF is
+        # one hard wrap, not a paragraph break, so each source is one paragraph
+        # and the evidence is byte-identical to main (main has no continuation
+        # path): the tag names the same speaker and the correct answer is not
+        # flagged. The wrap sits inside B's own tag, inside a long subject, and
+        # before an action beat.
+        for source, no_text in (
+                ('“Go,” Nita said. “No,” Kit\r\nsaid.', 'No,'),
+                ('“Go,” Nita said. “No.” Kit\r\ncrossed his arms.', 'No.'),
+                ('“Go,” Nita said. “No,” the stranger\r\nin the cloak said.',
+                 'No,')):
+            entries = [{'type': 'SPOKEN', 'text': 'Go,'},
+                       {'type': 'NARRATOR', 'text': 'Nita said.'},
+                       {'type': 'SPOKEN', 'text': no_text}]
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA'},
+                                 get_attribution_tag_evidence(
+                                     entries, source,
+                                     names | {'THE STRANGER'}))
         # The following-tag read folds its wrap too (NIT 2, #2391 r6): a wrap
         # inside the earlier bare tag still counts Nita as the paragraph's one
         # tagged speaker, so the continuation keeps her instead of abstaining.
-        self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
-            cont, '“Go,” Nita\nsaid. “No.”', names))
+        for break_form in ('\n', '\r\n', '\r'):
+            with self.subTest(break_form=break_form):
+                self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+                    cont, f'“Go,” Nita{break_form}said. “No.”', names))
+        # The same shared line-break reading drives the following-quote guard:
+        # a tag followed by another quotation on the next line takes no
+        # evidence, and a lone CR is a line break exactly like LF and CRLF
+        # (#2391 r7 NIT 2).
+        for break_form in ('\n', '\r\n', '\r'):
+            with self.subTest(break_form=break_form):
+                self.assertEqual({}, get_attribution_tag_evidence(
+                    [{'type': 'SPOKEN', 'text': 'No.'}],
+                    f'“No.” Nita said,{break_form}“Yes.”', names))
 
     def test_continuation_abstains_before_a_quotation_that_starts_its_line(self):
         # #2391 r6 BLOCKER 1: the user's light novels put one paragraph per line
@@ -700,19 +769,21 @@ class SourceTagTests(unittest.TestCase):
             source_text='“Go,” Nita said.\n“No.”', known_names=names)
         self.assertTrue(accepted['passed'])
         cont = [{'type': 'SPOKEN', 'text': 'No.'}]
-        for source in (
+        # Every new-turn form in its LF spelling; the CRLF and lone-CR
+        # spellings must behave exactly the same (#2391 r7 BLOCKER 1).
+        for start_line in (
                 '“You should go home,” Nita said.\n“No.”',
                 '“Go,” Nita said.\n“No.” She sighed.',
                 '“Go,” Nita said.\n“No.”\n“Why not?”',
                 # One paragraph per line, the #628 chunk shape.
                 '“Go,” Nita said.\n“No.”\n“Wait.”\n“Never.”',
-                # CRLF, lone CR, and trailing blanks before the quote.
-                '“Go,” Nita said.\r\n“No.”',
-                '“Go,” Nita said.\r“No.”',
+                # Trailing blanks before the quote.
                 '“Go,” Nita said.\n \t“No.”'):
-            with self.subTest(source=source):
-                self.assertEqual({}, get_attribution_tag_evidence(
-                    cont, source, names))
+            for break_form in ('\n', '\r\n', '\r'):
+                source = start_line.replace('\n', break_form)
+                with self.subTest(source=source):
+                    self.assertEqual({}, get_attribution_tag_evidence(
+                        cont, source, names))
         # Control: a wrap inside the bare tag does not start a quotation, so it
         # still folds to a space and the continuation inherits Nita.
         self.assertEqual({0: 'NITA'},
@@ -721,13 +792,16 @@ class SourceTagTests(unittest.TestCase):
         self.assertEqual({0: 'NITA'},
                          get_attribution_tag_evidence(
                              cont, '“Go,” Nita said. “No.”', names))
-        # A lone CR is a line break too (dialogue_spans.BLANK_LINE covers it),
-        # so a tag wrapped on a CR is still B's own tag and B abstains (#2391
-        # r6 NIT 1) instead of inheriting Nita.
-        self.assertEqual({},
-                         get_attribution_tag_evidence(
-                             [{'type': 'SPOKEN', 'text': 'No,'}],
-                             '“Go,” Nita said. “No,” Kit\rsaid.', names))
+        # A lone CR and a CRLF are line breaks too, so a tag wrapped on either
+        # is still B's own tag and B abstains (#2391 r6 NIT 1, r7 BLOCKER 1)
+        # instead of inheriting Nita.
+        for break_form in ('\r', '\r\n'):
+            with self.subTest(break_form=break_form):
+                self.assertEqual({},
+                                 get_attribution_tag_evidence(
+                                     [{'type': 'SPOKEN', 'text': 'No,'}],
+                                     '“Go,” Nita said. “No,” Kit'
+                                     f'{break_form}said.', names))
 
     def test_continuation_abstains_after_a_question(self):
         names = {'NITA', 'KIT'}
