@@ -5319,6 +5319,7 @@
     , "tests.test_dialogue_spans.QuoteConventionTableAndRegexTests.test_guillemet_direction_counts_midline_closers_before_punctuation_and_space"
     , "tests.test_dialogue_spans.QuoteConventionTableAndRegexTests.test_interior_dash_turn_and_dash_and_label_line_patterns"
     , "tests.test_dialogue_spans.QuoteConventionTableAndRegexTests.test_quote_marks_normalization_and_label_openers_preserve_non_quotes"
+    , "tests.test_dialogue_spans.QuoteConventionTableAndRegexTests.test_reversed_and_single_guillemets_do_not_flag_intervening_narration"
     , "tests.test_dialogue_spans.ScannerBoundaryAndMeasurementTests.test_ambiguous_german_english_boundary_roles"
     , "tests.test_dialogue_spans.ScannerBoundaryAndMeasurementTests.test_different_mark_inside_self_paired_opener_judges_real_closer_by_shape"
     , "tests.test_dialogue_spans.ScannerBoundaryAndMeasurementTests.test_every_measurement_unit_and_link_is_recognized"

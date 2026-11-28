@@ -269,10 +269,18 @@ LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 # a “double”-quote book, a dash-opened line, «guillemets», or an opening mark
 # the author never closed. `’` is also the apostrophe, so a ‘…’ pair closes
 # only at a `’` that no letter follows ("‘I don’t know,’ she said").
+# Double-guillemet directions (`«…»`, `»…«`) derive from `PAIRED` (one table,
+# Rule 15); `_other_speech_spans` refuses any match whose delimiter already
+# opens or closes a primary pair (#2399), and picks one direction for `‹…›`/`›…‹`.
+_DOUBLE_GUILLEMET_PAIRS = tuple(
+    (opener, closer) for opener, closer in PAIRED if opener in ("«", "»"))
+_SINGLE_GUILLEMET_PAIRS = (("‹", "›"), ("›", "‹"))
 OTHER_PAIRED = [
     re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"),
-    re.compile(r"«([^«»]+)»"),
-    re.compile(r"‹([^‹›\n]+)›"),
+    *(re.compile(rf"{opener}([^{opener}{closer}]+){closer}")
+      for opener, closer in _DOUBLE_GUILLEMET_PAIRS),
+    *(re.compile(rf"{opener}([^{opener}{closer}\n]+){closer}")
+      for opener, closer in _SINGLE_GUILLEMET_PAIRS),
     # Low-high single marks (‚…‘). The opener is never an apostrophe, so it
     # anchors the pair on its own; the closer is the next ‘ after it.
     re.compile(r"‚([^‚‘\n]+)‘"),
@@ -484,6 +492,23 @@ def _count_guillemet_shapes(text, opener, closer):
     return len(opened) + len(closed)
 
 
+def _chevron_direction(text, forward_open, forward_close):
+    """-> (opener, closer) for one chevron pair in `text`, or (None, None)."""
+    first_open = text.find(forward_open)
+    first_close = text.find(forward_close)
+    if first_open == -1 and first_close == -1:
+        return None, None
+    forward = _count_guillemet_shapes(text, forward_open, forward_close)
+    reverse = _count_guillemet_shapes(text, forward_close, forward_open)
+    if forward == reverse:
+        forward_first = first_open != -1 and (
+            first_close == -1 or first_open < first_close)
+        return ((forward_open, forward_close) if forward_first
+                else (forward_close, forward_open))
+    return ((forward_open, forward_close) if forward > reverse
+            else (forward_close, forward_open))
+
+
 def get_guillemet_direction(text):
     """-> (opener, closer) for the text's guillemets, or (None, None).
 
@@ -498,16 +523,7 @@ def get_guillemet_direction(text):
     old behaviour where the shapes say nothing (`« Bonjour »` padded on both
     sides mid-line). Pure read; the one place both modules ask this question.
     """
-    first_open, first_close = text.find("«"), text.find("»")
-    if first_open == -1 and first_close == -1:
-        return None, None
-    forward = _count_guillemet_shapes(text, "«", "»")
-    reverse = _count_guillemet_shapes(text, "»", "«")
-    if forward == reverse:
-        forward_first = first_open != -1 and (
-            first_close == -1 or first_open < first_close)
-        return ("«", "»") if forward_first else ("»", "«")
-    return ("«", "»") if forward > reverse else ("»", "«")
+    return _chevron_direction(text, "«", "»")
 
 
 def _is_opener_shaped(text, position):
@@ -1703,9 +1719,26 @@ def _other_speech_spans(text, convention):
         index = bisect_right(starts, start) - 1
         return index >= 0 and merged[index][1] >= end
 
-    spans = [(m.start(1), m.end(1)) for pattern in OTHER_PAIRED for m in pattern.finditer(text)
-             if BLANK_LINE.search(text, m.start(1), m.end(1)) is None
-             and not inside_primary(m.start(1), m.end(1))]
+    # A delimiter that already opens or closes a primary pair cannot also
+    # delimit opposite-direction secondary speech across intervening narration
+    # (e.g. `»First.« narration »Second.«`, #2399).
+    primary_delimiters = {offset for begin, stop in pairs
+                          for offset in (begin - 1, stop)}
+    single_guillemet_opener = _chevron_direction(text, "‹", "›")[0]
+    spans = []
+    for pattern in OTHER_PAIRED:
+        first_char = pattern.pattern[0]
+        if first_char in ("‹", "›") and first_char != single_guillemet_opener:
+            continue
+        for match in pattern.finditer(text):
+            if (first_char in ("«", "»")
+                    and (match.start() in primary_delimiters
+                         or match.end() - 1 in primary_delimiters)):
+                continue
+            start, end = match.start(1), match.end(1)
+            if (BLANK_LINE.search(text, start, end) is None
+                    and not inside_primary(start, end)):
+                spans.append((start, end))
     if convention != "dash_lines":
         spans += _dash_line_spans(text)
     if convention != "paired_quotes":

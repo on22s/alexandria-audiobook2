@@ -120,11 +120,22 @@ def _main_get_other_speech_spans(text, convention):
         index = dialogue_spans.bisect_right(starts, start) - 1
         return index >= 0 and merged[index][1] >= end
 
-    spans = [(match.start(1), match.end(1))
-             for pattern in dialogue_spans.OTHER_PAIRED
-             for match in pattern.finditer(text)
-             if dialogue_spans.BLANK_LINE.search(text, match.start(1), match.end(1)) is None
-             and not inside_primary(match.start(1), match.end(1))]
+    primary_delimiters = {offset for begin, stop in pairs
+                          for offset in (begin - 1, stop)}
+    single_guillemet_opener = dialogue_spans._chevron_direction(text, "‹", "›")[0]
+    spans = []
+    for pattern in dialogue_spans.OTHER_PAIRED:
+        first_char = pattern.pattern[0]
+        if first_char in ("‹", "›") and first_char != single_guillemet_opener:
+            continue
+        for match in pattern.finditer(text):
+            if (first_char in ("«", "»")
+                    and (match.start() in primary_delimiters
+                         or match.end() - 1 in primary_delimiters)):
+                continue
+            if (dialogue_spans.BLANK_LINE.search(text, match.start(1), match.end(1)) is None
+                    and not inside_primary(match.start(1), match.end(1))):
+                spans.append((match.start(1), match.end(1)))
     if convention != "dash_lines":
         spans += [(match.start(1), match.end(1))
                   for match in dialogue_spans.DASH_LINE.finditer(text)]
@@ -2816,6 +2827,7 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
 
     def test_every_other_paired_entry_returns_exact_span_and_refuses_blank_lines(self):
         english_pad = "\n\n".join(f"“English {i}.”" for i in range(6))
+        forward_guillemet_pad = "\n\n".join(f"«French {i}.»" for i in range(6))
         reverse_guillemet_pad = "\n\n".join(f"»Danish {i}.«" for i in range(6))
         # Keyed by the regex source so the loop below iterates the module table:
         # a removed or added pattern fails the equality check, and an addition
@@ -2824,13 +2836,17 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
             r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)":
                 ("single_curly", "He said ‘I don’t know, X’ softly.", "I don’t know, X"),
             r"«([^«»]+)»":
-                # A fix for #2399 must keep «…» inside a »…« book as other
-                # speech, or change this case deliberately: a direction-only
-                # fix that drops forward guillemets fails here.
+                # #2399 keeps genuine «…» inside a »…« book as other speech
+                # while refusing delimiters already paired by _paired_spans.
                 ("forward_guillemet_in_reverse",
                  reverse_guillemet_pad + "\n\nNote «French note» end.", "French note"),
+            r"»([^»«]+)«":
+                ("reverse_guillemet_in_forward",
+                 forward_guillemet_pad + "\n\nNote »Danish note« end.", "Danish note"),
             r"‹([^‹›\n]+)›":
                 ("single_guillemet", "She whispered ‹Bonjour› softly.", "Bonjour"),
+            r"›([^›‹\n]+)‹":
+                ("reverse_single_guillemet", "Er sagte ›Hallo‹ leise.", "Hallo"),
             r"‚([^‚‘\n]+)‘":
                 ("low_high_single", "Er las ‚Komm her!‘ leise.", "Komm her!"),
             r"„([^„“\n]+)“":
@@ -2857,6 +2873,84 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
         self.assertEqual(["Quoted line."], [cross[a:b] for a, b in get_other_speech_spans(cross, "dash_lines")])
         self.assertEqual(["Dash line.", "Quoted line."],
                          [cross[a:b] for a, b in get_other_speech_spans(cross, "label_lines")])
+
+    def test_reversed_and_single_guillemets_do_not_flag_intervening_narration(self):
+        """#2399: narration between reversed guillemets (`»…«` or `›…‹`) is not other_convention."""
+        # Exact issue #2399 reproduction.
+        source = (
+            "»First.« He walked over. »Second.«\n\n"
+            "»Third.«\n\n»Fourth.«\n\n»Fifth.«\n\n»Sixth.«"
+        )
+        self.assertEqual([], get_other_speech_spans(source, "paired_quotes"))
+        mapped = apply_dialogue_map([{"speaker": "WRONG", "text": "He walked over."}], source)
+        row = mapped["entries"][0]
+        self.assertEqual("NARRATOR", row["speaker"])
+        self.assertIs(False, row["spoken"])
+        self.assertNotIn("dialogue_ambiguity", row)
+        self.assertEqual([9, 24], row["source_span"])
+
+        # Same-paragraph variants: no padding, adjacent, single newline, unclosed trailing opener.
+        for variant in (
+            "»First.« He walked over. »Second.«",
+            "»First.« »Second.«",
+            "»First.«\nHe walked over.\n»Second.«",
+            "»First.« He walked over. »Unclosed",
+            "Unclosed « He walked over. »Second.«",
+        ):
+            with self.subTest(variant=variant):
+                self.assertEqual([], get_other_speech_spans(variant, "paired_quotes"))
+
+        # Under a non-paired primary convention, only the speeches appear, never the narration.
+        self.assertEqual(
+            ["First.", "Second."],
+            [source[a:b] for a, b in get_other_speech_spans(
+                "»First.« He walked over. »Second.«", "dash_lines")],
+        )
+
+        # Normal forward guillemets stay unchanged.
+        forward = (
+            "«First.» He walked over. «Second.»\n\n"
+            "«Third.»\n\n«Fourth.»\n\n«Fifth.»\n\n«Sixth.»"
+        )
+        self.assertEqual([], get_other_speech_spans(forward, "paired_quotes"))
+        fwd_row = apply_dialogue_map([{"speaker": "WRONG", "text": "He walked over."}], forward)["entries"][0]
+        self.assertEqual("NARRATOR", fwd_row["speaker"])
+        self.assertIs(False, fwd_row["spoken"])
+        self.assertNotIn("dialogue_ambiguity", fwd_row)
+
+        # A genuine opposite-direction quote in the same paragraph still surfaces without flagging narration.
+        mixed = "»First.« He walked over. »Second.« Note «French» end."
+        self.assertEqual(
+            ["French"],
+            [mixed[a:b] for a, b in get_other_speech_spans(mixed, "paired_quotes")],
+        )
+
+        # Single guillemets (both `‹…›` and reversed `›…‹`): speeches only, never intervening narration.
+        for text, expected in (
+            ("›First.‹ He walked over. ›Second.‹", ["First.", "Second."]),
+            ("‹First.› He walked over. ‹Second.›", ["First.", "Second."]),
+            ("Er sagte ›Hallo‹ leise.", ["Hallo"]),
+            ("She whispered ‹Bonjour› softly.", ["Bonjour"]),
+        ):
+            with self.subTest(single_guillemet=text):
+                spans = get_other_speech_spans(text, "paired_quotes")
+                self.assertEqual(expected, [text[a:b] for a, b in spans])
+        # Full map check on narration between reversed single-guillemet speeches.
+        single_source = (
+            "“Pad 1.”\n\n“Pad 2.”\n\n“Pad 3.”\n\n“Pad 4.”\n\n“Pad 5.”\n\n"
+            "›First.‹ He walked over. ›Second.‹"
+        )
+        entries = [
+            {"speaker": "A", "text": "First."},
+            {"speaker": "WRONG", "text": "He walked over."},
+            {"speaker": "B", "text": "Second."},
+        ]
+        result = apply_dialogue_map(entries, single_source)["entries"]
+        self.assertEqual("other_convention", result[0].get("dialogue_ambiguity"))
+        self.assertEqual("NARRATOR", result[1]["speaker"])
+        self.assertIs(False, result[1]["spoken"])
+        self.assertNotIn("dialogue_ambiguity", result[1])
+        self.assertEqual("other_convention", result[2].get("dialogue_ambiguity"))
 
     def test_every_unclosed_opener_skips_empty_closed_pairs_and_closed_partners(self):
         # Iterate the module table so a new unclosed opener is tested, and pin it
