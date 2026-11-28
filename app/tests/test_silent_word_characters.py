@@ -348,7 +348,7 @@ class SpeakerIdentityConsumerTests(unittest.TestCase):
                 frozen = [{"type": "SPOKEN", "text": "Yes,"},
                           {"type": "NARRATOR", "text": narration}]
                 names = ("SONYA",)
-                proofs = get_attribution_tag_proofs(frozen, source, names, {})
+                proofs = get_attribution_tag_proofs(frozen, source, names, {})[0]
                 evidence = {index: proof["speaker"]
                             for index, proof in proofs.items()}
                 snapshot = get_attribution_snapshot_digest([frozen, sorted(names), [], {}])
@@ -659,7 +659,7 @@ class BooksWithoutTheCharactersTests(unittest.TestCase):
         self.assertFalse(is_attested_name("BRENDA", source))
         self.assertEqual({0: "SONYA"}, get_attribution_tag_evidence(entries, source))
         self.assertEqual("SONYA", get_attribution_tag_proofs(
-            entries, source, ["SONYA"])[0]["speaker"])
+            entries, source, ["SONYA"])[0][0]["speaker"])
         self.assertEqual(["sonya", "smith"], _name_tokens("Sonya Smith"))
         self.assertEqual(["REM", "SONYA"], collect_context([
             {"speaker": "SONYA", "text": "Sonya met Rem."},
