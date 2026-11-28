@@ -1696,6 +1696,42 @@ class DeclaredEncodingFallbackTests(unittest.TestCase):
         self.assertIn('unreadable encoding', str(caught.exception))
         self.assertNotIn('\ufffd', str(caught.exception))
 
+    def test_a_padded_unusable_declaration_is_still_a_named_refusal(self):
+        # Gate-2 B1/L3: a declaration padded past the old 256-byte window
+        # bypassed the strict fallback and narrated U+FFFD. The whole
+        # declaration is read now, so a padded unusable name over cp1252 bytes
+        # takes the same named refusal as the unpadded form.
+        for codec in ('bogus', 'base64', 'unicode_escape', 'utf-32',
+                      'punycode', 'idna', 'undefined'):
+            for pad in (230, 1000, 10000):
+                doc = (('<?xml version="1.0"' + ' ' * pad
+                        + f' encoding="{codec}"?>').encode('ascii')
+                       + b'<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+                       b'<p>Caf\xe9.</p></body></html>')
+                with self.subTest(codec=codec, pad=pad):
+                    raw = make_epub('', raw_document=doc, toc_links=[])
+                    with self.assertRaisesRegex(
+                            ValueError, 'OEBPS/ch1.xhtml') as caught:
+                        extract_epub_text('synthetic.epub', archive_bytes=raw)
+                    message = str(caught.exception)
+                    self.assertIn('unreadable encoding', message)
+                    self.assertNotIn('\ufffd', message)
+
+    def test_a_valid_padded_8bit_declaration_decodes_correctly(self):
+        # Gate-2 P4: reading the whole declaration means a valid padded
+        # windows-1252 declaration now decodes the real text instead of U+FFFD.
+        # This is a deliberate valid-document output change, measured against
+        # origin/main in the repair report.
+        for pad in (230, 1000, 10000):
+            with self.subTest(pad=pad):
+                doc = (b'<?xml version="1.0"' + b' ' * pad
+                       + b' encoding="windows-1252"?>'
+                       b'<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+                       b'<p>Caf\xe9.</p></body></html>')
+                self.assertEqual('Café.', extract_epub_text(
+                    'synthetic.epub',
+                    archive_bytes=make_epub('', raw_document=doc, toc_links=[])))
+
     def test_an_unusable_declaration_of_utf8_text_still_falls_back(self):
         # A declaration with a non-ASCII/NUL name over real UTF-8 text is
         # recoverable: strict UTF-8 succeeds and the declaration is rewritten.

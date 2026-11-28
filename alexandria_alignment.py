@@ -283,6 +283,17 @@ _UTF16_32_CODECS = frozenset({
     'utf-32', 'utf-32-le', 'utf-32-be',
 })
 
+# XML allows any amount of whitespace (or any other character) inside the
+# declaration, and Expat reads the whole declaration before it acts on
+# ``encoding=``. Reading only the first 256/512 bytes made the shared codec
+# decision disagree with Expat: ``encoding="idna"`` after ~230 bytes of padding
+# was invisible here and Expat handed it to Python, which raised a raw
+# ``UnicodeError`` (#2368/#2370/#2375). The declaration is therefore read up to
+# its closing ``?>``, with a generous byte cap so a hostile member cannot make
+# the classifier scan the whole file. A declaration still unterminated at the
+# cap is malformed; both consumers treat that as the documented refusal.
+_EPUB_XML_DECL_MAX_BYTES = 64 * 1024
+
 
 def is_unusable_epub_codec(name):
     """Return whether ``name`` is a declaration this pipeline cannot use.
@@ -308,37 +319,54 @@ def is_unusable_epub_codec(name):
 
 
 def get_epub_declared_encoding(raw):
-    """Return ``(name, present)`` for an EPUB XML declaration's encoding.
+    """Return ``(name, present, unterminated)`` for an XML declaration's encoding.
 
     ``present`` is True when the document carries an encoding declaration.
     ``name`` is then the declaration text, or None when that text is not an
-    ASCII name. The prolog is decoded with the encoding a BOM or UTF-16 byte
-    signature selects (``<?xml`` is ``<\0`` or ``\0<``), so a declaration Expat
+    ASCII name. ``unterminated`` is True when a declaration starts but its
+    closing ``?>`` is not found within :data:`_EPUB_XML_DECL_MAX_BYTES`: the
+    declaration is malformed and both consumers refuse it.
+
+    The declaration is read to its closing ``?>``, not a fixed 256/512-byte
+    window, because XML allows arbitrary whitespace before ``encoding=`` and
+    Expat honours the whole declaration. That is what closes the padded
+    ``punycode``/``idna``/``undefined`` escape. The prolog is decoded with the
+    encoding a BOM or UTF-16 byte signature selects, so a declaration Expat
     would hand to Python is classified from the same bytes Expat reads; a
     UTF-8 BOM is skipped.
     """
     if not isinstance(raw, (bytes, bytearray)):
-        return None, False
+        return None, False, False
     raw = bytes(raw)
     if raw.startswith(b'\xef\xbb\xbf'):
-        head = raw[3:512].decode('latin-1')
+        head = raw[3:3 + _EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
     elif raw.startswith((b'\xff\xfe', b'\xfe\xff')):
-        head = raw[:512].decode('utf-16', errors='replace')
+        head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('utf-16', errors='replace')
     elif raw.startswith(b'<\x00'):
-        head = raw[:512].decode('utf-16-le', errors='replace')
+        head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('utf-16-le', errors='replace')
     elif raw.startswith(b'\x00<'):
-        head = raw[:512].decode('utf-16-be', errors='replace')
+        head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('utf-16-be', errors='replace')
     else:
-        head = raw[:256].decode('latin-1')
-    match = re.match(r'\s*<\?xml\b[^>]*\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', head)
+        head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
+    start = re.match(r'\s*<\?xml\b', head)
+    if start is None:
+        return None, False, False
+    end = head.find('?>', start.end())
+    if end < 0:
+        # A declaration that needs more than the cap is malformed. Do not fall
+        # through to Expat: it would read the unbounded declaration and hand an
+        # unclassifiable codec to Python.
+        return None, True, True
+    declaration = head[:end + 2]
+    match = re.search(r'\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', declaration)
     if match is None:
-        return None, False
+        return None, False, False
     name = match.group(1)
     if not name.isascii():
         # A non-ASCII name is not a valid EncName; Expat reports it as malformed
         # XML, which every reader already handles. It is still a declaration.
-        return None, True
-    return name, True
+        return None, True, False
+    return name, True, False
 
 
 def _declared_multibyte_encoding_fits(raw: bytes, encoding: str) -> bool:
@@ -382,13 +410,14 @@ def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
         # (``utf-8-sig``); the declaration is not consulted here, exactly as
         # before (#2368). ``parse_epub_xml`` still reads past the BOM.
         return 'utf-8-sig', True
-    encoding, declared = get_epub_declared_encoding(raw)
+    encoding, declared, unterminated = get_epub_declared_encoding(raw)
     if not declared:
         return 'utf-8-sig', True
-    # A NUL name, an unknown or binary-transform name (base64, hex) and a
-    # Python-only transform are all the same unusable declaration
+    # A NUL name, an unknown or binary-transform name (base64, hex), a
+    # Python-only transform, and a declaration too long to read to its closing
+    # ``?>`` are all the same unusable declaration
     # (:func:`is_unusable_epub_codec`, shared with ``parse_epub_xml``).
-    if encoding is None or is_unusable_epub_codec(encoding):
+    if unterminated or encoding is None or is_unusable_epub_codec(encoding):
         return 'utf-8-sig', False
     codec = codecs.lookup(encoding)
     if (codec.name in _UTF16_32_CODECS

@@ -297,6 +297,58 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
                                     'media_type': 'application/x-dtbncx+xml'}}
                 self.assertEqual([], get_ncx_points(raw, manifest, 'OEBPS/content.opf'))
 
+    def test_padded_python_codec_declarations_are_skipped(self):
+        # Gate-2 B1: the declaration is read to its closing ``?>`` now, so a
+        # padded punycode/idna/undefined is classified like the unpadded form
+        # at the nav/NCX/spine read-aloud readers instead of escaping as raw
+        # codec text.
+        for codec in ('punycode', 'idna', 'undefined'):
+            for pad in (230, 1000, 10000):
+                declaration = ('<?xml version="1.0"'.encode('ascii')
+                               + b' ' * pad + f' encoding="{codec}"?>'.encode('ascii'))
+                with self.subTest(member='nav', codec=codec, pad=pad):
+                    raw = _replace_declaration(_make_source_epub(), 'OEBPS/nav.xhtml',
+                                               declaration)
+                    _opf, _package, _ns, _manifest, spine, metadata = \
+                        get_spine_documents(raw)
+                    self.assertEqual([], metadata['toc'])
+                    self.assertEqual(2, len(spine))
+                with self.subTest(member='ncx', codec=codec, pad=pad):
+                    raw = _put_member(_make_source_epub(), 'OEBPS/toc.ncx',
+                                      declaration + _NCX)
+                    manifest = {'ncx': {'path': 'OEBPS/toc.ncx',
+                                        'media_type': 'application/x-dtbncx+xml'}}
+                    self.assertEqual(
+                        [], get_ncx_points(raw, manifest, 'OEBPS/content.opf'))
+                with self.subTest(member='spine', codec=codec, pad=pad):
+                    raw = _replace_declaration(_make_source_epub(), 'OEBPS/ch1.xhtml',
+                                               declaration)
+                    with self.assertRaisesRegex(
+                            ValueError,
+                            '^Spine document is malformed: OEBPS/ch1.xhtml$'):
+                        get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+
+    def test_a_utf8_bom_does_not_hide_a_padded_declaration(self):
+        # Gate-2 L2: the classifier skips the leading UTF-8 BOM before looking
+        # for ``<?xml``. If that skip breaks, this padded ``idna`` declaration
+        # is invisible and the raw codec error escapes at every reader.
+        declaration = (b'\xef\xbb\xbf<?xml version="1.0"' + b' ' * 10000
+                       + b' encoding="idna"?>')
+        raw = _replace_declaration(_make_source_epub(), 'OEBPS/nav.xhtml',
+                                   declaration)
+        _opf, _package, _ns, _manifest, spine, metadata = get_spine_documents(raw)
+        self.assertEqual([], metadata['toc'])
+        self.assertEqual(2, len(spine))
+        raw = _put_member(_make_source_epub(), 'OEBPS/toc.ncx', declaration + _NCX)
+        manifest = {'ncx': {'path': 'OEBPS/toc.ncx',
+                            'media_type': 'application/x-dtbncx+xml'}}
+        self.assertEqual([], get_ncx_points(raw, manifest, 'OEBPS/content.opf'))
+        raw = _replace_declaration(_make_source_epub(), 'OEBPS/ch1.xhtml',
+                                   declaration)
+        with self.assertRaisesRegex(
+                ValueError, '^Spine document is malformed: OEBPS/ch1.xhtml$'):
+            get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+
     def test_unreadable_spine_document_declarations_are_malformed(self):
         for declaration in _UNUSABLE_DECLARATIONS:
             with self.subTest(declaration=declaration):

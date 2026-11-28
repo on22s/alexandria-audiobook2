@@ -72,10 +72,17 @@ def get_epub_declaration_refusal(raw):
 
     One pre-parse classification shared by the tree parser and the streaming
     SVG probe (Rule 15): both ask :func:`alexandria_alignment.is_unusable_epub_codec`
-    about the declaration bytes Expat itself reads. ``None`` means the
-    declaration is usable or absent.
+    about the declaration bytes Expat itself reads. The declaration is read to
+    its closing ``?>`` (bounded by
+    :data:`alexandria_alignment._EPUB_XML_DECL_MAX_BYTES`), so padding before
+    ``encoding=`` cannot hide a codec; a declaration still unterminated at the
+    cap is refused as malformed. ``None`` means the declaration is usable or
+    absent.
     """
-    declared, present = get_epub_declared_encoding(raw)
+    declared, present, unterminated = get_epub_declared_encoding(raw)
+    if unterminated:
+        return EpubXmlEncodingError(
+            'XML declaration does not end within the read limit')
     if present and declared is not None and is_unusable_epub_codec(declared):
         return EpubXmlEncodingError(
             f'XML declaration names an unusable encoding: {declared}')
