@@ -419,14 +419,12 @@ def _get_normalization_meta_replacement(path, new_script_bytes):
     The companion keeps the book's other metadata; only the shared
     normalization fields are rebound to the new script bytes. A companion that
     is absent or cannot be parsed leaves no replacement (the read path already
-    fails closed on it), so the repair itself is not blocked.
+    fails closed on it), so the repair itself is not blocked. The refresh
+    reports read and parse failures through its return value and log, so this
+    repair path and the saved-review path call it the same way.
     """
     from readalong_export import get_refreshed_saved_script_metadata
-    try:
-        meta_bytes = get_refreshed_saved_script_metadata(path, new_script_bytes)
-    except (OSError, ValueError) as error:
-        raise HTTPException(status_code=409, detail=(
-            'Saved script metadata requires inspection; repair was not applied.')) from error
+    meta_bytes = get_refreshed_saved_script_metadata(path, new_script_bytes)
     if meta_bytes is None:
         return {}
     return {os.path.splitext(os.path.basename(path))[0] + ".meta.json": meta_bytes}

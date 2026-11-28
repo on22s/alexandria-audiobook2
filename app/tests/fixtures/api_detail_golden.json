@@ -447,7 +447,6 @@
     "'Saved script identity requires inspection; existing files were preserved.'",
     "'Saved script identity requires inspection; repair was not applied.'",
     "'Saved script identity requires inspection; repair was not applied.'",
-    "'Saved script metadata requires inspection; repair was not applied.'",
     "'Saved script must contain a JSON array.'",
     "'Saved script must contain a JSON array.'",
     "'Saved script must contain a JSON array.'",

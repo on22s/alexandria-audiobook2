@@ -388,6 +388,49 @@ class ReadaloudNormalizationMappingTests(unittest.TestCase):
                 self.assertEqual(4, len(clips))
                 self.assertEqual(f"“{repeated}?”", clips[2][1])
 
+    def test_recorded_trailing_run_does_not_authorize_the_tail_of_a_longer_run(self):
+        # M21: a genuine 20-repeat record must not authorize the last 20 words
+        # of a 60-repeat run. finditer's candidate at words 40-60 has no
+        # repetition after it, so only the neighbour-before check refuses it.
+        run60 = " ".join(["Hello"] * 60)
+        run20 = " ".join(["Hello"] * 20)
+        run40 = " ".join(["Hello"] * 40)
+        body = (
+            "<h1>Chapter One</h1>"
+            f"<p>“{run60}?”</p>"
+            "<p>Then silence.</p>"
+            f"<p>“{run20}?”</p>"
+        )
+        epub = _make_epub([body])
+        _extracted, _normalized, changes = _extract_and_normalize(epub)
+        self.assertEqual(2, len(changes))
+        trailing_20 = [change for change in changes
+                       if len(change["before"].split()) == 20]
+        self.assertEqual(1, len(trailing_20))
+        # The mapper must refuse the 60-run outright: accepting the trailing
+        # candidate would bind this paragraph's record to another paragraph.
+        self.assertEqual(
+            (f"“{run60}?”", ()),
+            map_recorded_source_normalizations(f"“{run60}?”", trailing_20))
+
+        # The script keeps 40 raw Hellos plus the collapsed tail in the first
+        # paragraph; the only record belongs to the second paragraph. That is
+        # an unrecorded mismatch and must be refused in both modes.
+        entries, aligned = _make_entries_from_texts(
+            ["Chapter One", f"{run40} Hello Hello Hello…?", "Then silence.",
+             f"“{run20}?”"])
+        for aligned_rows in (None, aligned):
+            with self.subTest(qwen=aligned_rows is not None):
+                with self.assertRaisesRegex(ValueError, "No unambiguous synchronization"):
+                    build_epub_readaloud(
+                        retained_epub_bytes=epub,
+                        audio_bytes=b"\xff\xfbmp3",
+                        audio_filename="audiobook.mp3",
+                        script_entries=entries,
+                        aligned_rows=aligned_rows,
+                        source_normalizations=trailing_20,
+                    )
+
     def test_unrecorded_mismatch_and_wrong_spoken_text_still_fail(self):
         repeated = " ".join(["Hello"] * 20)
         body = f"<h1>Chapter One</h1><p>“{repeated}?”</p><p>The door shut.</p>"
@@ -926,6 +969,53 @@ class SavedScriptNormalizationWriterTests(unittest.TestCase):
                 self.assertEqual("{not json",
                                  (scripts_dir / "book.meta.json").read_text(encoding="utf-8"))
 
+    def test_saved_repair_after_a_hand_edit_drops_the_records_permanently(self):
+        # R6: the refresh must read the records through the validated saved-meta
+        # path. Trusting the companion's ``source_normalizations`` directly
+        # would re-bind records whose digest the hand edit invalidated.
+        from routers import scripts_library
+
+        _repeated, epub, changes, entries = self._read_repro_book()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts_dir = root / "scripts"
+            scripts_dir.mkdir()
+            script_path, saved_bytes = _write_saved_book_with_records(
+                scripts_dir, changes, entries)
+            # Formatting-only hand edit: the spoken content is unchanged, so a
+            # laundered digest would still authorize the collapse.
+            script_path.write_bytes(
+                json.dumps(entries, ensure_ascii=False, indent=4).encode("utf-8"))
+            with patch.object(scripts_library, "DATA_DIR", str(root)), \
+                 patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)), \
+                 self.assertLogs("readalong_export", level="WARNING") as captured:
+                scripts_library._publish_saved_repair(str(script_path), entries)
+            self.assertIn("different saved script", "\n".join(captured.output))
+            self.assertEqual(
+                [],
+                readalong_export.get_recorded_source_normalizations(None, str(script_path)))
+            meta = json.loads((scripts_dir / "book.meta.json").read_text(encoding="utf-8"))
+            self.assertNotIn("source_normalizations", meta)
+            self.assertNotIn("source_normalizations_script_sha256", meta)
+            self.assertEqual("book-book", meta["book_id"])
+            entries_from_audio, _aligned = _make_entries_from_texts(
+                [row["text"] for row in entries])
+            with self.assertRaisesRegex(ValueError, "No unambiguous synchronization"):
+                build_epub_readaloud(
+                    retained_epub_bytes=epub,
+                    audio_bytes=b"\xff\xfbmp3",
+                    audio_filename="audiobook.mp3",
+                    script_entries=entries_from_audio,
+                    source_normalizations=readalong_export.get_recorded_source_normalizations(
+                        None, str(script_path)),
+                )
+            # Restoring the pre-repair bytes does not bring the records back:
+            # only re-saving from an active generation records them again.
+            script_path.write_bytes(saved_bytes)
+            self.assertEqual(
+                [],
+                readalong_export.get_recorded_source_normalizations(None, str(script_path)))
+
     def test_speaker_repair_refreshes_the_digest(self):
         from routers import scripts_library
 
@@ -1345,6 +1435,50 @@ class ReadaloudNormalizationPersistenceTests(unittest.TestCase):
                 plain_meta = json.loads((scripts_dir / "plain_book.meta.json").read_text(encoding="utf-8"))
                 self.assertNotIn("source_normalizations", plain_meta)
                 self.assertNotIn("source_normalizations_script_sha256", plain_meta)
+
+    def test_save_passes_the_books_front_matter_policy_to_the_record_read(self):
+        # R12: the binding prepares the source under the book's own policy
+        # first; Save must hand that policy to the record read.
+        from routers import scripts_library
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts_dir = root / "scripts"
+            scripts_dir.mkdir()
+            script_path = root / "annotated_script.json"
+            script_path.write_text(
+                json.dumps([{"speaker": "NARRATOR", "text": "Hello.", "instruct": ""}]),
+                encoding="utf-8",
+            )
+            source_path = root / "book.txt"
+            source_path.write_text("Hello.\n", encoding="utf-8")
+            (root / "state.json").write_text(
+                json.dumps({"active_book_id": "book-n2",
+                            "input_file_path": str(source_path)}),
+                encoding="utf-8",
+            )
+            calls = []
+            original = readalong_export.get_recorded_source_normalizations
+
+            def spy(*args, **kwargs):
+                calls.append(kwargs.get("strip_front_matter"))
+                return original(*args, **kwargs)
+
+            req = SimpleNamespace(name="policy_book", expected_book_token=None)
+            with patch.object(scripts_library, "DATA_DIR", str(root)), \
+                 patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)), \
+                 patch.object(scripts_library, "SCRIPT_PATH", str(script_path)), \
+                 patch.object(scripts_library, "VOICE_CONFIG_PATH",
+                              str(root / "voice_config.json")), \
+                 patch.object(scripts_library, "_saved_book_strip_front_matter",
+                              new=lambda *args, **kwargs: False), \
+                 patch.object(readalong_export, "get_recorded_source_normalizations", spy):
+                result = scripts_library._save_script_sync(req)
+            self.assertEqual("saved", result["status"])
+            self.assertEqual([False], calls)
+            meta = json.loads((scripts_dir / "policy_book.meta.json").read_text(
+                encoding="utf-8"))
+            self.assertIs(False, meta["strip_front_matter"])
 
     def test_running_snapshot_meta_persists_recorded_normalizations(self):
         from routers import script as script_router
