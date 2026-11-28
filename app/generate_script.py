@@ -624,7 +624,7 @@ def get_preprocessed_source(text, strip_front_matter=True):
         "publisher_matter": publisher_matter,
     }
 
-def _safe_cut_points(piece, convention=None):
+def _safe_cut_points(piece, convention=None, weak_dash=None):
     """Offsets in `piece` where a chunk may end without cutting a quotation:
     every newline, and every sentence end (.!?) followed by whitespace, that
     lies outside a spoken span. Spans come from dialogue_spans - the same
@@ -632,11 +632,13 @@ def _safe_cut_points(piece, convention=None):
     means the same thing here as it does there. `convention` is the book's,
     detected once on the whole text: detect_convention wants five spans and
     a single paragraph rarely has them, so with none given a piece that holds
-    quote marks is read as paired quotes."""
+    quote marks is read as paired quotes. `weak_dash` is likewise the book's
+    whole-book `--` decision, for the same reason."""
     from dialogue_spans import spoken_spans, detect_convention
     convention = convention or detect_convention(piece) or (
         "paired_quotes" if re.search(r'["\u201c\u201d]', piece) else None)
-    spans = spoken_spans(piece, convention) if convention else []
+    spans = (spoken_spans(piece, convention, weak_dash)
+             if convention else [])
 
     points = set(m.start() for m in re.finditer(r"\n", piece))
     points.update(m.end() for m in re.finditer(r"[.!?][\"'\u201d\u2019)]*(?=\s)", piece))
@@ -661,9 +663,14 @@ def split_into_chunk_records(text, max_size=3000):
     same quotation in different chunks). When a stretch between safe cuts is
     itself longer than `max_size` the old space split applies and the record
     says so (`cut_inside_quote`)."""
-    from dialogue_spans import detect_convention
+    from dialogue_spans import detect_convention, has_established_dash_convention
     max_size = get_valid_chunk_size(max_size)
     convention = detect_convention(text)
+    # Asked once on the whole book: a paragraph cannot tell `--` dialogue from
+    # a `--` ToC row, and an em-dash book also detects `dash_lines`
+    # (#2447 gate 3 blocker 1).
+    weak_dash = (convention == "dash_lines"
+                 and has_established_dash_convention(text))
     paragraphs = re.split(r'\n\s*\n', text)
     records = []
     current_chunk = ""
@@ -692,7 +699,7 @@ def split_into_chunk_records(text, max_size=3000):
 
     def split_paragraph(para):
         """-> [(piece, cut_inside_quote)] for an oversized paragraph."""
-        cuts = _safe_cut_points(para, convention)
+        cuts = _safe_cut_points(para, convention, weak_dash)
         units, last = [], 0
         for cut in cuts:
             units.append(para[last:cut]); last = cut

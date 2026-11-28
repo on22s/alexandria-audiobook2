@@ -2280,7 +2280,8 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
 
         `detect_convention` on the book runs `--` dialogue evidence
         (#2447 gate 2), and a chunk handed the book's `dash_lines` convention
-        certifies through the one predicate.
+        and the whole-book `weak_dash` decision certifies through the one
+        predicate (#2447 gate 3 blocker 1: a chunk cannot see its book).
         """
         from dialogue_spans import detect_convention, spoken_spans
         book = "The hall was quiet.\n" + "".join(
@@ -2292,7 +2293,8 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
         chunk = "-- Come back, she said, and waited.\n-- Tell me?\n"
         self.assertEqual(
             ["Come back,", "and waited.", "Tell me?"],
-            [chunk[a:b] for a, b in spoken_spans(chunk, "dash_lines")],
+            [chunk[a:b] for a, b in
+             spoken_spans(chunk, "dash_lines", weak_dash=True)],
         )
 
     def test_em_dash_lines_keep_main_behaviour(self):
