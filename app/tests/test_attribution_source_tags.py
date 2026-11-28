@@ -327,6 +327,31 @@ class SourceTagTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
                     frozen, source, names))
+        # #2391 r6 BLOCKER 2: the coordinated form has a lowercase "and" after
+        # the first dotted title. Stripping the period only before a capitalised
+        # word was how r4 lost the gate-2 fix, so every title is pinned in both
+        # orders here. Verb-first keeps main's direct read: a title outside
+        # #2388's vocabulary is still read there as a bare name.
+        in_vocabulary = {'Mr.', 'Mrs.', 'Ms.', 'Dr.'}
+        for title in (title for title, _subject in (
+                ('Mr.', 'Bennet'), ('Mrs.', 'Bennet'), ('Ms.', 'Bennet'),
+                ('Dr.', 'Kit'), ('St.', 'John'), ('Prof.', 'Vale'),
+                ('Rev.', 'Vale'), ('Capt.', 'Vale'), ('Col.', 'Brandon'),
+                ('Gen.', 'Vale'), ('Lt.', 'Vale'), ('Sgt.', 'Vale'),
+                ('M.', 'Vale'), ('Mlle.', 'Vale'), ('Mme.', 'Vale'),
+                ('Fr.', 'Vale'), ('Hon.', 'Vale'), ('Sr.', 'Vale'),
+                ('Messrs.', 'Vale'))):
+            source = f'“Go,” Nita said. “No,” {title} and Mrs. Brandon said.'
+            with self.subTest(title=title, source=source):
+                self.assertEqual({0: 'NITA'},
+                                 get_attribution_tag_evidence(
+                                     frozen, source, names))
+            source = f'“Go,” Nita said. “No,” said {title} and Mrs. Brandon.'
+            expected = ({0: 'NITA'} if title in in_vocabulary else
+                        {0: 'NITA', 2: title.rstrip('.').upper()})
+            with self.subTest(title=title, source=source):
+                self.assertEqual(expected, get_attribution_tag_evidence(
+                    frozen, source, names))
 
     def test_continuation_abstains_on_an_action_beat_naming_another_character(self):
         # A clause after the quotation that names a different character is an
@@ -355,7 +380,13 @@ class SourceTagTests(unittest.TestCase):
                 '“Go,” Nita said. “No.” Slowly, Kit shook his head.',
                 '“Go,” Nita said. “No.” Then again Kit laughed.',
                 '“Go,” Nita said. “No.” And then Kit laughed.',
-                '“Go,” Nita said. “No.” But once Kit laughed.'):
+                '“Go,” Nita said. “No.” But once Kit laughed.',
+                # #2391 r6 LOW 2: an opener with a comma, and an opener followed
+                # by one adverb, hide nothing either.
+                '“Go,” Nita said. “No.” Then, Kit laughed.',
+                '“Go,” Nita said. “No.” Still, Kit laughed.',
+                '“Go,” Nita said. “No.” Then suddenly Kit laughed.',
+                '“Go,” Nita said. “No.” Yet quietly, Kit laughed.'):
             with self.subTest(source=source):
                 self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
                     frozen, source, names))
@@ -368,7 +399,9 @@ class SourceTagTests(unittest.TestCase):
                 '“Go,” Nita said. “No.” Then she left.',
                 '“Go,” Nita said. “No.” But she left.',
                 '“Go,” Nita said. “No.” Then again she left.',
-                '“Go,” Nita said. “No.” Quietly, she left.'):
+                '“Go,” Nita said. “No.” Quietly, she left.',
+                '“Go,” Nita said. “No.” Then, she left.',
+                '“Go,” Nita said. “No.” Still, she left.'):
             with self.subTest(source=source):
                 self.assertEqual({0: 'NITA', 2: 'NITA'},
                                  get_attribution_tag_evidence(
@@ -418,6 +451,16 @@ class SourceTagTests(unittest.TestCase):
                 '“Go,” Nita said. “No,” the stranger in the cloak said.',
                 '“Go,” Nita said. “No,” said the man in the cloak.',
                 '“Go,” Nita said. “No,” the old man by the door said.',
+                # #2391 r6 LOW 3: a dash-bracketed interruption, an interjection
+                # longer than six words, and a subject longer than eight words
+                # are all still B's own tag.
+                '“Go,” Nita said. “No,” Kit — smiling — said.',
+                '“Go,” Nita said. “No,” Kit – smiling – said.',
+                '“Go,” Nita said. “No,” Kit - smiling - said.',
+                '“Go,” Nita said. “No,” Kit, who had been silent for a long '
+                'while now, said.',
+                '“Go,” Nita said. “No,” said the tall man in the grey coat by '
+                'the door.',
                 # A pronoun or A's own name isolates the interjection rule from
                 # the action-beat rule, which would abstain anyway for Kit.
                 '“Go,” Nita said. “No,” Nita, however, said.',
@@ -485,7 +528,9 @@ class SourceTagTests(unittest.TestCase):
             frozen, '“Go,” Nita said. “No,” said Kit. “Yes.”', names))
         # One hard line break is only a space inside a paragraph, so a wrap
         # before the second tagged speaker, or inside its tag, still counts
-        # both speakers and abstains here (#2391 r5).
+        # both speakers and abstains here (#2391 r5). The first form keeps the
+        # second speaker on the first speaker's line, so its third quotation
+        # still sees two tagged speakers in one paragraph (#2391 r6).
         for wrapped, expected in (
                 ('“Go,” Nita said.\n“No,” said Kit. “Yes.”',
                  {0: 'NITA', 2: 'KIT'}),
@@ -494,7 +539,12 @@ class SourceTagTests(unittest.TestCase):
                 # evidence, which is still safer than inheriting Nita.
                 ('“Go,” Nita said. “No,” said\nKit. “Yes.”', {0: 'NITA'}),
                 ('“Go,” Nita said. “No,” said Kit.\n“Yes.”',
-                 {0: 'NITA', 2: 'KIT'})):
+                 {0: 'NITA', 2: 'KIT'}),
+                # The following-tag read folds its line wrap: without the fold
+                # the first speaker's tag is unreadable and the third quotation
+                # inherits the second speaker (NIT 2, #2391 r6).
+                ('“Go,” Nita\nsaid. “No,” said Kit. “Yes.”', {2: 'KIT'}),
+                ('“Go,” said\nNita. “No,” said Kit. “Yes.”', {2: 'KIT'})):
             with self.subTest(wrapped=wrapped):
                 self.assertEqual(expected,
                                  get_attribution_tag_evidence(
@@ -514,11 +564,47 @@ class SourceTagTests(unittest.TestCase):
                          get_attribution_tag_evidence(
                              same_speaker,
                              '“Go,” Nita said. “No,” Nita said. “Yes.”', names))
-        self.assertEqual({0: 'NITA', 2: 'NITA', 4: 'NITA'},
+        # The third quotation starts its own line, so it is a new turn and
+        # inherits nothing (#2391 r6).
+        self.assertEqual({0: 'NITA', 2: 'NITA'},
                          get_attribution_tag_evidence(
                              same_speaker,
                              '“Go,” Nita said.\n“No,” Nita said.\n“Yes.”',
                              names))
+
+    def test_continuation_abstains_when_a_tagged_speaker_cannot_be_read(self):
+        # #2391 r6 LOW 1: the direct read cannot resolve a verb-first dotted
+        # title or a long subject, but such a tag still names a speaker. A
+        # paragraph holding it and the nearer tag has two tagged speakers, so
+        # the continuation abstains instead of inheriting the nearer one.
+        names = {'NITA', 'KIT', 'MRS BENNET'}
+        frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No,'},
+            {'type': 'NARRATOR', 'text': 'said Kit.'},
+            {'type': 'SPOKEN', 'text': 'Yes.'},
+        ]
+        for source in (
+                '“Go,” said Mrs. Bennet. “No,” said Kit. “Yes.”',
+                '“Go,” said the old man by the door. “No,” said Kit. “Yes.”'):
+            with self.subTest(source=source):
+                evidence = get_attribution_tag_evidence(
+                    frozen, source, names)
+                self.assertNotIn(4, evidence)
+                accepted = validate_attribution(
+                    frozen,
+                    [{'n': 0, 'speaker': 'MRS BENNET'},
+                     {'n': 1, 'speaker': 'NARRATOR'},
+                     {'n': 2, 'speaker': 'KIT'},
+                     {'n': 3, 'speaker': 'NARRATOR'},
+                     {'n': 4, 'speaker': 'MRS BENNET'}],
+                    source_text=source, known_names=names)
+                self.assertTrue(accepted['passed'])
+        # Control: the same paragraph with a readable first tag still abstains
+        # through the two-speaker rule, not through this one.
+        self.assertNotIn(4, get_attribution_tag_evidence(
+            frozen, '“Go,” said Nita. “No,” said Kit. “Yes.”', names))
 
     def test_continuation_hard_wrap_matches_the_one_line_form(self):
         # Gutenberg prose is hard-wrapped. A single line break inside a
@@ -550,10 +636,11 @@ class SourceTagTests(unittest.TestCase):
                 # never inherit Nita.
                 self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
                     own_tag, wrapped, names))
-        # Wrapping at every space is the strongest hard-wrap form. For a
-        # continuation without a direct tag of its own, the decision is
-        # identical to the one-line form, because the guards read the whole
-        # paragraph with single wraps folded.
+        # Wrapping at every space is the strongest hard-wrap form. A wrap that
+        # does not put the continuation's opening quote at the start of a line
+        # is only a space, so the decision is identical to the one-line form
+        # (#2391 r6). The opening quotes are kept on the preceding line for this
+        # comparison.
         cont = [{'type': 'SPOKEN', 'text': 'No.'}]
         for source in (
                 '“Go,” Nita said. “No.”',
@@ -571,13 +658,69 @@ class SourceTagTests(unittest.TestCase):
                 '“Go,” Nita said. “No,” the stranger in the cloak said.',
                 '“Go,” Nita said. “No,” said the man in the cloak.'):
             with self.subTest(source=source):
+                wrapped = source.replace(" ", "\n")
+                for opener in ('“', '"'):
+                    wrapped = wrapped.replace("\n" + opener, " " + opener)
                 self.assertEqual(
                     get_attribution_tag_evidence(cont, source, names),
-                    get_attribution_tag_evidence(
-                        cont, source.replace(" ", "\n"), names))
+                    get_attribution_tag_evidence(cont, wrapped, names))
+        # A quotation that starts its own line is a new turn even without a
+        # blank line, so the continuation inherits nothing (#2391 r6).
+        started_own_line = '“Go,” Nita said. “No.”'.replace(" ", "\n")
+        self.assertEqual(
+            get_attribution_tag_evidence(cont, started_own_line, names), {})
         # A blank line still ends the paragraph: no inheritance across it.
         self.assertEqual({}, get_attribution_tag_evidence(
             cont, '“Go,” Nita said.\n\n“No.”', names))
+
+    def test_continuation_abstains_before_a_quotation_that_starts_its_line(self):
+        # #2391 r6 BLOCKER 1: the user's light novels put one paragraph per line
+        # (the format repair_source_encoding.py is calibrated on). A quotation
+        # that starts its own line is a new turn, so the tag before the line
+        # break must not reach it. A line break with tag text after it is still
+        # only a space inside the paragraph.
+        names = {'NITA', 'KIT'}
+        frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No.'},
+        ]
+        # The gate's canonical alternating reply: the correct KIT answer is
+        # accepted exactly as on main (main has no continuation evidence, so it
+        # abstains too).
+        accepted = validate_attribution(
+            frozen,
+            [{'n': 0, 'speaker': 'NITA'}, {'n': 1, 'speaker': 'NARRATOR'},
+             {'n': 2, 'speaker': 'KIT'}],
+            source_text='“Go,” Nita said.\n“No.”', known_names=names)
+        self.assertTrue(accepted['passed'])
+        cont = [{'type': 'SPOKEN', 'text': 'No.'}]
+        for source in (
+                '“You should go home,” Nita said.\n“No.”',
+                '“Go,” Nita said.\n“No.” She sighed.',
+                '“Go,” Nita said.\n“No.”\n“Why not?”',
+                # One paragraph per line, the #628 chunk shape.
+                '“Go,” Nita said.\n“No.”\n“Wait.”\n“Never.”',
+                # CRLF, lone CR, and trailing blanks before the quote.
+                '“Go,” Nita said.\r\n“No.”',
+                '“Go,” Nita said.\r“No.”',
+                '“Go,” Nita said.\n \t“No.”'):
+            with self.subTest(source=source):
+                self.assertEqual({}, get_attribution_tag_evidence(
+                    cont, source, names))
+        # Control: a wrap inside the bare tag does not start a quotation, so it
+        # still folds to a space and the continuation inherits Nita.
+        self.assertEqual({0: 'NITA'},
+                         get_attribution_tag_evidence(
+                             cont, '“Go,” Nita\nsaid. “No.”', names))
+        self.assertEqual({0: 'NITA'},
+                         get_attribution_tag_evidence(
+                             cont, '“Go,” Nita said. “No.”', names))
+        # A lone CR is a line break too (dialogue_spans.BLANK_LINE covers it),
+        # so a tag wrapped on a CR is still B's own tag (#2391 r6 NIT 1).
+        self.assertEqual({},
+                         get_attribution_tag_evidence(
+                             cont, '“Go,” Nita said. “No,” Kit\rsaid.', names))
 
     def test_continuation_abstains_after_a_question(self):
         names = {'NITA', 'KIT'}
@@ -667,11 +810,13 @@ class SourceTagTests(unittest.TestCase):
                 self.assertEqual({}, get_attribution_tag_evidence(
                     frozen_cont, source, names | {'LORD HENRY'}))
 
-        # One hard line break is only a space inside a paragraph, so a wrap
-        # between the tag and the continuation behaves exactly like the
-        # one-line form (#2391 r5). A blank line still ends the paragraph.
-        self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+        # A quotation that starts its own line is a new turn, so it inherits
+        # nothing even without a blank line (#2391 r6). A blank line still ends
+        # the paragraph as before.
+        self.assertEqual({}, get_attribution_tag_evidence(
             frozen_cont, '“Go,” Nita said.\n“Now.”', names))
+        self.assertEqual({}, get_attribution_tag_evidence(
+            frozen_cont, '“Go,” Nita said.\n\n“Now.”', names))
 
         # Continuation with its own tag keeps its own (or abstains if its own tag is uncertain).
         own_tag_frozen = [

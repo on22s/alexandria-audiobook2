@@ -2233,20 +2233,25 @@ _CONTINUATION_QUESTION_VERBS = frozenset({
 })
 # The same four-word subject cap as _TAG_NAME, then a clause verb. The dash
 # introducer belongs here: "No"-Kit began. is still the quotation's own tag.
-# A comma-delimited interjection of up to six words may sit between subject
-# and verb ("Kit, however, said.", "Kit, who had been silent, said."), and a
-# parenthetical may too ("Kit (smiling) said."); the verb there may be a clause
-# verb or one the direct rule already carries.
+# A comma- or dash-delimited interjection of up to twelve words may sit between
+# subject and verb ("Kit, however, said.", "Kit — smiling — said.", "Kit, who
+# had been silent for a long while now, said."), and a parenthetical may too
+# ("Kit (smiling) said."); the verb there may be a clause verb or one the direct
+# rule already carries.
 _CONTINUATION_CLAUSE_VERBS = (
     rf"(?:{_SOURCE_TAG_VERBS}|{_CONTINUATION_OWN_TAG_VERBS})"
+)
+# An interjection is bracketed by a comma or a dash on each side.
+_CONTINUATION_CLAUSE_BREAK = (
+    r"[ \t]*(?:,[ \t]*|[\u2014\u2013][ \t]*|-[ \t]+)"
 )
 _CONTINUATION_OWN_TAG_CLAUSE = re.compile(
     rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
     rf"(?:(?P<pronoun>{_CONTINUATION_TAG_PRONOUN_ALT})|(?P<subject>{_TAG_NAME}))"
     rf"(?:[ \t]+(?:{_CONTINUATION_OWN_TAG_VERBS})\b"
-    rf"|[ \t]*,[ \t]*(?P<interject>{_TAG_WORD}"
-    rf"(?:[ \t]+{_TAG_WORD}){{0,5}})[ \t]*,"
-    rf"[ \t]*(?:{_CONTINUATION_CLAUSE_VERBS})\b"
+    rf"|{_CONTINUATION_CLAUSE_BREAK}(?P<interject>{_TAG_WORD}"
+    rf"(?:[ \t]+{_TAG_WORD}){{0,11}}){_CONTINUATION_CLAUSE_BREAK}"
+    rf"(?:{_CONTINUATION_CLAUSE_VERBS})\b"
     rf"|[ \t]*\([^)\n]{{1,40}}\)[ \t]*(?:{_CONTINUATION_CLAUSE_VERBS})\b)",
     re.IGNORECASE)
 # Verb-first clause tags are the same own-tag shape inverted ("began Kit.",
@@ -2272,25 +2277,29 @@ _CONTINUATION_OWN_TAG_VERB_FIRST = re.compile(
 # said.") is a character _TAG_WORD cannot cross, so the continuation guards
 # would miss the quotation's own tag or beat. This is a shape, not a second
 # title list (Rule 15): any capitalised word of up to six letters followed by
-# a period and a capitalised word has the period dropped before matching. The
-# flattened text is only tested; it never becomes evidence, and the direct
-# read does not use it. Out-of-vocabulary titles ("Col.", "M.", "Messrs.")
-# therefore work without extending #2388's NAME_TITLE_PREFIXES.
+# a period and a word that can follow a title has the period dropped before
+# matching. The coordinated form is included ("Mr. and Mrs. Bennet said."),
+# where the word after the first title is lowercase "and" (or "&") rather than
+# the next capitalised name (#2391 r6 BLOCKER 2: stripping only before a
+# capitalised word was how r4 lost the gate-2 fix). The flattened text is only
+# tested; it never becomes evidence, and the direct read does not use it.
+# Out-of-vocabulary titles ("Col.", "M.", "Messrs.") therefore work without
+# extending #2388's NAME_TITLE_PREFIXES.
 _CONTINUATION_DOTTED_ABBREVIATION = re.compile(
-    r"\b(?P<title>[A-Z][a-z]{0,5})\.(?=[ \t]+[A-Z])")
+    r"\b(?P<title>[A-Z][a-z]{0,5})\.(?=[ \t]+(?:[A-Z]|and\b|&))")
 # A tag attached by a dash directly after the closing mark is the quotation's
 # own tag for the continuation guard. It must NOT become direct-tag evidence:
 # #2388 disclosed the em-dash gap and this PR leaves it in place.
 _DASH_TAG_INTRODUCER = re.compile(r"^[ \t]*[\u2014\u2013-][ \t]*")
 # Gutenberg prose is hard-wrapped: one line break inside a paragraph is only a
-# space, and the module's paragraph boundary is a blank line (the "\n\n" split
-# used by _is_metadata_paragraph and the dialogue readers). The continuation
-# guards therefore read a whole paragraph with its single line breaks folded,
-# so a wrapped paragraph behaves exactly like the same text on one line
-# (#2391 r5). CRLF input and trailing blanks are covered; a blank line still
-# ends the paragraph, so nothing crosses it.
-_CONTINUATION_PARAGRAPH_BREAK = re.compile(r"\r?\n[ \t]*\r?\n")
-_CONTINUATION_LINE_WRAP = re.compile(r"[ \t]*\r?\n[ \t]*")
+# space, and a blank line ends the paragraph. The continuation guards read a
+# whole paragraph with its single line breaks folded, so a wrapped paragraph
+# behaves exactly like the same text on one line (#2391 r5). The paragraph
+# boundary and the fold reuse dialogue_spans' BLANK_LINE (Rule 15), which also
+# covers a lone CR. When the next quotation starts its own line the line break
+# is a new turn, not a continuation of the tag before it (#2391 r6 BLOCKER 1).
+_CONTINUATION_LINE_WRAP = re.compile(r"[ \t]*(?:\r\n|\r|\n)[ \t]*")
+_CONTINUATION_TRAILING_LINE_BREAK = re.compile(r"(?:\r\n|\r|\n)[ \t]*$")
 # A beat's pre-subject adverb is sentence-initial, so its first letter may be
 # uppercase ("Slowly, Kit shook his head."); _TAG_ADVERB is lowercase-only.
 _CONTINUATION_BEAT_ADVERB = (
@@ -2302,10 +2311,11 @@ _CONTINUATION_BEAT_REPEAT_ALT = "again|once|twice|too|also"
 # the cloak", "the old man by the door") is still the quotation's own tag. This
 # shape is abstain-only: it never becomes evidence and the direct read does not
 # use it (NIT 1, #2391 r5). The word cap stays bounded so it cannot run on into
-# the next sentence.
+# the next sentence; it covers a subject of up to twelve words, beyond the eight
+# the earlier r5 cap allowed (#2391 r6 LOW 3).
 _CONTINUATION_LONG_SUBJECT = (
     rf"(?:{'|'.join(sorted(_CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS))})"
-    rf"(?:[ \t]+{_TAG_WORD}){{1,7}}")
+    rf"(?:[ \t]+{_TAG_WORD}){{1,11}}")
 _CONTINUATION_OWN_TAG_LONG_SUBJECT = re.compile(
     rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?(?:"
     rf"(?P<subject>{_CONTINUATION_LONG_SUBJECT})[ \t]+{_SOURCE_TAG_VERBS}\b"
@@ -2315,7 +2325,7 @@ _CONTINUATION_OWN_TAG_LONG_SUBJECT = re.compile(
 
 def _fold_continuation_line_wraps(text):
     """Fold one paragraph's hard line wraps to spaces; a blank line ends it."""
-    paragraph = _CONTINUATION_PARAGRAPH_BREAK.split(text, 1)[0]
+    paragraph = _BLANK_LINE.split(text, 1)[0]
     return _CONTINUATION_LINE_WRAP.sub(" ", paragraph)
 
 
@@ -2388,14 +2398,15 @@ def _has_continuation_own_tag(tail):
 # determiner phrases ("She", "the man") are not names, so "No." She shook her
 # head. keeps the inherited speaker; a beat naming A's own speaker adds
 # nothing, so it keeps it too. A sentence-opening word ("Then Kit laughed."),
-# an opening -ly adverb ("Slowly, Kit shook his head."), a repeated opener and
-# a repeat word ("Then again Kit laughed.") are skipped so the beat's real
+# optionally followed by a comma and/or one -ly adverb ("Then, Kit laughed.",
+# "Then suddenly Kit laughed.", "Slowly, Kit shook his head."), a repeated opener
+# and a repeat word ("Then again Kit laughed.") are skipped so the beat's real
 # subject is still read. This guard only ever adds an abstention.
 _CONTINUATION_SENTENCE_OPENER_ALT = "|".join(sorted(_SENTENCE_OPENING_WORDS))
 _CONTINUATION_ACTION_BEAT = re.compile(
     rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
-    rf"(?:(?P<adverb>{_CONTINUATION_BEAT_ADVERB})[ \t]*,[ \t]*)?"
-    rf"(?:(?i:{_CONTINUATION_SENTENCE_OPENER_ALT})[ \t]+){{0,2}}"
+    rf"(?:(?i:{_CONTINUATION_SENTENCE_OPENER_ALT})[ \t]*,?[ \t]*){{0,2}}"
+    rf"(?:(?P<adverb>{_CONTINUATION_BEAT_ADVERB})[ \t]*,?[ \t]*)?"
     rf"(?:(?i:{_CONTINUATION_BEAT_REPEAT_ALT})[ \t]+)?"
     rf"(?P<subject>{_TAG_WORD})"
     rf"(?=[ \t]+{_TAG_WORD}"
@@ -2691,10 +2702,14 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
                 not in _TAG_QUOTE_PAIRS):
             continue
         between = source_text[prev_end + 1:cur_start - 1]
-        # One hard line break under a bare tag is only a space; a blank line is
-        # a paragraph boundary, so the quotations are not in one paragraph and
-        # the continuation guard abstains (#2391 r5).
-        if _CONTINUATION_PARAGRAPH_BREAK.search(between):
+        # A blank line is a paragraph boundary. So is a line break with only
+        # whitespace after it before this quotation: the quotation starts its
+        # own line, so it is a new turn and must not inherit the tag before it
+        # (#2391 r6 BLOCKER 1). A line break with the tag text after it is only
+        # a space inside the paragraph (#2391 r5).
+        if _BLANK_LINE.search(between):
+            continue
+        if _CONTINUATION_TRAILING_LINE_BREAK.search(between):
             continue
         cont_tag = _BARE_CONTINUATION_TAG.match(
             _CONTINUATION_LINE_WRAP.sub(" ", between))
@@ -2722,11 +2737,17 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         earlier = span_pos - 1
         while earlier >= 0:
             gap = source_text[spans[earlier][1] + 1:spans[earlier + 1][0] - 1]
-            if _CONTINUATION_PARAGRAPH_BREAK.search(gap):
+            if _BLANK_LINE.search(gap):
                 break
             tag_speaker = get_following_tag_speaker(earlier)
             if tag_speaker is not None:
                 paragraph_speakers.add(tag_speaker)
+            elif _has_continuation_own_tag(_fold_continuation_line_wraps(gap)):
+                # A tag the direct read cannot resolve (a dotted title, a long
+                # subject) still marks another speaker. The paragraph holds two
+                # tagged speakers, so the nearer tag may be either: abstain
+                # (#2391 r6 LOW 1).
+                paragraph_speakers.add(None)
             earlier -= 1
         if len(paragraph_speakers) >= 2:
             continue
