@@ -2282,6 +2282,41 @@ _CONTINUATION_DOTTED_ABBREVIATION = re.compile(
 # own tag for the continuation guard. It must NOT become direct-tag evidence:
 # #2388 disclosed the em-dash gap and this PR leaves it in place.
 _DASH_TAG_INTRODUCER = re.compile(r"^[ \t]*[\u2014\u2013-][ \t]*")
+# Gutenberg prose is hard-wrapped: one line break inside a paragraph is only a
+# space, and the module's paragraph boundary is a blank line (the "\n\n" split
+# used by _is_metadata_paragraph and the dialogue readers). The continuation
+# guards therefore read a whole paragraph with its single line breaks folded,
+# so a wrapped paragraph behaves exactly like the same text on one line
+# (#2391 r5). CRLF input and trailing blanks are covered; a blank line still
+# ends the paragraph, so nothing crosses it.
+_CONTINUATION_PARAGRAPH_BREAK = re.compile(r"\r?\n[ \t]*\r?\n")
+_CONTINUATION_LINE_WRAP = re.compile(r"[ \t]*\r?\n[ \t]*")
+# A beat's pre-subject adverb is sentence-initial, so its first letter may be
+# uppercase ("Slowly, Kit shook his head."); _TAG_ADVERB is lowercase-only.
+_CONTINUATION_BEAT_ADVERB = (
+    r"(?-i:[A-Za-z][\w’'" + _SILENT_IN_WORD + r"-]*ly)")
+# A sentence opener can repeat, and a repeat word can follow it: "Then again
+# Kit laughed.", "And then Kit laughed.". Neither word is the beat's subject.
+_CONTINUATION_BEAT_REPEAT_ALT = "again|once|twice|too|also"
+# A determiner phrase longer than _TAG_NAME's four-word cap ("the stranger in
+# the cloak", "the old man by the door") is still the quotation's own tag. This
+# shape is abstain-only: it never becomes evidence and the direct read does not
+# use it (NIT 1, #2391 r5). The word cap stays bounded so it cannot run on into
+# the next sentence.
+_CONTINUATION_LONG_SUBJECT = (
+    rf"(?:{'|'.join(sorted(_CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS))})"
+    rf"(?:[ \t]+{_TAG_WORD}){{1,7}}")
+_CONTINUATION_OWN_TAG_LONG_SUBJECT = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?(?:"
+    rf"(?P<subject>{_CONTINUATION_LONG_SUBJECT})[ \t]+{_SOURCE_TAG_VERBS}\b"
+    rf"|{_SOURCE_TAG_VERBS}[ \t]+(?P<subject_after>{_CONTINUATION_LONG_SUBJECT}))"
+    rf"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
+
+
+def _fold_continuation_line_wraps(text):
+    """Fold one paragraph's hard line wraps to spaces; a blank line ends it."""
+    paragraph = _CONTINUATION_PARAGRAPH_BREAK.split(text, 1)[0]
+    return _CONTINUATION_LINE_WRAP.sub(" ", paragraph)
 
 
 def _flatten_continuation_dotted_title(tail):
@@ -2318,9 +2353,12 @@ def _has_continuation_own_tag(tail):
     "Kit said to Nita."), the same rule behind a dash introducer
     ("No"-Kit said.), a clause-shaped tag ("Kit began.", "Kit went on.",
     "Kit, however, said.", "Kit (smiling) said."), or that clause inverted
-    ("began Kit.", "interposed Kit.", "came Kit's reply."). A title
-    abbreviation's period ("Mrs. Bennet said.", "old Mr. Bennet said.",
-    "Col. Brandon said.") is dropped first, because _TAG_WORD cannot cross it.
+    ("began Kit.", "interposed Kit.", "came Kit's reply."). A subject longer
+    than the direct rule's four-word cap ("the old man by the door said.")
+    is still recognised, because a quotation with a tag of its own must never
+    inherit the previous speaker. A title abbreviation's period ("Mrs. Bennet
+    said.", "old Mr. Bennet said.", "Col. Brandon said.") is dropped first,
+    because _TAG_WORD cannot cross it.
     Any hit means the quotation belongs to that tag, so it must not inherit
     the previous quotation's speaker; it also means the dash/clause form is
     not evidence.
@@ -2341,19 +2379,24 @@ def _has_continuation_own_tag(tail):
                 in _CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS):
             return True
     return (_CONTINUATION_OWN_TAG_INVERTED.match(tail) is not None
-            or _CONTINUATION_OWN_TAG_VERB_FIRST.match(tail) is not None)
+            or _CONTINUATION_OWN_TAG_VERB_FIRST.match(tail) is not None
+            or _CONTINUATION_OWN_TAG_LONG_SUBJECT.match(tail) is not None)
 
 
 # An action beat that names another character is not evidence that the
 # quotation continues the earlier tag: "No." Kit crossed his arms. Pronouns and
 # determiner phrases ("She", "the man") are not names, so "No." She shook her
 # head. keeps the inherited speaker; a beat naming A's own speaker adds
-# nothing, so it keeps it too. One sentence-opening word ("Then Kit laughed.")
-# is skipped so the beat's real subject is still read.
+# nothing, so it keeps it too. A sentence-opening word ("Then Kit laughed."),
+# an opening -ly adverb ("Slowly, Kit shook his head."), a repeated opener and
+# a repeat word ("Then again Kit laughed.") are skipped so the beat's real
+# subject is still read. This guard only ever adds an abstention.
 _CONTINUATION_SENTENCE_OPENER_ALT = "|".join(sorted(_SENTENCE_OPENING_WORDS))
 _CONTINUATION_ACTION_BEAT = re.compile(
     rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
-    rf"(?:(?i:{_CONTINUATION_SENTENCE_OPENER_ALT})[ \t]+)?"
+    rf"(?:(?P<adverb>{_CONTINUATION_BEAT_ADVERB})[ \t]*,[ \t]*)?"
+    rf"(?:(?i:{_CONTINUATION_SENTENCE_OPENER_ALT})[ \t]+){{0,2}}"
+    rf"(?:(?i:{_CONTINUATION_BEAT_REPEAT_ALT})[ \t]+)?"
     rf"(?P<subject>{_TAG_WORD})"
     rf"(?=[ \t]+{_TAG_WORD}"
     rf"|,[ \t]*{_TAG_WORD}(?:[ \t]+{_TAG_WORD}){{0,2}}[ \t]*,[ \t]*{_TAG_WORD})")
@@ -2544,7 +2587,8 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         after_span = source_text[span_end:span_end + 160].lstrip(" \t")
         if not after_span:
             return None
-        direct = _SOURCE_SPEECH_TAG.match(after_span[1:].split("\n", 1)[0])
+        direct = _SOURCE_SPEECH_TAG.match(
+            _fold_continuation_line_wraps(after_span[1:]))
         if not direct:
             return None
         if direct.group("adv_before") and (direct.group("adv_after")
@@ -2577,15 +2621,19 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         after = source_text[end:end + 160].lstrip(" \t")
         if not before or not after or (before[-1], after[0]) not in _TAG_QUOTE_PAIRS:
             continue
-        tail = after[1:].split("\n", 1)[0]
-        tag = _SOURCE_SPEECH_TAG.match(tail)
+        # The direct tag read stays exactly as main reads it (line-local), so
+        # direct evidence is byte-identical. The continuation guards below get
+        # the whole paragraph with its single line wraps folded (#2391 r5).
+        line_tail = after[1:].split("\n", 1)[0]
+        tail = _fold_continuation_line_wraps(after[1:])
+        tag = _SOURCE_SPEECH_TAG.match(line_tail)
         if tag:
             # At most one optional -ly adverb, before or after the verb.
             if tag.group("adv_before") and (tag.group("adv_after")
                                             or tag.group("adv_after_t")):
                 continue
             if (text and text[-1] in _SENTENCE_END and tag.group("before")
-                    and not tail.lstrip(" \t").startswith((",", ";"))):
+                    and not line_tail.lstrip(" \t").startswith((",", ";"))):
                 # Read past the tag from the source, not from the line-truncated
                 # tail, so a single hard line wrap can be seen (#2388 gate 2).
                 rest = after[1:][tag.end():].lstrip(" \t")
@@ -2643,9 +2691,13 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
                 not in _TAG_QUOTE_PAIRS):
             continue
         between = source_text[prev_end + 1:cur_start - 1]
-        if "\n" in between or "\r" in between:
+        # One hard line break under a bare tag is only a space; a blank line is
+        # a paragraph boundary, so the quotations are not in one paragraph and
+        # the continuation guard abstains (#2391 r5).
+        if _CONTINUATION_PARAGRAPH_BREAK.search(between):
             continue
-        cont_tag = _BARE_CONTINUATION_TAG.match(between)
+        cont_tag = _BARE_CONTINUATION_TAG.match(
+            _CONTINUATION_LINE_WRAP.sub(" ", between))
         if not cont_tag:
             continue
         # A bare reply after a question is very often the other speaker. A
@@ -2670,7 +2722,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         earlier = span_pos - 1
         while earlier >= 0:
             gap = source_text[spans[earlier][1] + 1:spans[earlier + 1][0] - 1]
-            if "\n" in gap or "\r" in gap:
+            if _CONTINUATION_PARAGRAPH_BREAK.search(gap):
                 break
             tag_speaker = get_following_tag_speaker(earlier)
             if tag_speaker is not None:
