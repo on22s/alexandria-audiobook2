@@ -41,6 +41,19 @@ class SourceWordListTests(unittest.TestCase):
             self.assertEqual(1,answer.call_count)
             self.assertEqual('Carrigdon & Rudge, waited beside the river.',json.loads(output.read_text())['text'])
 
+    def test_guided_chunking_exits_with_the_named_source_refusal(self):
+        # L4 rev1: load_epub now raises the named refusal, so guided chunking
+        # must report it and exit non-zero instead of a traceback (#2448).
+        # Use the module and class the preparer itself imported.
+        refusal = preparer.alignment.EpubMarkupRefusal(
+            "EPUB resource is UTF-32 encoded, which EPUB 3.3 does not allow: "
+            "'ch1.xhtml'")
+        with patch.object(preparer.alignment, 'load_source', side_effect=refusal), \
+             self.assertRaises(SystemExit) as caught:
+            preparer._build_source_state('book.epub', no_auto_anchor=True)
+        self.assertIn('UTF-32', str(caught.exception))
+        self.assertNotEqual(0, caught.exception.code)
+
     def test_source_state_matches_whole_normalized_passage_without_truncation(self):
         with tempfile.TemporaryDirectory() as tmp:
             source=Path(tmp)/'book.txt'

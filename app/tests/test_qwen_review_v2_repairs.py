@@ -1816,6 +1816,16 @@ class DeepSeekV3Tests(_FixtureMixin):
         tspan = big.replace(b"</svg>", b"<text><tspan>hi</tspan></text></svg>")
         self.assertTrue(_svg_has_text(io.BytesIO(tspan)))
 
+    def test_a_utf32_svg_is_refused_by_name(self):
+        # L1 rev1: the streaming SVG probe is an Expat entry point too, so it
+        # shares the one UTF-32 decision instead of skipping the member.
+        from epub_readaloud import _svg_has_text
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg">'
+               '<text>spoken</text></svg>')
+        with self.assertRaisesRegex(ValueError, r'UTF-32.*OEBPS/pic\.svg'):
+            _svg_has_text(io.BytesIO(svg.encode('utf-32')),
+                          resource='OEBPS/pic.svg')
+
     def test_zip64_known_size_stream(self):
         import zipfile as _zf
         from epub_readaloud import _stream_retained_member
@@ -2252,7 +2262,7 @@ class SvgFirstTests(unittest.TestCase):
         suffix = b' encoding="utf-8"?>'
         body = (b'<svg xmlns="http://www.w3.org/2000/svg">'
                 b'<text>spoken</text></svg>')
-        pad = (er._EPUB_XML_DECL_MAX_BYTES + 2) - len(prefix) - len(suffix)
+        pad = (er.EPUB_XML_DECL_MAX_BYTES + 2) - len(prefix) - len(suffix)
         payload = prefix + b' ' * pad + suffix + body
         self.assertGreater(len(prefix) + pad + len(suffix), 64 * 1024)
         self.assertLessEqual(len(prefix) + pad + len(suffix),

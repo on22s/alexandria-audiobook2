@@ -15,6 +15,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from alexandria_alignment import (get_epub_declared_encoding,
+                                  get_epub_markup_refusal,
                                   is_unusable_epub_codec)
 
 # EPUB 3 calls manifest `properties` a space-separated list; XML separates the
@@ -36,6 +37,12 @@ _XML_WHITESPACE = re.compile(r'[ \t\n\f\r]+')
 # its exact message; ValueError is also the channel for unrelated failures, and
 # an unfixed declaration class must not be mistaken for one.
 _EXPAT_MULTIBYTE_REFUSAL = 'multi-byte encodings are not supported'
+
+# ``xml.parsers.expat`` code 17 is ``XML_ERROR_XML_DECL``: a malformed or
+# misplaced XML declaration. A declaration after a leading processing
+# instruction has this code, so it becomes the named refusal rather than a
+# bare ParseError (#2452).
+_XML_DECL_ERROR = 17
 
 
 class EpubXmlEncodingError(ValueError):
@@ -74,7 +81,7 @@ def get_epub_declaration_refusal(raw):
     SVG probe (Rule 15): both ask :func:`alexandria_alignment.is_unusable_epub_codec`
     about the declaration bytes Expat itself reads. The declaration is read to
     its closing ``?>`` (bounded by
-    :data:`alexandria_alignment._EPUB_XML_DECL_MAX_BYTES`), so padding before
+    :data:`alexandria_alignment.EPUB_XML_DECL_MAX_BYTES`), so padding before
     ``encoding=`` cannot hide a codec; a declaration still unterminated at the
     cap is refused as malformed. ``None`` means the declaration is usable or
     absent.
@@ -89,25 +96,39 @@ def get_epub_declaration_refusal(raw):
     return None
 
 
-def parse_epub_xml(raw):
+def parse_epub_xml(raw, resource=None):
     """Parse bounded EPUB XML with the one encoding-refusal decision (Rule 15).
 
-    The declaration's codec name is classified by
-    :func:`alexandria_alignment.is_unusable_epub_codec` - the same rule
+    UTF-32 markup is refused by
+    :func:`alexandria_alignment.get_epub_markup_refusal` before Expat sees it,
+    so the container, OPF, navigation, NCX and read-aloud spine readers name
+    the same UTF-32 refusal as extraction and ``load_epub`` instead of
+    reporting "malformed" (#2448). The declaration's codec name is classified
+    by :func:`alexandria_alignment.is_unusable_epub_codec` - the same rule
     :func:`alexandria_alignment.decode_epub_markup` applies to a chapter - so a
     declaration Expat would hand to Python (``punycode``, ``idna``,
     ``undefined``) is refused before it can raise raw codec text. The two
     Expat refusal classes that remain become :class:`EpubXmlEncodingError`, so
     every caller maps it to the same documented refusal or fallback per reader
-    (#2370, #2375). ``raw`` is read by the caller, so the member read stays
-    size-bounded.
+    (#2370, #2375). A declaration that follows a processing instruction is
+    malformed XML; Expat reports that as ``XML_ERROR_XML_DECL`` and it takes
+    the same named refusal instead of escaping as a bare :class:`ET.ParseError`
+    (#2452). ``raw`` is read by the caller, so the member read stays
+    size-bounded; ``resource`` names the member in a refusal.
     """
+    refusal = get_epub_markup_refusal(raw, resource)
+    if refusal is not None:
+        raise refusal
     refusal = get_epub_declaration_refusal(raw)
     if refusal is not None:
         raise refusal
     try:
         # reviewed: callers bound the member read; expat is the only parser
         return ET.fromstring(raw)  # nosec B314
+    except ET.ParseError as error:
+        if getattr(error, 'code', None) == _XML_DECL_ERROR:
+            raise EpubXmlEncodingError(str(error)) from error
+        raise
     except (LookupError, ValueError) as error:
         refusal = get_epub_encoding_refusal(error)
         if refusal is not None:
@@ -169,7 +190,7 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
     # LookupError and must not be reported as a broken declaration.
     container_xml = read_member('META-INF/container.xml')
     try:
-        container = parse_epub_xml(container_xml)
+        container = parse_epub_xml(container_xml, 'META-INF/container.xml')
     except EpubXmlEncodingError as error:
         # An unprocessable encoding declaration is a malformed package (#2375).
         raise ValueError(
@@ -184,7 +205,7 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
     opf_xml = read_member(opf_path)
     repaired_metadata = False
     try:
-        package = parse_epub_xml(opf_xml)
+        package = parse_epub_xml(opf_xml, opf_path)
     except EpubXmlEncodingError as error:
         raise ValueError(
             'Invalid EPUB: package document declares an unknown encoding') from error
@@ -195,7 +216,7 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
         if repaired == opf_xml:
             raise
         # bounded member read (size-capped, review mode).
-        package = parse_epub_xml(repaired)
+        package = parse_epub_xml(repaired, opf_path)
         repaired_metadata = True
     if include_details:
         return opf_path, package, {'rootfile_count': len(rootfiles),

@@ -292,7 +292,7 @@ _UTF16_32_CODECS = frozenset({
 # its closing ``?>``, with a generous byte cap so a hostile member cannot make
 # the classifier scan the whole file. A declaration still unterminated at the
 # cap is malformed; both consumers treat that as the documented refusal.
-_EPUB_XML_DECL_MAX_BYTES = 64 * 1024
+EPUB_XML_DECL_MAX_BYTES = 64 * 1024
 
 
 def is_unusable_epub_codec(name):
@@ -318,14 +318,14 @@ def is_unusable_epub_codec(name):
             or codec.name in _PYTHON_ONLY_CODECS)
 
 
-def _epub_xml_declaration_span(prolog):
+def _find_epub_xml_declaration_span(prolog):
     """Return ``(end, unterminated)`` for a leading XML declaration.
 
     ``end`` is the index just past the declaration's closing ``?>`` in
     ``prolog``, or None when the document does not start with one.
     ``unterminated`` is True when a declaration starts but its ``?>`` is not
     inside ``prolog``; callers pass a prolog already bounded by
-    :data:`_EPUB_XML_DECL_MAX_BYTES`.
+    :data:`EPUB_XML_DECL_MAX_BYTES`.
 
     Only ``<?xml`` followed by whitespace is the declaration: a processing
     instruction whose target merely begins with the same letters
@@ -349,7 +349,7 @@ def get_epub_declared_encoding(raw):
     ``present`` is True when the document carries an encoding declaration.
     ``name`` is then the declaration text, or None when that text is not an
     ASCII name. ``unterminated`` is True when a declaration starts but its
-    closing ``?>`` is not found within :data:`_EPUB_XML_DECL_MAX_BYTES`: the
+    closing ``?>`` is not found within :data:`EPUB_XML_DECL_MAX_BYTES`: the
     declaration is malformed and both consumers refuse it.
 
     The declaration is read to its closing ``?>``, not a fixed 256/512-byte
@@ -359,22 +359,22 @@ def get_epub_declared_encoding(raw):
     encoding a BOM or UTF-16 byte signature selects, so a declaration Expat
     would hand to Python is classified from the same bytes Expat reads; a
     UTF-8 BOM is skipped. The declaration's extent is
-    :func:`_epub_xml_declaration_span`, shared with the strict fallback.
+    :func:`_find_epub_xml_declaration_span`, shared with the strict fallback.
     """
     if not isinstance(raw, (bytes, bytearray)):
         return None, False, False
     raw = bytes(raw)
     if raw.startswith(b'\xef\xbb\xbf'):
-        head = raw[3:3 + _EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
+        head = raw[3:3 + EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
     elif raw.startswith((b'\xff\xfe', b'\xfe\xff')):
-        head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('utf-16', errors='replace')
+        head = raw[:EPUB_XML_DECL_MAX_BYTES].decode('utf-16', errors='replace')
     elif raw.startswith(b'<\x00'):
-        head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('utf-16-le', errors='replace')
+        head = raw[:EPUB_XML_DECL_MAX_BYTES].decode('utf-16-le', errors='replace')
     elif raw.startswith(b'\x00<'):
-        head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('utf-16-be', errors='replace')
+        head = raw[:EPUB_XML_DECL_MAX_BYTES].decode('utf-16-be', errors='replace')
     else:
-        head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
-    end, unterminated = _epub_xml_declaration_span(head)
+        head = raw[:EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
+    end, unterminated = _find_epub_xml_declaration_span(head)
     if end is None:
         if not unterminated:
             return None, False, False
@@ -419,8 +419,8 @@ def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
     is not an ASCII codec name this build can look up: a non-ASCII name, a name
     containing NUL, or no such codec. It is also False for a Python-only
     transform codec, and for a UTF-16/UTF-32 declaration that does not fit the
-    bytes (see :func:`_declared_multibyte_encoding_fits`). The returned codec
-    is then the fallback, UTF-8 with BOM handling. A codec that passes this
+    bytes (see :func:`_declared_multibyte_encoding_fits`). The returned
+    codec is then the fallback, UTF-8 with BOM handling. A codec that passes this
     classification can still refuse the document's bytes; that is decided on
     the real bytes in :func:`_read_epub_markup`.
     """
@@ -451,11 +451,149 @@ def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
     return encoding, True
 
 
+class EpubMarkupRefusal(ValueError):
+    """Markup this pipeline refuses to read or narrate.
+
+    Shared by every EPUB reader (Rule 15) so a UTF-32 member is named the same
+    way by extraction, ``load_epub`` and the Expat readers (#2448), and so a
+    document that starts with U+0000 is named for what it is rather than for
+    UTF-32.
+    """
+
+
+_UTF32_SIGNATURES = (
+    codecs.BOM_UTF32_LE, codecs.BOM_UTF32_BE,
+    b'\x00\x00\xff\xfe', b'\xfe\xff\x00\x00',
+)
+
+# A BOM-less UTF-32 document opens with four-byte code units whose most
+# significant byte is zero. Four units (16 bytes) are required: the zero bytes
+# alone are ambiguous with UTF-16, which puts them in the same positions for
+# whitespace-heavy text. _decodes_as_utf16_xml removes that ambiguity.
+_UTF32_STRIDE_UNITS = 4
+
+
+def _is_xml_10_character(character):
+    """Return whether ``character`` is a legal XML 1.0 character."""
+    codepoint = ord(character)
+    return (codepoint in (0x9, 0xA, 0xD)
+            or 0x20 <= codepoint <= 0xD7FF
+            or 0xE000 <= codepoint <= 0xFFFD
+            or 0x10000 <= codepoint <= 0x10FFFF)
+
+
+def _decodes_as_utf16_xml(raw):
+    """Return whether ``raw`` is UTF-16 text that can open a legal XML document.
+
+    A legal XML document opens with optional XML whitespace (and an optional
+    BOM), then ``<``, and contains only XML 1.0 characters. UTF-16 places one
+    NUL in every pair of ASCII characters, which is exactly the zero-byte
+    stride UTF-32 detection looks for, so this check keeps a whitespace-heavy
+    UTF-16 document from being refused. Genuine BOM-less UTF-32 text does not
+    pass: measured on the identity mapping it decodes as UTF-16 to NULs or
+    other characters XML forbids.
+    """
+    if len(raw) % 2:
+        return False
+    for encoding in ('utf-16-le', 'utf-16-be'):
+        try:
+            text = raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        if text.startswith('\ufeff'):
+            text = text[1:]
+        if not text.lstrip(' \t\r\n').startswith('<'):
+            continue
+        if all(_is_xml_10_character(character) for character in text):
+            return True
+    return False
+
+
+def _has_utf32_code_unit_stride(raw):
+    """Return whether ``raw`` opens with UTF-32 code units in one byte order."""
+    if len(raw) < 2 * 4:
+        return False
+    units = min(len(raw) // 4, _UTF32_STRIDE_UNITS)
+    for little_endian in (True, False):
+        for index in range(units):
+            unit = raw[index * 4:(index + 1) * 4]
+            if little_endian:
+                high_byte = unit[3]
+                codepoint = unit[0] | unit[1] << 8 | unit[2] << 16
+            else:
+                high_byte = unit[0]
+                codepoint = unit[1] << 16 | unit[2] << 8 | unit[3]
+            if high_byte or codepoint > 0x10FFFF or 0xD800 <= codepoint <= 0xDFFF:
+                break
+        else:
+            return True
+    return False
+
+
+def _is_utf32_markup(raw):
+    """Return whether ``raw`` is UTF-32 markup, which EPUB 3.3 does not allow.
+
+    XML 1.0 appendix F lists the two BOM byte orders and the two unusual
+    octet orders this checks. A BOM-less UTF-32 document instead opens with
+    consecutive four-byte code units whose most significant byte is zero; the
+    first unit may begin with any character (``<``, whitespace or a non-ASCII
+    letter), which the older three-NUL rule missed (#2448). The patterns are
+    checked before UTF-16 because UTF-32LE's BOM (``FF FE 00 00``) begins with
+    UTF-16LE's, and :func:`_decodes_as_utf16_xml` excludes the UTF-16 text
+    whose zero bytes look the same.
+    """
+    data = bytes(raw)
+    if data[:4] in _UTF32_SIGNATURES:
+        return True
+    if not _has_utf32_code_unit_stride(data):
+        return False
+    return not _decodes_as_utf16_xml(data)
+
+
+def _get_utf32_refusal(resource=None):
+    """Return the named refusal for a UTF-32 EPUB markup resource."""
+    label = f' {resource!r}' if resource else ''
+    return EpubMarkupRefusal(
+        'EPUB resource is UTF-32 encoded, which EPUB 3.3 does not allow:'
+        f'{label}')
+
+
+def _get_leading_nul_refusal(resource=None):
+    """Return the named refusal for markup whose first character is U+0000."""
+    label = f' {resource!r}' if resource else ''
+    return EpubMarkupRefusal(
+        'EPUB resource is not well-formed: it starts with U+0000, which '
+        f'XML 1.0 does not allow:{label}')
+
+
+def get_epub_markup_refusal(raw, resource=None):
+    """Return the named refusal for EPUB markup this pipeline will not read.
+
+    One decision for extraction, ``load_epub`` and every Expat reader
+    (Rule 15). UTF-32 markup is refused by :func:`_is_utf32_markup`; a
+    document that starts with U+0000 is refused separately, because a UTF-16
+    document can begin with it while also tripping the old three-NUL byte
+    test. Both are illegal XML, and neither may reach narration (#2448).
+    """
+    data = bytes(raw)
+    if _is_utf32_markup(data):
+        return _get_utf32_refusal(resource)
+    prefix = data[:4]
+    if prefix.count(0) >= 3:
+        if prefix[:2] == b'\x00\x00':
+            return _get_leading_nul_refusal(resource)
+        return _get_utf32_refusal(resource)
+    return None
+
+
 def _read_epub_markup(raw: bytes, *, resource=None) -> tuple[str, bool]:
     """Return ``(text, declared_usable)`` for an item's one encoding sniff.
 
-    The declared codec - or the BOM / declaration default - is tried first
-    with ``errors='replace'``, the extraction contract. A codec can pass the
+    UTF-32 is refused by :func:`get_epub_markup_refusal`: EPUB 3.3 permits
+    only UTF-8 and UTF-16, and UTF-32LE's BOM would otherwise be read as
+    UTF-16, narrating NULs between every character (#2448). The declared
+    codec - or the BOM / declaration default - is tried first with
+    ``errors='replace'``, the extraction contract. A codec can pass the
     name lookup and still refuse the bytes (``punycode``); that is the same
     unusable declaration as an unknown name. In both cases the fallback reads
     the document as **strict** UTF-8 and rewrites the declaration to match
@@ -465,6 +603,9 @@ def _read_epub_markup(raw: bytes, *, resource=None) -> tuple[str, bool]:
     discarded before the strict body decode. Valid declared codecs never take
     this path and stay byte-identical to ``origin/main``.
     """
+    refusal = get_epub_markup_refusal(raw, resource)
+    if refusal is not None:
+        raise refusal
     encoding, declared_usable = _decode_head_encoding(raw)
     if declared_usable:
         try:
@@ -479,8 +620,8 @@ def _read_epub_markup(raw: bytes, *, resource=None) -> tuple[str, bool]:
         # by itself refuse an otherwise valid UTF-8 resource. The strip uses
         # the shared declaration extent (Rule 15), so a padded declaration
         # recovers exactly like the unpadded form and like origin/main.
-        prolog = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
-        end, _unterminated = _epub_xml_declaration_span(prolog)
+        prolog = raw[:EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
+        end, _unterminated = _find_epub_xml_declaration_span(prolog)
         if end is not None:
             try:
                 body = raw[end:].decode('utf-8-sig')
@@ -951,6 +1092,10 @@ def load_epub(path: str) -> str:
             # (&#9;, &#10;, &#13;, &#12;) stays unsplit inside EpubHtml.properties.
             continue
         media_type = getattr(item, 'media_type', '')
+        content = getattr(item, 'content', None) or b''
+        refusal = get_epub_markup_refusal(content, item.get_name())
+        if refusal is not None:
+            raise refusal
         considered_documents += 1
         # One predicate (Rule 15) decides hidden handling for every path:
         # application/xhtml+xml AND well-formed XML. The well-formedness answer
@@ -963,7 +1108,7 @@ def load_epub(path: str) -> str:
             # HTML reserialization: that parser lowercases attribute names and
             # applies HTML implied-end rules, which would leak hidden text and
             # hide visible text (review gate 1, findings 1-2).
-            hidden_scan = strip_hidden_xml(getattr(item, 'content', None) or b'')
+            hidden_scan = strip_hidden_xml(content)
         hidden_applies = html_hidden_handling_applies(
             media_type, xml_well_formed=hidden_scan is not None)
         item_hidden = False

@@ -1369,7 +1369,13 @@ def _build_source_state(source_path: str,
     them to the prologue's first real sentence.
     """
     logger.info(f"▶ Loading source for guided chunking: {source_path}")
-    source_text = alignment.load_source(source_path)
+    try:
+        source_text = alignment.load_source(source_path)
+    except alignment.EpubMarkupRefusal as error:
+        # A source EPUB with markup the pipeline refuses (a UTF-32 member, or
+        # a document starting with U+0000) cannot guide chunking (#2448).
+        # Name it and exit non-zero instead of a traceback.
+        sys.exit(f"Source EPUB cannot be used for guided chunking: {error}")
     source_text = alignment.clean_source_text(source_text)
     logger.info(f"  ├─ Source: {len(source_text):,} characters")
 

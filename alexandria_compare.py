@@ -29,6 +29,7 @@ from alexandria_alignment import (
     _OCR_DIGIT_GLITCH,
     _DIACRITIC_REJOIN,
     _DIACRITIC_REJOIN_TAIL,
+    EpubMarkupRefusal,
     load_source,
     normalize,
     to_words,
@@ -853,7 +854,14 @@ def main():
         sys.exit(0)
 
     print(f"Loading source  : {get_terminal_text(args.source)}")
-    source_text = load_source(args.source)
+    try:
+        source_text = load_source(args.source)
+    except EpubMarkupRefusal as error:
+        # A source EPUB with markup the pipeline refuses (a UTF-32 member, or
+        # a document starting with U+0000) is unreadable, not a traceback
+        # (#2448). Exit non-zero with the named refusal.
+        sys.exit(f"Cannot read source {get_terminal_text(args.source)}: "
+                 f"{get_terminal_text(str(error))}")
     # Strip EPUB OCR digit-in-word glitches ('thos1e' → 'those', 'Kars1a' →
     # 'Karsa') before tokenisation. The ASR-derived chunks never have these
     # digits, so leaving them in source produces visibly-wrong merged output.
