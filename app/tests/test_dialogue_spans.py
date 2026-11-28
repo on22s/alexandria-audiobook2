@@ -2848,6 +2848,12 @@ class DashDialogueTagTests(unittest.TestCase):
             ("--F. Scott Fitzgerald", True),
             ("--de la Cruz", True),
             ("--A", True),
+            # The 1-5 word ceiling, both sides: a sixth capitalised word is
+            # speech, five name words (particles allowed) are attribution.
+            # Deleting the ceiling mutation must fail here (#2395 review 2
+            # low 2).
+            ("--A B C D E F", False),
+            ("--Juan de la Cruz Garcia", True),
             ("--Author Name.", False),
             ("--I was going to--", False),
             ("-- Wait -- I forgot the keys.", False),
@@ -2860,6 +2866,44 @@ class DashDialogueTagTests(unittest.TestCase):
                 self.assertIsNotNone(match)
                 self.assertEqual(expected,
                                  dialogue_spans.is_dash_attribution(match.group(1)))
+
+    def test_unpunctuated_vocatives_inside_a_dash_chunk_stay_spoken(self):
+        """#2395 review 2 low 1: an attribution-shaped line is speech when the
+        dash convention is established.
+
+        Main labels every line below SPOKEN. Only where the dashes are not the
+        dialogue convention (a paired-quote book's epigraph) is the
+        attribution-shaped line narration, so these pin parity with main.
+        """
+        vocatives = ("—Mamá", "— Señor García", "—Maman", "—Мама", "—Ana",
+                     "—YES", "—Yes, Sir", "—_Yes_")
+        for vocative in vocatives:
+            with self.subTest(vocative=vocative):
+                chunk = f"— Buenos días, señor.\n{vocative}\n— Buenos días.\n"
+                self.assertTrue(
+                    dialogue_spans.has_established_dash_convention(chunk))
+                body = vocative.lstrip("— ")
+                self.assertEqual(
+                    ["Buenos días, señor.", body, "Buenos días."],
+                    [chunk[a:b] for a, b in spoken_spans(chunk, "dash_lines")])
+                self.assertEqual(
+                    [("SPOKEN", "Buenos días, señor."),
+                     ("SPOKEN", body),
+                     ("SPOKEN", "Buenos días.")],
+                    [(row["type"], row["text"]) for row in
+                     analyze_outer_quote_regions(chunk)["regions"]])
+        # The other half of the rule: with no established dash convention the
+        # same shape is narration, as in the paired-quote book above.
+        paired = ('"Line one."\n\n"Line two."\n\n"Line three."\n\n'
+                  '"Line four."\n\n"Line five."\n\n"Some other quoted line."\n\n'
+                  '--Mamá\n')
+        self.assertFalse(
+            dialogue_spans.has_established_dash_convention(paired))
+        self.assertEqual([], get_other_speech_spans(paired, "paired_quotes"))
+        row = apply_dialogue_map(
+            [{"speaker": "ALICE", "text": "Mamá"}], paired)["entries"][0]
+        self.assertEqual("NARRATOR", row["speaker"])
+        self.assertIs(False, row["spoken"])
 
     def test_one_dash_table_drives_regex_separators_lengths_and_strength(self):
         """#2395 review 1 low 4 / nit 1: the dash definition is one table."""
@@ -3075,6 +3119,23 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
              ["The Times"]),
         ):
             with self.subTest(note=text):
+                self.assertEqual(
+                    expected,
+                    [text[a:b] for a, b in get_other_speech_spans(
+                        text, "paired_quotes")],
+                )
+
+        # Documented limit: a CAPITALISED/title-shaped narration between
+        # reversed pairs still reads as a note and is flagged, exactly as main
+        # flags it. Only lowercase prose (`Two words`) is excluded, which is
+        # why the guard's note exception is described as title-shaped
+        # (#2395 review 2 nit 4).
+        for text, expected in (
+            ("»First.« Chapter Two »Second.«", [" Chapter Two "]),
+            ("»First.« Note »Second.«", [" Note "]),
+            ("»First.« Two Words »Second.«", [" Two Words "]),
+        ):
+            with self.subTest(title_shaped_limit=text):
                 self.assertEqual(
                     expected,
                     [text[a:b] for a, b in get_other_speech_spans(

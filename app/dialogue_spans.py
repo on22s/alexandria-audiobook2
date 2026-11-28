@@ -77,9 +77,12 @@ DASH_LINE = re.compile(rf"^[ \t]*{_DASH_MARK_PATTERN}[ \t]*(\S.*)$", re.M)
 # dialogue (`--GERTRUDE STEIN _in conversation_`, `—_Ecclesiastes_`). A short
 # sequence of capitalised name words (initials and `de`/`van`/`of`-style
 # particles allowed), with no sentence-final punctuation and no lowercase word
-# other than a particle, is narration in BOTH dash forms (#2395 review 1
-# blocker 1, Rule 15). Lowercase words are refused, which subsumes the
-# "no lowercase verb" condition: only particles may be lowercase.
+# other than a particle, has the SHAPE of an attribution (#2395 review 1
+# blocker 1, Rule 15). Lowercase words are refused, which subsumes the "no
+# lowercase verb" condition: only particles may be lowercase. The shape alone
+# is not enough: `has_established_dash_convention` decides whether the dashes
+# in this text are dialogue, and only where they are NOT is the line narration
+# (#2395 review 2 low 1).
 _DASH_ATTRIBUTION_PARTICLES = frozenset(
     ("de", "van", "von", "der", "den", "da", "di", "du", "la", "le", "del",
      "della", "dos", "das", "of", "bin", "ibn", "al", "el", "y", "e"))
@@ -89,12 +92,14 @@ _DASH_ATTRIBUTION_MAX_WORDS = 5
 
 
 def is_dash_attribution(line):
-    """-> True when a dash-opened line's body is an attribution, not speech.
+    """-> True when a dash-opened line's body has the shape of an attribution.
 
     The body is the text after the dash and its padding. A fully italic body
     (`_Ecclesiastes_`) keeps its word for the name check; an italic editorial
     annotation after the name (`GERTRUDE STEIN _in conversation_`) is
-    decoration. Pure read, shared by every dash-line consumer.
+    decoration. Pure shape read; callers combine it with
+    `has_established_dash_convention`, because a name-only line inside a
+    dash-dialogue chunk is speech (`—Mamá`), not narration.
     """
     body = _DASH_ITALIC_NOTE.sub(" ", line or "").strip()
     if not body:
@@ -116,15 +121,36 @@ def is_dash_attribution(line):
     return named
 
 
+def has_established_dash_convention(text):
+    """-> True when `text` is a quote-free chunk that runs dash dialogue.
+
+    ONE test of "the dash convention is established", shared by its two users
+    (Rule 15): the weak `--` certification in `pass_quality` (#2395 review 1
+    blocker 2) and the attribution exclusion below (#2395 review 2 low 1). It
+    takes at least two dash-opened lines and no quote mark, so dashes are the
+    dialogue convention rather than punctuation in a paired-quote book.
+    """
+    return (not any(mark in text for mark in QUOTE_MARKS)
+            and sum(1 for _match in DASH_LINE.finditer(text)) >= 2)
+
+
 def iter_dash_lines(text):
-    """-> DASH_LINE matches that are dialogue, not attribution/signature lines."""
+    """-> dialogue dash lines: DASH_LINE matches, minus attribution lines.
+
+    An attribution-shaped line is excluded only where the dash convention is
+    NOT established: in a paired-quote book (`--Author Name`) it is narration,
+    while inside an established dash-dialogue chunk a name-only line keeps
+    main's SPOKEN label (`—Mamá`, #2395 review 2 low 1).
+    """
+    established = has_established_dash_convention(text)
     for match in DASH_LINE.finditer(text):
-        if not is_dash_attribution(match.group(1)):
-            yield match
+        if not established and is_dash_attribution(match.group(1)):
+            continue
+        yield match
 
 
 def count_dash_lines(text):
-    """-> dialogue dash lines in `text` (attributions excluded)."""
+    """-> dash dialogue lines in `text` (attributions excluded where unestablished)."""
     return sum(1 for _match in iter_dash_lines(text))
 
 

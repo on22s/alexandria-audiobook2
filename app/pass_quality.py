@@ -28,11 +28,11 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # source-map and the generator's segmenter cannot drift apart.
 from dialogue_spans import (BLANK_LINE as _BLANK_LINE,
                             PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
-                            count_dash_lines as _count_dash_lines,
                             dash_line_unverified_prefixes as _dash_prefixes,
                             dash_line_unverified_ranges as _dash_ranges,
                             get_dash_mark as _get_dash_mark,
                             get_guillemet_direction as _get_guillemet_direction,
+                            has_established_dash_convention as _dash_established,
                             is_dash_attribution as _is_dash_attribution,
                             is_inch_mark as _is_inch_mark,
                             is_number_char as _is_number_char,
@@ -712,11 +712,11 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     # A dash-only book uses line dashes for dialogue; a book with any quote
     # marks uses those and treats a stray dash as narration punctuation.
     dash_is_dialogue = not any(mark in text for mark in QUOTE_MARKS)
-    # `--` is weaker evidence than `—`: one such line in a quote-free chunk is
-    # usually `--` used as punctuation, so the chunk certifies only when the
-    # dash convention is established by at least two dash lines (#2395 review
-    # 1 blocker 2). The strength comes from dialogue_spans' one dash table.
-    dash_line_count = _count_dash_lines(text) if dash_is_dialogue else 0
+    # "The dash convention is established" is ONE predicate in dialogue_spans
+    # (Rule 15): a quote-free chunk with at least two dash-opened lines. It
+    # gates the weak `--` certification (#2395 review 1 blocker 2) AND the
+    # attribution exclusion (#2395 review 2 low 1), so the two cannot disagree.
+    dash_established = _dash_established(text)
     quote_positions = [i for i, c in enumerate(text) if c in _QUOTE_CHARS]
     quote_at = {i: c for i, c in enumerate(text) if c in _QUOTE_CHARS}
 
@@ -789,8 +789,10 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             line_end = text.find("\n", index)
             if line_end == -1:
                 line_end = len(text)
-            if not ((dash_strength == "weak" and dash_line_count < 2)
-                    or _is_dash_attribution(text[index + dash_len:line_end])):
+            if not ((dash_strength == "weak" and not dash_established)
+                    or (not dash_established
+                        and _is_dash_attribution(
+                            text[index + dash_len:line_end]))):
                 # Continental line-dash dialogue: split at evidenced tags via
                 # the single shared rule in dialogue_spans (#2329, #2395).
                 flush()
@@ -805,9 +807,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                         saw_quote = True
                 skip_until = line_end
                 continue
-            # An attribution/signature line is narration in both dash forms;
-            # a lone `--` line abstains rather than certifying speech (#2395
-            # review 1 blockers 1-2). Both fall through to narration.
+            # Where the dash convention is NOT established an attribution/
+            # signature line is narration in both dash forms and a lone `--`
+            # line abstains rather than certifying speech (#2395 review 1
+            # blockers 1-2); inside an established dash chunk a name-only
+            # line stays speech (#2395 review 2 low 1). All fall through to
+            # narration here.
         if char == "\n" and text[index:index + 2] == "\n\n" and depth:
             flush()
             current.append(char)

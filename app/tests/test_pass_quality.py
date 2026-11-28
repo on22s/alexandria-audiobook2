@@ -2256,6 +2256,30 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
                                    analyze_outer_quote_regions(em_dash))[1],
         )
 
+    def test_name_only_line_in_established_dash_chunk_is_spoken(self):
+        """#2395 review 2 low 1: the attribution exclusion needs an
+        UNESTABLISHED dash convention, so a name-only vocative in a dash chunk
+        keeps main's SPOKEN label.
+        """
+        from three_pass_generate import quote_regions_decision
+
+        for vocative in ("—Mamá", "— Señor García", "—Maman", "—Мама",
+                         "—Ana", "—YES", "—Yes, Sir", "—_Yes_"):
+            with self.subTest(vocative=vocative):
+                chunk = f"— Buenos días, señor.\n{vocative}\n— Buenos días.\n"
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertNotIn("unverified_dash", analysis)
+                self.assertEqual(
+                    [("SPOKEN", "Buenos días, señor."),
+                     ("SPOKEN", vocative.lstrip("— ")),
+                     ("SPOKEN", "Buenos días.")],
+                    [(row["type"], row["text"]) for row in analysis["regions"]],
+                )
+                self.assertEqual(
+                    "quote_presegmented",
+                    quote_regions_decision("auto", chunk, analysis)[1],
+                )
+
     def test_ascii_double_hyphen_dash_lines_segment_and_route_via_shared_rule(self):
         """#2395: pass_quality shares dialogue_spans' ASCII `--` dash rule."""
         from three_pass_generate import quote_regions_decision
