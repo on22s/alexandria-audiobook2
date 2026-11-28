@@ -363,6 +363,25 @@ class SourceTagTests(unittest.TestCase):
         # the guard is not simply "any subject".
         self.assertEqual({0: 'NITA', 2: 'NITA'}, get_attribution_tag_evidence(
             frozen, '“Go,” Nita said. “No,” somebody began.', names))
+        # A pronoun plus a direct verb is not an own tag without the
+        # interjection: "she said this after a pause" is narration, not a
+        # speech tag (found on TheGambler when the interjection path was
+        # shared with the plain clause).
+        reported = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No?'},
+        ]
+        self.assertEqual({0: 'NITA', 2: 'NITA'}, get_attribution_tag_evidence(
+            reported, '“Go,” Nita said. “No?” She said this after a pause.',
+            names))
+        # The clause list deliberately repeats added/adds/continued/continues:
+        # the direct rule's adverb slot accepts only a lowercase -ly adverb, so
+        # a non-ly adverb ("she added later,") is an own tag only through this
+        # list (PDNC AHandfulOfDust-01969~3157).
+        self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+            frozen, '“Go,” Nita said. “No,” she added later, “I suppose.”',
+            names))
 
     def test_continuation_abstains_after_a_question(self):
         names = {'NITA', 'KIT'}

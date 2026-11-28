@@ -1348,13 +1348,16 @@ _BARE_CONTINUATION_TAG = re.compile(
 # Clause-shaped tags use reporting verbs the direct tag rule deliberately does
 # not carry (began, went on, cut in, put in). This list is used ONLY to decide
 # that a quotation carries its own tag and must abstain; it never creates
-# evidence. The evidence verb list stays _SOURCE_TAG_VERBS (#2388, Rule 15),
-# which already carries added/adds/continued/continues, so they are not
-# repeated here: the direct shape matches them first.
+# evidence. The evidence verb list stays _SOURCE_TAG_VERBS (#2388, Rule 15).
+# added/adds/continued/continues repeat that list on purpose: the direct rule's
+# adverb slot accepts only a lowercase -ly adverb, so "she added later," (a
+# common non-ly adverb) is not a direct tag and this clause form is what keeps
+# the quotation from inheriting A's speaker (PDNC AHandfulOfDust-01969~3157).
 _CONTINUATION_OWN_TAG_VERBS = (
     r"(?:began|begun|starts?|started|went on|goes on|going on|"
     r"cut in|cuts in|broke in|breaks in|broke off|breaks off|"
-    r"carried on|carries on|put in|puts in)"
+    r"carried on|carries on|added|adds|continued|continues|"
+    r"put in|puts in)"
 )
 _CONTINUATION_TAG_PRONOUNS = frozenset({
     "he", "she", "they", "it", "we", "you", "i",
@@ -1385,14 +1388,16 @@ _CONTINUATION_CLAUSE_VERBS = (
 _CONTINUATION_OWN_TAG_CLAUSE = re.compile(
     rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
     rf"(?:(?P<pronoun>{_CONTINUATION_TAG_PRONOUN_ALT})|(?P<subject>{_TAG_NAME}))"
-    rf"(?:[ \t]*,[ \t]*(?P<interject>{_TAG_WORD}"
-    rf"(?:[ \t]+{_TAG_WORD}){{0,2}})[ \t]*,)?"
-    rf"[ \t]+(?:{_CONTINUATION_CLAUSE_VERBS})\b", re.IGNORECASE)
+    rf"(?:[ \t]+(?:{_CONTINUATION_OWN_TAG_VERBS})\b"
+    rf"|[ \t]*,[ \t]*(?P<interject>{_TAG_WORD}"
+    rf"(?:[ \t]+{_TAG_WORD}){{0,2}})[ \t]*,"
+    rf"[ \t]*(?:{_CONTINUATION_CLAUSE_VERBS})\b)", re.IGNORECASE)
 # Verb-first clause tags are the same own-tag shape inverted ("began Kit.",
-# "put in Kit."); the direct rule already abstains on its verb-first form.
+# "put in Kit."). A direct reporting verb in that position is already the
+# direct rule's verb-first form, so only the clause verbs are needed here.
 _CONTINUATION_OWN_TAG_INVERTED = re.compile(
     rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
-    rf"(?:{_CONTINUATION_CLAUSE_VERBS})[ \t]+(?P<subject>{_TAG_NAME})"
+    rf"(?:{_CONTINUATION_OWN_TAG_VERBS})[ \t]+(?P<subject>{_TAG_NAME})"
     rf"(?:[ \t]+{_TAG_ADVERB})?(?=[ \t]*[,.!?:;])", re.IGNORECASE)
 # One title vocabulary (#2388's NAME_TITLE_PREFIXES, Rule 15). Prose writes
 # several of its titles as an abbreviation with a period ("Mrs.", "Dr.",
