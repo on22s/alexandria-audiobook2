@@ -119,7 +119,7 @@ class SourceTagTests(unittest.TestCase):
         self.assertNotEqual('ELENA', result[0]['speaker'])
 
     def test_continuation_after_bare_tag_catches_wrong_speaker(self):
-        source = '“Go,” Nita said. “Now.” Kit looked at Nita. Kit left with Nita.'
+        source = '“Go,” Nita said. “Now.” She looked at Nita. Kit left with Nita.'
         frozen = [
             {'type': 'SPOKEN', 'text': 'Go,'},
             {'type': 'NARRATOR', 'text': 'Nita said.'},
@@ -250,6 +250,119 @@ class SourceTagTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual({0: 'NITA', 2: 'NITA'},
                                  get_attribution_tag_evidence(now, source, names))
+
+    def test_continuation_own_tag_with_a_dotted_honorific(self):
+        # Prose abbreviates titles with a period ("Mrs.", "Dr.", "St.",
+        # "Prof.", "Rev.", "Capt."). _TAG_WORD cannot cross that period, so a
+        # dotted own tag was invisible: B inherited A's speaker and a correct
+        # answer was rejected (gate 1 BLOCKER). Every title in #2388's one
+        # vocabulary is covered subject-first and verb-first.
+        names = {'NITA', 'KIT', 'MRS BENNET', 'MR BENNET', 'DR KIT',
+                 'ST JOHN', 'PROF VALE', 'REV VALE', 'CAPT VALE'}
+        frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No,'},
+        ]
+        for title, subject in (
+                ('Mr.', 'Bennet'), ('Mrs.', 'Bennet'), ('Ms.', 'Bennet'),
+                ('Dr.', 'Kit'), ('St.', 'John'), ('Prof.', 'Vale'),
+                ('Rev.', 'Vale'), ('Capt.', 'Vale')):
+            for source in (f'“Go,” Nita said. “No,” {title} {subject} said.',
+                           f'“Go,” Nita said. “No,” said {title} {subject}.'):
+                with self.subTest(title=title, source=source):
+                    self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+                        frozen, source, names))
+        # Undotted spellings still resolve as B's own direct tag.
+        for title, subject, expected in (
+                ('Mrs', 'Bennet', 'MRS BENNET'), ('Dr', 'Kit', 'DR KIT')):
+            with self.subTest(title=title):
+                self.assertEqual({0: 'NITA', 2: expected},
+                                 get_attribution_tag_evidence(
+                                     frozen,
+                                     f'“Go,” Nita said. “No,” {title} {subject} said.',
+                                     names))
+        # The own-tag clause also sees the dotted title.
+        for source in ('“Go,” Nita said. “No,” Mrs. Bennet began.',
+                       '“Go,” Nita said. “No,” Dr. Kit went on.'):
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+                    frozen, source, names))
+
+    def test_continuation_abstains_on_an_action_beat_naming_another_character(self):
+        # A clause after the quotation that names a different character is an
+        # action beat, not evidence that the quotation continues the tag
+        # (gate 1 LOW 1). "No." Kit crossed his arms. must not reject KIT.
+        names = {'NITA', 'KIT', 'MRS BENNET'}
+        frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No.'},
+        ]
+        for source in (
+                '“Go,” Nita said. “No.” Kit crossed his arms.',
+                '“Go,” Nita said. “No.” Kit shook his head.',
+                '“Go,” Nita said. “No.” Kit, however, crossed his arms.',
+                '“Go,” Nita said. “No.” Mrs. Bennet smiled.',
+                '“Go,” Nita said. “No.” Bram crossed his arms.'):
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+                    frozen, source, names))
+        # Controls that keep the inherited speaker: a pronoun subject, A's own
+        # name (a beat about A adds nothing), and a sentence-opening word.
+        for source in (
+                '“Go,” Nita said. “No.” She shook her head.',
+                '“Go,” Nita said. “No.” Nita smiled.',
+                '“Go,” Nita said. “No.” Then she left.'):
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA', 2: 'NITA'},
+                                 get_attribution_tag_evidence(
+                                     frozen, source, names))
+        # A dotted honorific beat names the same spelling the own-tag guard
+        # reads; A's own titled name keeps the inherited speaker.
+        import pass_quality as pq
+        self.assertEqual('Mrs Bennet',
+                         pq._get_continuation_action_beat_subject(
+                             ' Mrs. Bennet smiled.'))
+        self.assertIsNone(pq._get_continuation_action_beat_subject(
+            ' She shook her head.'))
+        self.assertEqual({0: 'MRS BENNET', 2: 'MRS BENNET'},
+                         get_attribution_tag_evidence(
+                             frozen, '“Go,” Bennet said. “No.” Mrs. Bennet smiled.',
+                             {'MRS BENNET'}))
+
+    def test_continuation_own_tag_inverted_phrasal_and_interjected(self):
+        # Own-tag shapes outside the decided list (gate 1 LOW 2): verb-first
+        # clauses, phrasal reporting verbs, a comma-delimited interjection
+        # between subject and verb, and a capitalised subject with any verb.
+        names = {'NITA', 'KIT'}
+        frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No,'},
+        ]
+        for source in (
+                '“Go,” Nita said. “No,” began Kit.',
+                '“Go,” Nita said. “No,” went on Kit.',
+                '“Go,” Nita said. “No,” put in Kit.',
+                '“Go,” Nita said. “No,” cut in Kit.',
+                '“Go,” Nita said. “No,” Kit put in.',
+                '“Go,” Nita said. “No,” Kit, however, said.',
+                '“Go,” Nita said. “No,” Kit, however, began.',
+                # A pronoun or A's own name isolates the interjection rule from
+                # the action-beat rule, which would abstain anyway for Kit.
+                '“Go,” Nita said. “No,” Nita, however, said.',
+                '“Go,” Nita said. “No,” he, however, said.',
+                '“Go,” Nita said. “No,” the man, however, said.',
+                '“Go,” Nita said. “No,” Kit laughed.',
+                '“Go,” Nita said. “No,” Kit sighed.'):
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+                    frozen, source, names))
+        # Control: a lowercase non-determiner subject is still not a name, so
+        # the guard is not simply "any subject".
+        self.assertEqual({0: 'NITA', 2: 'NITA'}, get_attribution_tag_evidence(
+            frozen, '“Go,” Nita said. “No,” somebody began.', names))
 
     def test_continuation_abstains_after_a_question(self):
         names = {'NITA', 'KIT'}

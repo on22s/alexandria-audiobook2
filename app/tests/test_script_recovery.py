@@ -80,7 +80,7 @@ def _long_source(mentions=(), length=10834):
 
 def _write_fingerprinted_attribute_run(tmp, source_text, entries, roster=('HOLMES', 'WATSON'),
                                        cast=None, strip_front_matter=False, selection=True,
-                                       source_digest=None):
+                                       source_digest=None, failed_indices=None):
     """A genuine writer-shaped checkpoint: prepared-text fingerprint, saved
     preparation options and a raw selection digest all agree with the source."""
     script_path = os.path.join(tmp, 'annotated_script.json')
@@ -134,7 +134,10 @@ def _write_fingerprinted_attribute_run(tmp, source_text, entries, roster=('HOLME
         'segmented': segmented,
         'named': [{'text': 'Prelude.', 'speaker': 'NARRATOR'}] + [None] * (len(segmented) - 1),
         'annotated': [], 'resolutions': ['clean'] * done, 'elapsed_s': {}, 'diagnostic_failures': [],
-        'failed': {'pass': 'attribute', 'indices': [1, 2, 3], 'entries': list(entries),
+        'failed': {'pass': 'attribute',
+                   'indices': (failed_indices if failed_indices is not None
+                               else list(range(1, len(entries) + 1))),
+                   'entries': list(entries),
                    'roster': list(roster), 'cast_sha256': cast_sha,
                    'reason': 'attribute LLM unavailable; refusing fallback output',
                    'attempts': []}}, three_pass_checkpoint_path(script_path))
@@ -510,10 +513,10 @@ class RecoveryTests(unittest.TestCase):
             finally:
                 script_module.process_state["script"]["running"] = previous
 
-    def _fingerprinted_writer(self, source_text, **kwargs):
-        entries = [{"type": "SPOKEN", "text": "Where is he?"},
-                   {"type": "NARRATOR", "text": "said Holmes."},
-                   {"type": "SPOKEN", "text": "Gone,"}]
+    def _fingerprinted_writer(self, source_text, entries=None, **kwargs):
+        entries = entries or [{"type": "SPOKEN", "text": "Where is he?"},
+                              {"type": "NARRATOR", "text": "said Holmes."},
+                              {"type": "SPOKEN", "text": "Gone,"}]
         def write(tmp):
             return _write_fingerprinted_attribute_run(tmp, source_text, entries, **kwargs)
         return write
@@ -564,6 +567,57 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(checkpoint_before, checkpoint_after)
         self.assertEqual(manifest_before, manifest_after)
 
+    def test_continuation_after_a_non_question_refuses_another_speaker(self):
+        source = _long_source(ATTESTED)
+        entries = [{"type": "SPOKEN", "text": "Go now,"},
+                   {"type": "NARRATOR", "text": "said Holmes."},
+                   {"type": "SPOKEN", "text": "Gone."}]
+        writer = self._fingerprinted_writer(source, entries=entries)
+        response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
+            {"n": 0, "speaker": "HOLMES"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}], writer=writer)
+        self.assertEqual(422, response.status_code)
+        self.assertEqual(['speaker_contradicts_source_tag'],
+                         [f['code'] for f in response.json()['detail']['findings']])
+        self.assertEqual(checkpoint_before, checkpoint_after)
+        self.assertEqual(manifest_before, manifest_after)
+        # The same manual answer with the continuation's own speaker is accepted.
+        response, _, _, _, _ = self._inject_http([
+            {"n": 0, "speaker": "HOLMES"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "HOLMES"}], writer=writer)
+        self.assertEqual(200, response.status_code)
+
+    def test_continuation_with_its_own_tag_is_accepted(self):
+        entries = [{"type": "SPOKEN", "text": "Go now,"},
+                   {"type": "NARRATOR", "text": "said Holmes."},
+                   {"type": "SPOKEN", "text": "Gone,"},
+                   {"type": "NARRATOR", "text": "said Watson."}]
+        writer = self._fingerprinted_writer(_long_source(ATTESTED), entries=entries)
+        response, _, _, _, _ = self._inject_http([
+            {"n": 0, "speaker": "HOLMES"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"},
+            {"n": 3, "speaker": "NARRATOR"}], writer=writer)
+        self.assertEqual(200, response.status_code)
+
+    def test_continuation_with_a_dotted_title_own_tag_is_accepted(self):
+        source = _long_source(ATTESTED)
+        for title in ("Mr.", "Mrs.", "Ms.", "Dr.", "St.", "Prof.", "Rev.", "Capt."):
+            entries = [{"type": "SPOKEN", "text": "Go now,"},
+                       {"type": "NARRATOR", "text": "said Holmes."},
+                       {"type": "SPOKEN", "text": "Gone,"},
+                       {"type": "NARRATOR", "text": f"{title} Watson said."}]
+            with self.subTest(title=title):
+                writer = self._fingerprinted_writer(source, entries=entries)
+                response, _, _, _, _ = self._inject_http([
+                    {"n": 0, "speaker": "HOLMES"},
+                    {"n": 1, "speaker": "NARRATOR"},
+                    {"n": 2, "speaker": "WATSON"},
+                    {"n": 3, "speaker": "NARRATOR"}], writer=writer)
+                self.assertEqual(200, response.status_code)
+
     def test_roster_only_lowercase_attestation_is_refused_like_live(self):
         source = _long_source(['She planted a rose by the wall.', 'Another rose grew near the gate.'])
         response, _, _, _, _ = self._inject_http([
@@ -581,7 +635,7 @@ class RecoveryTests(unittest.TestCase):
         response, _, checkpoint_after, _, _ = self._inject_http([
             {"n": 0, "speaker": "SHERLOCK"},
             {"n": 1, "speaker": "NARRATOR"},
-            {"n": 2, "speaker": "HOLMES"}],
+            {"n": 2, "speaker": "WATSON"}],
             writer=self._fingerprinted_writer(source, cast=cast))
         self.assertEqual(200, response.status_code)
         self.assertEqual('HOLMES', json.loads(checkpoint_after)['named'][1]['speaker'])
@@ -634,7 +688,7 @@ class RecoveryTests(unittest.TestCase):
         response, _, _, _, _ = self._inject_http([
             {"n": 0, "speaker": "HOLMES"},
             {"n": 1, "speaker": "NARRATOR"},
-            {"n": 2, "speaker": "HOLMES"}], writer=write)
+            {"n": 2, "speaker": "WATSON"}], writer=write)
         self.assertEqual(200, response.status_code)
 
     def test_malformed_fingerprint_digest_is_not_downgraded(self):
@@ -703,7 +757,7 @@ class RecoveryTests(unittest.TestCase):
         response, _, checkpoint_after, _, manifest_after = self._inject_http([
             {"n": 0, "speaker": "HOLMES"},
             {"n": 1, "speaker": "NARRATOR"},
-            {"n": 2, "speaker": "HOLMES"}], writer=writer)
+            {"n": 2, "speaker": "WATSON"}], writer=writer)
         self.assertEqual(200, response.status_code)
         manifest = json.loads(manifest_after)
         checkpoint = json.loads(checkpoint_after)
@@ -1178,7 +1232,7 @@ class RecoveryTests(unittest.TestCase):
                 response, _, _, _, _ = self._inject_http([
                     {"n": 0, "speaker": "HOLMES"},
                     {"n": 1, "speaker": "NARRATOR"},
-                    {"n": 2, "speaker": "HOLMES"}], writer=writer, setup=setup)
+                    {"n": 2, "speaker": "WATSON"}], writer=writer, setup=setup)
                 self.assertEqual(expected, response.status_code)
 
     def test_cast_added_after_the_failed_batch_cannot_exempt_an_invented_name(self):
@@ -1320,7 +1374,7 @@ class RecoveryTests(unittest.TestCase):
                 response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
                     {"n": 0, "speaker": "SHERLOCK"},
                     {"n": 1, "speaker": "NARRATOR"},
-                    {"n": 2, "speaker": "HOLMES"}],
+                    {"n": 2, "speaker": "WATSON"}],
                     writer=self._fingerprinted_writer(source, cast=cast), setup=setup)
                 self.assertEqual(expected, response.status_code)
                 if expected >= 400:

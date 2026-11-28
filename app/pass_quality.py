@@ -850,11 +850,13 @@ _KOREAN_SUFFIX_RE = re.compile(
     r"[은는도만]?"
 )
 NAME_TITLE_PREFIXES = frozenset({
-    "mr", "mrs", "ms", "miss", "dr", "doctor", "professor", "captain",
+    "mr", "mrs", "ms", "miss", "dr", "doctor", "prof", "professor",
+    "capt", "captain",
     "king", "queen", "prince", "princess", "lord", "lady", "sir", "dame",
     "duke", "duchess", "count", "countess", "baron", "baroness", "father",
     "mother", "brother", "sister", "officer", "sergeant", "general", "colonel",
-    "major", "lieutenant", "reverend", "pastor", "bishop", "saint", "the", "his", "her",
+    "major", "lieutenant", "rev", "reverend", "pastor", "bishop", "st", "saint",
+    "the", "his", "her",
 })
 # A married-woman title names the wife, not the man whose name follows it:
 # "Mrs. John Vale" is Fanny, so the title-stripped "John Vale" must not become
@@ -1243,13 +1245,15 @@ _CONTINUATION_TAG_CORE = (
 _BARE_CONTINUATION_TAG = re.compile(
     _CONTINUATION_TAG_CORE + r"[ \t]*[,.!?:;][ \t]*$", re.IGNORECASE)
 # Clause-shaped tags use reporting verbs the direct tag rule deliberately does
-# not carry (began, went on, cut in). This list is used ONLY to decide that a
-# quotation carries its own tag and must abstain; it never creates evidence.
-# The evidence verb list stays _SOURCE_TAG_VERBS (#2388, Rule 15).
+# not carry (began, went on, cut in, put in). This list is used ONLY to decide
+# that a quotation carries its own tag and must abstain; it never creates
+# evidence. The evidence verb list stays _SOURCE_TAG_VERBS (#2388, Rule 15),
+# which already carries added/adds/continued/continues, so they are not
+# repeated here: the direct shape matches them first.
 _CONTINUATION_OWN_TAG_VERBS = (
     r"(?:began|begun|starts?|started|went on|goes on|going on|"
     r"cut in|cuts in|broke in|breaks in|broke off|breaks off|"
-    r"carried on|carries on|added|adds|continued|continues)"
+    r"carried on|carries on|put in|puts in)"
 )
 _CONTINUATION_TAG_PRONOUNS = frozenset({
     "he", "she", "they", "it", "we", "you", "i",
@@ -1271,14 +1275,54 @@ _CONTINUATION_QUESTION_VERBS = frozenset({
 })
 # The same four-word subject cap as _TAG_NAME, then a clause verb. The dash
 # introducer belongs here: "No"-Kit began. is still the quotation's own tag.
+# A comma-delimited interjection may sit between subject and verb
+# ("Kit, however, said."); the verb there may be a clause verb or one the
+# direct rule already carries.
+_CONTINUATION_CLAUSE_VERBS = (
+    rf"(?:{_SOURCE_TAG_VERBS}|{_CONTINUATION_OWN_TAG_VERBS})"
+)
 _CONTINUATION_OWN_TAG_CLAUSE = re.compile(
     rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
     rf"(?:(?P<pronoun>{_CONTINUATION_TAG_PRONOUN_ALT})|(?P<subject>{_TAG_NAME}))"
-    rf"[ \t]+(?:{_CONTINUATION_OWN_TAG_VERBS})\b", re.IGNORECASE)
+    rf"(?:[ \t]*,[ \t]*(?P<interject>{_TAG_WORD}"
+    rf"(?:[ \t]+{_TAG_WORD}){{0,2}})[ \t]*,)?"
+    rf"[ \t]+(?:{_CONTINUATION_CLAUSE_VERBS})\b", re.IGNORECASE)
+# Verb-first clause tags are the same own-tag shape inverted ("began Kit.",
+# "put in Kit."); the direct rule already abstains on its verb-first form.
+_CONTINUATION_OWN_TAG_INVERTED = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
+    rf"(?:{_CONTINUATION_CLAUSE_VERBS})[ \t]+(?P<subject>{_TAG_NAME})"
+    rf"(?:[ \t]+{_TAG_ADVERB})?(?=[ \t]*[,.!?:;])", re.IGNORECASE)
+# One title vocabulary (#2388's NAME_TITLE_PREFIXES, Rule 15). Prose writes
+# several of its titles as an abbreviation with a period ("Mrs.", "Dr.",
+# "St.", "Prof.", "Rev.", "Capt."); _TAG_WORD cannot cross that period, so a
+# leading dotted title is flattened before the own-tag shapes are matched. The
+# flattened text is only tested; it never becomes evidence.
+_CONTINUATION_TITLE_ALT = "|".join(sorted(NAME_TITLE_PREFIXES,
+                                          key=lambda value: (-len(value), value)))
+_CONTINUATION_DOTTED_TITLE = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?(?P<title>{_CONTINUATION_TITLE_ALT})"
+    r"\.[ \t]+", re.IGNORECASE)
 # A tag attached by a dash directly after the closing mark is the quotation's
 # own tag for the continuation guard. It must NOT become direct-tag evidence:
 # #2388 disclosed the em-dash gap and this PR leaves it in place.
 _DASH_TAG_INTRODUCER = re.compile(r"^[ \t]*[\u2014\u2013-][ \t]*")
+
+
+def _flatten_continuation_dotted_title(tail):
+    """Drop the period of a leading honorific so #2388's tag shapes match.
+
+    "Mrs. Bennet said." becomes "Mrs Bennet said." The title text itself is
+    unchanged, so the same vocabulary decides the own-tag question; the
+    period is the only thing _TAG_WORD cannot cross. Returns `tail` unchanged
+    when it does not start with a capitalised dotted title.
+    """
+    match = _CONTINUATION_DOTTED_TITLE.match(tail)
+    if match is None or not match.group("title")[:1].isupper():
+        return tail
+    # Skip only the period; the whitespace after it stays.
+    period = match.end("title")
+    return tail[:period] + tail[period + 1:]
 
 
 def _quote_ends_with_question(text):
@@ -1287,7 +1331,7 @@ def _quote_ends_with_question(text):
     return text.endswith("?") or text.endswith("?!")
 
 
-def _continuation_tag_verb(match):
+def _get_continuation_tag_verb(match):
     """The speech verb a bare continuation tag carries, casefolded."""
     for group in ("verb_a", "verb_b", "verb_c"):
         value = match.group(group)
@@ -1301,11 +1345,14 @@ def _has_continuation_own_tag(tail):
 
     True when `tail` matches the direct-tag rule ("Kit said.", "Kit muttered.",
     "Kit said to Nita."), the same rule behind a dash introducer
-    ("No"-Kit said.), or a clause-shaped tag from
-    _CONTINUATION_OWN_TAG_VERBS ("Kit began.", "Kit went on."). Any hit means
-    the quotation belongs to that tag, so it must not inherit the previous
-    quotation's speaker; it also means the dash/clause form is not evidence.
+    ("No"-Kit said.), a clause-shaped tag ("Kit began.", "Kit went on.",
+    "Kit, however, said."), or that clause inverted ("began Kit."). A dotted
+    honorific ("Mrs. Bennet said.") is flattened first, because _TAG_WORD
+    cannot cross its period. Any hit means the quotation belongs to that tag,
+    so it must not inherit the previous quotation's speaker; it also means the
+    dash/clause form is not evidence.
     """
+    tail = _flatten_continuation_dotted_title(tail)
     if _SOURCE_SPEECH_TAG.match(tail):
         return True
     dash = _DASH_TAG_INTRODUCER.match(tail)
@@ -1313,12 +1360,42 @@ def _has_continuation_own_tag(tail):
         return True
     clause = _CONTINUATION_OWN_TAG_CLAUSE.match(tail)
     if clause is None:
-        return False
+        return _CONTINUATION_OWN_TAG_INVERTED.match(tail) is not None
     if clause.group("pronoun"):
         return True
     subject = clause.group("subject").split()
     return (subject[0][:1].isupper()
             or subject[0].casefold() in _CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS)
+
+
+# An action beat that names another character is not evidence that the
+# quotation continues the earlier tag: "No." Kit crossed his arms. Pronouns and
+# determiner phrases ("She", "the man") are not names, so "No." She shook her
+# head. keeps the inherited speaker; a beat naming A's own speaker adds
+# nothing, so it keeps it too.
+_CONTINUATION_ACTION_BEAT = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?(?P<subject>{_TAG_WORD})"
+    rf"(?=[ \t]+{_TAG_WORD}"
+    rf"|,[ \t]*{_TAG_WORD}(?:[ \t]+{_TAG_WORD}){{0,2}}[ \t]*,[ \t]*{_TAG_WORD})")
+
+
+def _get_continuation_action_beat_subject(tail):
+    """The character an action-beat clause after the quotation names, or None."""
+    flat = _flatten_continuation_dotted_title(tail)
+    match = _CONTINUATION_ACTION_BEAT.match(flat)
+    if match is None:
+        return None
+    first = match.group("subject")
+    key = first.casefold()
+    if (not first[:1].isupper() or key in _CONTINUATION_TAG_PRONOUNS
+            or key in _CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS
+            or key in _SENTENCE_OPENING_WORDS):
+        return None
+    if _get_title_key(first) in NAME_TITLE_PREFIXES:
+        # "Mrs Bennet crossed her arms." (the period was flattened above).
+        rest = flat[match.end():].split()
+        return f"{first} {rest[0]}" if rest else None
+    return first
 
 
 def get_attribution_source_digest(source_text):
@@ -1462,9 +1539,9 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
     source_digest = get_attribution_source_digest(source_text)
     context_digest = get_attribution_snapshot_digest([sorted(established_names), aliases])
 
-    def resolve_tag_speaker(match):
-        """Speaker named by a direct or continuation tag, or None when unsure."""
-        name = remove_silent_word_characters(match.group("before") or match.group("after"))
+    def resolve_name_speaker(name):
+        """Speaker a tag or beat name resolves to, or None when unsure."""
+        name = remove_silent_word_characters(name)
         if not _is_valid_tag_name(name):
             return None
         key = next(iter(get_speaker_label_index([name])), None)
@@ -1476,6 +1553,10 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             # batch. Ambiguous existing identities must still abstain.
             return name.upper()
         return None
+
+    def resolve_tag_speaker(match):
+        """Speaker named by a direct or continuation tag, or None when unsure."""
+        return resolve_name_speaker(match.group("before") or match.group("after"))
 
     evidence = {}
     continuation_evidence = {}
@@ -1571,11 +1652,17 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         # ?) or a question tag verb therefore abstains instead of inheriting.
         if _quote_ends_with_question(source_text[prev_start:prev_end]):
             continue
-        if _continuation_tag_verb(cont_tag) in _CONTINUATION_QUESTION_VERBS:
+        if _get_continuation_tag_verb(cont_tag) in _CONTINUATION_QUESTION_VERBS:
             continue
         speaker = resolve_tag_speaker(cont_tag)
-        if speaker is not None:
-            continuation_evidence[index] = speaker
+        if speaker is None:
+            continue
+        beat = _get_continuation_action_beat_subject(tail)
+        if beat is not None and resolve_name_speaker(beat) != speaker:
+            # The quotation is followed by a clause about another character, so
+            # it is an action beat, not evidence that it continues the tag.
+            continue
+        continuation_evidence[index] = speaker
     return evidence, continuation_evidence
 
 
