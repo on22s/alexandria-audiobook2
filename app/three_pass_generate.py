@@ -4349,10 +4349,16 @@ def get_three_pass_publication_blocker(manifest, *, expected_run_id=None,
     return None
 
 
-def get_prepared_source(path, strip_front_matter=True, report=lambda message: None,
-                        expected_source_sha256=None, owning_root=None, *,
-                        include_preprocessing=False):
-    """-> (text, unicode_report): the source exactly as generation sees it.
+def get_prepared_source_with_preprocessing(path, strip_front_matter=True,
+                                          report=lambda message: None,
+                                          expected_source_sha256=None,
+                                          owning_root=None):
+    """-> (text, unicode_report, preprocessing): the source as generation sees it.
+
+    The explicit three-value form for callers that need the recorded
+    preprocessing evidence (three-pass generation itself). Every other caller
+    uses :func:`get_prepared_source`, so a two-value read never has to know
+    about a shape-changing flag.
 
     One sequence for every caller that sends the book to a model - generation
     and the whole-book cast list (cast_list.py) - so a cast is never built from
@@ -4395,8 +4401,15 @@ def get_prepared_source(path, strip_front_matter=True, report=lambda message: No
     if unicode_report["unresolved"]:
         report(f"Retained {unicode_report['unresolved']} unresolved replacement character(s); "
                "the shared source gate admits this remaining load.")
-    if include_preprocessing:
-        return book, unicode_report, preprocessing
+    return book, unicode_report, preprocessing
+
+
+def get_prepared_source(path, strip_front_matter=True, report=lambda message: None,
+                        expected_source_sha256=None, owning_root=None):
+    """-> (text, unicode_report): the source exactly as generation sees it."""
+    book, unicode_report, _preprocessing = get_prepared_source_with_preprocessing(
+        path, strip_front_matter, report=report,
+        expected_source_sha256=expected_source_sha256, owning_root=owning_root)
     return book, unicode_report
 
 
@@ -4530,9 +4543,9 @@ def main(client_factory=None):
         expected_source_sha256 = (args.active_source_sha256
                                   if args.active_book_token is not None
                                   else input_source_sha256)
-        book, unicode_report, preprocessing = get_prepared_source(
+        book, unicode_report, preprocessing = get_prepared_source_with_preprocessing(
             args.input_file, args.strip_front_matter, report=print,
-            owning_root=owning_root, include_preprocessing=True,
+            owning_root=owning_root,
             **({'expected_source_sha256': expected_source_sha256}
                if expected_source_sha256 is not None else {}))
     except ValueError as exc:

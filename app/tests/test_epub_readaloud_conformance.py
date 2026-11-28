@@ -401,7 +401,7 @@ class R6CoverageTests(unittest.TestCase):
             {"index": 0, "prepared_text": "Same repeated words.", "start_frame": 0, "end_frame": 1000, "sample_rate": 24000},
             {"index": 1, "prepared_text": "Same repeated words.", "start_frame": 2000, "end_frame": 3000, "sample_rate": 24000},
         ]
-        mapping, end = map_spine_to_chunks(segs, two, start=0)
+        mapping, end, _consumed = map_spine_to_chunks(segs, two, start=0)
         self.assertEqual("a", mapping[0]["fragment"])
         self.assertEqual("b", mapping[1]["fragment"])
         self.assertEqual([0], mapping[0]["chunk_indexes"])
@@ -444,7 +444,7 @@ class R6CoverageTests(unittest.TestCase):
             {"index": 0, "prepared_text": "hello", "start_frame": 0, "end_frame": 1000, "sample_rate": 24000},
             {"index": 1, "prepared_text": "world", "start_frame": 1000, "end_frame": 2000, "sample_rate": 24000},
         ]
-        mapping, end = map_spine_to_chunks(spine, split, start=0)
+        mapping, end, _consumed = map_spine_to_chunks(spine, split, start=0)
         self.assertEqual(2, len(mapping[0]["chunk_indexes"]),
                          "case/punctuation-insensitive exact coverage must still map split chunks")
 

@@ -1497,46 +1497,195 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
         source_file_missing=source_file_missing))
 
 
+def _read_bounded_json_document(path, cancel_check):
+    """-> (document, error). ``error`` is None for an absent candidate.
+
+    Read failures are reported by the caller (Rule 8) instead of being shaped
+    like "this book recorded no normalizations".
+    """
+    from project_scope_files import capture_scope_file
+
+    target = Path(path)
+    try:
+        _facts, raw = capture_scope_file(
+            target.parent, target.name, limit=16 * 1024**2,
+            include_bytes=True, cancel_check=cancel_check)
+    except (OSError, ValueError) as error:
+        return None, f"cannot be read ({error.__class__.__name__})"
+    if raw is None:
+        return None, None
+    try:
+        doc = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        return None, f"is not valid JSON ({error.__class__.__name__})"
+    if not isinstance(doc, dict):
+        return None, "is not a JSON object"
+    return doc, None
+
+
+def _get_bounded_file_sha256(path, cancel_check):
+    """Digest a file through the same bounded no-follow capture as its metadata."""
+    from project_scope_files import capture_scope_file
+
+    target = Path(path)
+    _facts, raw = capture_scope_file(
+        target.parent, target.name, limit=16 * 1024**2,
+        include_bytes=True, cancel_check=cancel_check)
+    if raw is None:
+        raise OSError("file is missing")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _get_three_pass_binding_error(doc, source_txt):
+    """Why a complete three-pass manifest does not describe this book, or None."""
+    if doc.get("status") != "complete":
+        return "generation is not complete"
+    completion = doc.get("completion")
+    if not isinstance(completion, dict):
+        return "completion record is missing"
+    script_sha256 = completion.get("script_sha256")
+    if not isinstance(script_sha256, str) or _HEX64_RE.fullmatch(script_sha256) is None:
+        return "completion record is not bound to a script"
+    fingerprint = doc.get("fingerprint")
+    if not isinstance(fingerprint, dict):
+        return "source fingerprint is missing"
+    expected = fingerprint.get("source_sha256")
+    if not isinstance(expected, str) or _HEX64_RE.fullmatch(expected) is None:
+        return "source fingerprint is invalid"
+    if not isinstance(source_txt, str) or not source_txt:
+        return "the current source is unavailable"
+    # The book may have been generated with or without front-matter
+    # stripping; either prepared text is this source, so try both policies.
+    prepared_digests = set()
+    try:
+        from three_pass_generate import get_prepared_source
+        for strip_front_matter in (True, False):
+            book, _report = get_prepared_source(
+                source_txt, strip_front_matter=strip_front_matter,
+                report=lambda message: None)
+            prepared_digests.add(hashlib.sha256(book.encode("utf-8")).hexdigest())
+    except (OSError, ValueError) as error:
+        return f"the current source cannot be read ({error.__class__.__name__})"
+    if expected not in prepared_digests:
+        return "the manifest belongs to a different source"
+    return None
+
+
+def _get_generation_quality_binding_error(doc, source_txt):
+    """Why a complete single-pass quality manifest does not describe this book, or None."""
+    if doc.get("status") != "complete":
+        return "generation is not complete"
+    artifact = doc.get("completion_artifact")
+    if (not isinstance(artifact, dict) or type(artifact.get("version")) is not int
+            or artifact["version"] != 1):
+        return "completion artifact is missing or invalid"
+    output_sha256 = artifact.get("output_sha256")
+    if not isinstance(output_sha256, str) or _HEX64_RE.fullmatch(output_sha256) is None:
+        return "completion artifact is not bound to an output"
+    expected = artifact.get("input_sha256")
+    if not isinstance(expected, str) or _HEX64_RE.fullmatch(expected) is None:
+        return "completion artifact is not bound to a source"
+    if not isinstance(source_txt, str) or not source_txt:
+        return "the current source is unavailable"
+    try:
+        from script_selection_binding import _source_digest
+        actual = _source_digest(source_txt)
+    except (OSError, ValueError) as error:
+        return f"the current source cannot be read ({error.__class__.__name__})"
+    if actual != expected:
+        return "the manifest belongs to a different source"
+    return None
+
+
+def _get_saved_meta_binding_error(doc, source_txt, cancel_check):
+    """Why saved-script ``.meta.json`` records do not belong to this saved script."""
+    expected = doc.get("source_normalizations_script_sha256")
+    if not isinstance(expected, str) or _HEX64_RE.fullmatch(expected) is None:
+        return "records are not bound to the saved script"
+    try:
+        actual = _get_bounded_file_sha256(source_txt, cancel_check)
+    except (OSError, ValueError) as error:
+        return f"the saved script cannot be read ({error.__class__.__name__})"
+    if actual != expected:
+        return "the records belong to a different saved script"
+    return None
+
+
 def get_recorded_source_normalizations(script_path, source_txt=None, cancel_check=None):
     """Read recorded preprocessing normalizations from completed generation metadata.
 
     Checks the active three-pass manifest, the single-pass generation-quality
     manifest, and (for a loaded saved script) its ``.meta.json`` companion,
-    using bounded no-follow reads. Absent, incomplete, or unreadable metadata
-    returns ``[]`` so callers fail closed on any unrecorded text difference.
+    using bounded no-follow reads. Records are accepted only when the metadata
+    is complete AND bound to the current book: the three-pass source
+    fingerprint, the single-pass completion artifact's input digest, or the
+    saved script's recorded byte digest. Anything absent, incomplete,
+    unreadable or bound to another source returns ``[]`` so callers fail
+    closed on any unrecorded text difference; a present but rejected candidate
+    is logged rather than silently treated as "no records" (Rule 8).
     """
     from generate_script import get_generation_quality_path
-    from project_scope_files import capture_scope_file
     from script_recovery_facts import three_pass_manifest_path
 
+    saved_script = _is_saved_script_source(source_txt)
     candidates = []
-    if isinstance(script_path, str) and script_path:
-        candidates.append((three_pass_manifest_path(script_path), True))
-        candidates.append((get_generation_quality_path(script_path), True))
-    if _is_saved_script_source(source_txt):
-        candidates.append((os.path.splitext(source_txt)[0] + ".meta.json", False))
-    for path, require_complete in candidates:
-        target = Path(path)
-        try:
-            _facts, raw = capture_scope_file(
-                target.parent, target.name, limit=16 * 1024**2,
-                include_bytes=True, cancel_check=cancel_check)
-        except (OSError, ValueError):
+    if not saved_script and isinstance(script_path, str) and script_path:
+        candidates.append((three_pass_manifest_path(script_path), "three_pass"))
+        candidates.append((get_generation_quality_path(script_path), "quality"))
+    if saved_script:
+        candidates.append((os.path.splitext(source_txt)[0] + ".meta.json", "saved"))
+    for path, kind in candidates:
+        doc, error = _read_bounded_json_document(path, cancel_check)
+        if error is not None:
+            logger.warning("Recorded source normalizations unavailable from %s: %s", path, error)
             continue
-        if raw is None:
-            continue
-        try:
-            doc = json.loads(raw)
-        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
-            continue
-        if not isinstance(doc, dict):
-            continue
-        if require_complete and doc.get("status") != "complete":
+        if doc is None:
             continue
         changes = doc.get("source_normalizations")
-        if isinstance(changes, list):
-            return changes
+        if not isinstance(changes, list):
+            continue
+        if not changes:
+            return []
+        if kind == "three_pass":
+            error = _get_three_pass_binding_error(doc, source_txt)
+        elif kind == "quality":
+            error = _get_generation_quality_binding_error(doc, source_txt)
+        else:
+            error = _get_saved_meta_binding_error(doc, source_txt, cancel_check)
+        if error is not None:
+            logger.warning("Ignoring recorded source normalizations from %s: %s", path, error)
+            continue
+        return changes
     return []
+
+
+def get_running_generation_source_normalizations(source_txt):
+    """Recorded normalizations for a generation that is still running.
+
+    A mid-run snapshot has a checkpoint but no completed manifest, so it
+    cannot read stored evidence. Recompute it through the same preprocessing
+    authority generation used; the snapshot route has already fenced the
+    running generation to this exact source.
+    """
+    from three_pass_generate import get_prepared_source_with_preprocessing
+    _book, _report, preprocessing = get_prepared_source_with_preprocessing(
+        source_txt, report=lambda message: None)
+    return preprocessing["source_normalizations"]
+
+
+def get_saved_script_normalization_metadata(recorded_normalizations, script_bytes):
+    """The ``.meta.json`` fields carrying recorded source normalizations.
+
+    One producer for every saved-script writer (Rule 15): the digest binds the
+    records to the exact script bytes stored beside them, so a copied or
+    replaced ``.meta.json`` cannot authorize normalizations for another script.
+    """
+    if not recorded_normalizations:
+        return {}
+    return {
+        "source_normalizations": list(recorded_normalizations),
+        "source_normalizations_script_sha256": hashlib.sha256(script_bytes).hexdigest(),
+    }
 
 
 def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir):

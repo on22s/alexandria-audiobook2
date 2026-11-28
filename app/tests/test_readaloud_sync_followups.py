@@ -52,8 +52,8 @@ class LaterChunkRunsOnTests(unittest.TestCase):
     ENTRIES = _entries("Alpha beta gamma.", "Delta epsilon. Zeta", "eta theta.")
 
     def test_maps_as_one_group_with_exact_word_windows(self):
-        mapping, cursor = map_spine_to_chunks(self.SPINE, self.ENTRIES, allow_span=True,
-                                              require_full_coverage=True)
+        mapping, cursor, _consumed = map_spine_to_chunks(self.SPINE, self.ENTRIES, allow_span=True,
+                                                         require_full_coverage=True)
         self.assertEqual(3, cursor)
         # The smallest common boundary is the end of chunk 2: chunk 1
         # straddles the blocks, so both blocks share chunks 0-2 and their
@@ -83,8 +83,8 @@ class SpokenTextTests(unittest.TestCase):
         self.assertIn("percent", get_spoken_text(self.BOOK))
 
     def test_rewritten_symbol_maps_exactly(self):
-        mapping, cursor = map_spine_to_chunks(_spine(self.BOOK),
-                                              _entries(get_spoken_text(self.BOOK)))
+        mapping, cursor, _consumed = map_spine_to_chunks(
+            _spine(self.BOOK), _entries(get_spoken_text(self.BOOK)))
         self.assertEqual(1, cursor)
         self.assertEqual([0], mapping[0]["chunk_indexes"])
 
@@ -125,8 +125,8 @@ class CjkCutInsideRunTests(unittest.TestCase):
 
     def test_cut_inside_a_run_maps(self):
         cut = 10  # inside the second 他们走进了大厅
-        mapping, cursor = map_spine_to_chunks(_spine(self.BOOK),
-                                              _entries(self.BOOK[:cut], self.BOOK[cut:]))
+        mapping, cursor, _consumed = map_spine_to_chunks(
+            _spine(self.BOOK), _entries(self.BOOK[:cut], self.BOOK[cut:]))
         self.assertEqual(2, cursor)
         self.assertEqual([0, 1], mapping[0]["chunk_indexes"])
 

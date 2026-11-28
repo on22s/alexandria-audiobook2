@@ -415,17 +415,71 @@ def _recorded_change_pattern(before_norm):
     return re.compile(pattern, re.UNICODE)
 
 
+def _get_repetition_unit(before_norm, phrase_words=None):
+    """The repeated token sequence of a recorded repetition run, or None.
+
+    The record's own ``before`` text is authoritative; ``phrase_words`` only
+    narrows the search. A run that is not a whole number of identical units is
+    not a recorded repetition change and is refused.
+    """
+    tokens = before_norm.split(" ")
+    if len(tokens) < 2:
+        return None
+    if type(phrase_words) is int:
+        widths = (phrase_words,)
+    else:
+        widths = range(1, EXTREME_PHRASE_MAX_WORDS + 1)
+    for width in widths:
+        if width < 1 or width > EXTREME_PHRASE_MAX_WORDS:
+            continue
+        if len(tokens) % width or len(tokens) // width < EXTREME_PHRASE_REPEAT_MIN:
+            continue
+        if all(tokens[position].casefold() == tokens[position % width].casefold()
+               for position in range(len(tokens))):
+            return " ".join(tokens[:width])
+    return None
+
+
+@lru_cache(maxsize=256)
+def _recorded_unit_neighbour_patterns(unit):
+    """Patterns that find one more repetition of ``unit`` on either side.
+
+    Case-insensitive because the repetition normalizer compares casefolded
+    words: "hello Hello hello ..." is one run there, so it is one run here.
+    """
+    pattern = _recorded_change_pattern(unit).pattern
+    return (re.compile(r"(?:" + pattern + r")\s*$", re.IGNORECASE | re.UNICODE),
+            re.compile(r"\s+(?:" + pattern + r")", re.IGNORECASE | re.UNICODE))
+
+
+def _is_whole_repetition_run(text, match, unit):
+    """True when ``match`` covers a whole repetition run, not part of a longer one.
+
+    A recorded 20-repetition change must not consume the first 20 of a 21-
+    repetition run: the normalizer records each run's actual length, so a
+    partial match is an unrecorded difference and must stay refused.
+    """
+    before_pattern, after_pattern = _recorded_unit_neighbour_patterns(unit)
+    if before_pattern.search(text[:match.start()]):
+        return False
+    return after_pattern.match(text[match.end():]) is None
+
+
 def get_valid_recorded_normalizations(changes):
     """Validate recorded source normalizations and return them in pipeline stage order.
 
-    Returns ``[(original_index, normalized_before, normalized_after), ...]``.
-    Unrecognized rules, malformed shapes, or forged entries that do not match
-    their rule's contract are rejected so an unrecorded mismatch is never
-    admitted.
+    Returns ``[(original_index, normalized_before, normalized_after, unit), ...]``
+    where ``unit`` is the repeated token sequence for an
+    ``extreme_phrase_repetition`` record and None otherwise. Unrecognized
+    rules, malformed shapes, forged entries that do not match their rule's
+    contract, and exact duplicate records (same offset, rule, before and
+    after) are rejected so an unrecorded mismatch is never admitted and one
+    recorded change cannot authorize two occurrences.
     """
     if not isinstance(changes, (list, tuple)):
         return []
     ordered = []
+    seen = set()
     for index, change in enumerate(changes):
         if not isinstance(change, dict):
             continue
@@ -436,12 +490,17 @@ def get_valid_recorded_normalizations(changes):
         after = change.get("after")
         if not isinstance(before, str) or not isinstance(after, str) or before == after:
             continue
+        identity = (change.get("offset"), rule, before, after)
+        if identity in seen:
+            continue
+        seen.add(identity)
         before_norm = " ".join(before.split())
         if not before_norm:
             continue
         after_norm = " ".join(after.split()) if after else ""
         if before_norm == after_norm:
             continue
+        unit = None
         if rule is None:
             expected = KNOWN_SOURCE_CORRUPTIONS.get(before_norm.casefold())
             if expected is None or after_norm.casefold() != expected:
@@ -450,6 +509,9 @@ def get_valid_recorded_normalizations(changes):
             if (not after_norm.endswith("…") or len(after_norm) < 2
                     or not before_norm.startswith(after_norm[:-1])
                     or normalize_extreme_phrase_repetitions(before_norm)[0] != after_norm):
+                continue
+            unit = _get_repetition_unit(before_norm, change.get("phrase_words"))
+            if unit is None:
                 continue
         elif rule == "homoglyph":
             if "".join(_HOMOGLYPH_MAP.get(ch, ch) for ch in before_norm) != after_norm:
@@ -460,29 +522,40 @@ def get_valid_recorded_normalizations(changes):
         elif rule == "stripped_apostrophe":
             if before_norm.count(" ") != 1 or before_norm.replace(" ", "'") != after_norm:
                 continue
-        ordered.append((_NORMALIZATION_STAGE_ORDER[rule], index, before_norm, after_norm))
-    ordered.sort(key=lambda item: (item[0], item[1]))
-    return [(index, before_norm, after_norm) for _stage, index, before_norm, after_norm in ordered]
+        ordered.append((_NORMALIZATION_STAGE_ORDER[rule], index, before_norm, after_norm, unit))
+    # Longest first within a stage: a shorter recorded run must never win a
+    # match that a longer recorded run owns (the whole-run check above also
+    # refuses a partial match, so this is a deterministic tie-break).
+    ordered.sort(key=lambda item: (item[0], -len(item[2].split(" ")), -len(item[2]), item[1]))
+    return [(index, before_norm, after_norm, unit)
+            for _stage, index, before_norm, after_norm, unit in ordered]
 
 
-def apply_recorded_source_normalizations(text, changes, *, consumed=None):
+def map_recorded_source_normalizations(text, changes, *, consumed=()):
     """Map ``text`` through unconsumed recorded source normalizations.
 
     One shared mapping helper (Rule 15) for recorded preprocessing rewrites
     (``extreme_phrase_repetition``, ``homoglyph``, ``illustration_caption``,
-    ``stripped_apostrophe``, and known source corruptions). Each recorded
-    change matches at most once and never mutates ``consumed``; callers commit
-    the returned ``used_indices`` only once the mapped span matches.
+    ``stripped_apostrophe``, and known source corruptions). ``consumed`` is
+    input-only: each record whose index is already there is skipped, and the
+    caller commits the returned ``used_indices`` only once the mapped span
+    matches (Rule 17). Records are matched by their recorded text, not their
+    ``offset``: offsets index the generation source (an extracted ``.txt``),
+    while this helper receives an EPUB spine segment, whose coordinates differ.
     """
     if not isinstance(text, str) or not text or not changes:
         return text, ()
-    used_already = consumed or ()
+    used_already = set(consumed or ())
     current = text
     used = []
-    for index, before_norm, after_norm in get_valid_recorded_normalizations(changes):
+    for index, before_norm, after_norm, unit in get_valid_recorded_normalizations(changes):
         if index in used_already:
             continue
-        match = _recorded_change_pattern(before_norm).search(current)
+        match = None
+        for candidate in _recorded_change_pattern(before_norm).finditer(current):
+            if unit is None or _is_whole_repetition_run(current, candidate, unit):
+                match = candidate
+                break
         if match is None:
             continue
         current = current[:match.start()] + after_norm + current[match.end():]

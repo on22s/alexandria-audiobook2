@@ -59,7 +59,7 @@ from epub_package import (EpubXmlEncodingError, get_epub_declaration_refusal,
                          is_navigation_document, parse_epub_xml,
                          split_epub_href)
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
-from source_normalization import apply_recorded_source_normalizations
+from source_normalization import map_recorded_source_normalizations
 from qwen_align import (get_normalized_stream, get_stream_chars,
                         get_token_key, get_validated_aligner_tokens,
                         require_exact_coverage, split_sentences,
@@ -638,17 +638,19 @@ def get_word_alignment_score(source_words, script_words):
 
 def _get_span_group(segment_words, first, script_words, cursor, *, carried=None,
                     allow_open_end=False, spine_segments=None,
-                    source_normalizations=None, consumed_normalizations=None,
-                    spoken_overrides=None):
+                    source_normalizations=None, initial_consumed=None):
     """Smallest segment run from ``first`` that ends with a chunk boundary.
 
     Segments and chunks are consumed together until their concatenated
     words are equal and end at the same place, whatever the shape: the
     first chunk may overrun the first segment, or a later chunk may run
     on into the next segment (#1844). Returns
-    ([(segment_index, word_start, word_end)], end_chunk, is_open), or
-    (None, cursor, False) when the words disagree or no common boundary
-    is reached.
+    ([(segment_index, word_start, word_end)], end_chunk, is_open,
+    used_record_indexes, spoken_overrides), or
+    (None, cursor, False, (), {}) when the words disagree or no common
+    boundary is reached. ``initial_consumed`` is read-only input; the new
+    consumed indexes and rewritten spoken texts are returned for the
+    caller to commit only on success (Rule 17).
 
     ``allow_open_end``: when this document's segments run out while the
     last chunk still has words, the group stays open (``is_open``) for the
@@ -666,7 +668,7 @@ def _get_span_group(segment_words, first, script_words, cursor, *, carried=None,
     members = []
     end = cursor
     checked = len(book)
-    trial_consumed = set(consumed_normalizations) if consumed_normalizations is not None else set()
+    trial_consumed = set(initial_consumed or ())
     local_overrides = {}
 
     def _try_words(candidate_words):
@@ -689,22 +691,22 @@ def _get_span_group(segment_words, first, script_words, cursor, *, carried=None,
             len(book), len(spoken), end, checked)
         if not _try_words(words):
             if not (source_normalizations and spine_segments is not None):
-                return None, cursor, False
+                return None, cursor, False, (), {}
             del book[saved_book:]
             del spoken[saved_spoken:]
             end, checked = saved_end, saved_checked
-            mapped_text, used = apply_recorded_source_normalizations(
+            mapped_text, used = map_recorded_source_normalizations(
                 spine_segments[index]["text"], source_normalizations,
                 consumed=trial_consumed)
             if not used:
-                return None, cursor, False
+                return None, cursor, False, (), {}
             mapped_spoken = get_spoken_text(mapped_text)
             mapped_words = get_normalized_words(mapped_spoken)
             if not mapped_words:
                 trial_consumed.update(used)
                 continue
             if not _try_words(mapped_words):
-                return None, cursor, False
+                return None, cursor, False, (), {}
             trial_consumed.update(used)
             local_overrides[index] = mapped_spoken
             words = mapped_words
@@ -713,24 +715,16 @@ def _get_span_group(segment_words, first, script_words, cursor, *, carried=None,
             # A lone segment exactly covered by whole chunks is the plain
             # case, not a group, unless it finishes a carried group.
             if len(members) > 1 or carried is not None:
-                if consumed_normalizations is not None:
-                    consumed_normalizations.update(trial_consumed)
-                if spoken_overrides is not None:
-                    spoken_overrides.update(local_overrides)
-                return members, end, False
-            return None, cursor, False
+                return members, end, False, trial_consumed, local_overrides
+            return None, cursor, False, (), {}
     if allow_open_end and members and len(spoken) > len(book):
-        if consumed_normalizations is not None:
-            consumed_normalizations.update(trial_consumed)
-        if spoken_overrides is not None:
-            spoken_overrides.update(local_overrides)
-        return members, end, True
-    return None, cursor, False
+        return members, end, True, trial_consumed, local_overrides
+    return None, cursor, False, (), {}
 
 
 def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=None, require_full_coverage=False,
                         allow_span=False, optional_titles=None, carry=None, allow_open_end=False,
-                        source_normalizations=None, consumed_normalizations=None):
+                        source_normalizations=None, initial_consumed_normalizations=None):
     """Map each spine segment to a contiguous chunk range or fail closed.
 
     script_entries: [{index, prepared_text, start_frame, end_frame}]
@@ -770,7 +764,15 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
     first. Only aligned (Qwen) timing can place such a split; chunk-timed
     builds refuse it.
 
-    Returns (mapping, end_cursor), retaining each row's original segment_index.
+    ``source_normalizations`` are recorded preprocessing rewrites; a segment
+    that does not match its raw spine words is retried through the shared
+    mapping helper and, when it matches, its rewritten spoken text is carried
+    on the row as ``spoken_text``. ``initial_consumed_normalizations`` is
+    read-only input; the returned consumed set is the caller's to carry into
+    the next spine document (Rule 17).
+
+    Returns (mapping, end_cursor, consumed_normalizations), retaining each
+    row's original segment_index.
     """
     if not spine_segments:
         raise ValueError("Spine document has no readable segments.")
@@ -785,8 +787,8 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
     mapping = []
     cursor = start
     segment_index = -1
-    consumed = consumed_normalizations if consumed_normalizations is not None else set()
-    initial_consumed = len(consumed)
+    consumed = set(initial_consumed_normalizations or ())
+    initial_consumed_count = len(consumed)
 
     def _append_group(members, group_start, group_end, crosses, still_open=False,
                       spoken_overrides=None):
@@ -822,24 +824,24 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
         group_start, matched = carry["group"], carry["matched_words"]
         if not (0 <= group_start < start <= len(script_entries)):
             raise ValueError("Spine mapping carry is invalid.")
-        carry_overrides = {}
-        members, group_end, still_open = _get_span_group(
+        members, group_end, still_open, used, carry_overrides = _get_span_group(
             segment_words, 0, script_words, start, carried=(group_start, matched),
             allow_open_end=allow_open_end, spine_segments=spine_segments,
             source_normalizations=source_normalizations,
-            consumed_normalizations=consumed, spoken_overrides=carry_overrides)
+            initial_consumed=consumed)
         if not members:
             first_text = next((s["text"] for s, w in zip(spine_segments, segment_words) if w), "")
             raise ValueError(
                 f"A script chunk continues past the end of the previous EPUB file, but the "
                 f"next file does not start with its remaining words (next file starts "
                 f"{first_text[:80]!r}).")
+        consumed.update(used)
         _append_group(members, group_start, group_end, True, still_open,
                       spoken_overrides=carry_overrides)
         segment_index = members[-1][0]
         cursor = group_end
         if still_open:
-            return mapping, cursor
+            return mapping, cursor, consumed
     while segment_index + 1 < len(spine_segments):
         segment_index += 1
         segment = spine_segments[segment_index]
@@ -848,7 +850,7 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
             continue
         if cursor >= len(script_entries):
             if source_normalizations:
-                mapped_text, used = apply_recorded_source_normalizations(
+                mapped_text, used = map_recorded_source_normalizations(
                     segment["text"], source_normalizations, consumed=consumed)
                 if used and not get_spoken_words(mapped_text):
                     consumed.update(used)
@@ -859,7 +861,7 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
         end_candidate = _match_chunks(source_words)
         mapped_spoken = None
         if end_candidate is None and source_normalizations:
-            mapped_text, used = apply_recorded_source_normalizations(
+            mapped_text, used = map_recorded_source_normalizations(
                 segment["text"], source_normalizations, consumed=consumed)
             if used:
                 candidate_spoken = get_spoken_text(mapped_text)
@@ -874,16 +876,15 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
         if end_candidate is None:
             # A chunk runs on past this segment: the first chunk overruns
             # it, or a later chunk carries on into the next segment.
-            group_overrides = {}
-            members, group_end, still_open = (
+            members, group_end, still_open, used, group_overrides = (
                 _get_span_group(segment_words, segment_index, script_words, cursor,
                                 allow_open_end=allow_open_end,
                                 spine_segments=spine_segments,
                                 source_normalizations=source_normalizations,
-                                consumed_normalizations=consumed,
-                                spoken_overrides=group_overrides)
-                if allow_span else (None, cursor, False))
+                                initial_consumed=consumed)
+                if allow_span else (None, cursor, False, (), {}))
             if members:
+                consumed.update(used)
                 _append_group(members, cursor, group_end, still_open, still_open,
                               spoken_overrides=group_overrides)
                 segment_index = members[-1][0]
@@ -921,7 +922,7 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
             row["spoken_text"] = mapped_spoken
         mapping.append(row)
         cursor = end_candidate
-    if cursor == start and not mapping and len(consumed) == initial_consumed:
+    if cursor == start and not mapping and len(consumed) == initial_consumed_count:
         raise ValueError("No spine text could be synchronized.")
     if require_full_coverage:
         used = {index for row in mapping for index in row["chunk_indexes"]}
@@ -933,7 +934,7 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
         if missing:
             raise ValueError(
                 f"Script entries {missing} have no unambiguous spine match; failing closed.")
-    return mapping, cursor
+    return mapping, cursor, consumed
 
 
 def _frame_to_ms(frame, sample_rate):
@@ -2437,13 +2438,13 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             # Image-only / empty XHTML (cover, title page): no narration
             # required and no chunks consumed; real visible text still maps.
             continue
-        mapping, cursor = map_spine_to_chunks(
+        mapping, cursor, consumed_normalizations = map_spine_to_chunks(
             segments, script_entries, start=cursor, allow_span=True,
             optional_titles=_get_optional_titles(root, segments, meta.get("toc") or [],
                                                  spine_item["path"]),
             carry=carry, allow_open_end=True,
             source_normalizations=source_normalizations,
-            consumed_normalizations=consumed_normalizations)
+            initial_consumed_normalizations=consumed_normalizations)
         if not mapping:
             continue
         carry = get_open_group_carry(mapping)
