@@ -957,6 +957,26 @@ class InchMarkTests(unittest.TestCase):
              ("NARRATOR", "she said.")],
             self._regions(source))
 
+    def test_different_inch_mark_inside_self_paired_speech_stays_spoken(self):
+        """#2398: straight/curly inch mark inside a different self-paired opener stays SPOKEN."""
+        for source, expected in (
+            ('＂The board is 6" wide,＂ he said.',
+             [("SPOKEN", 'The board is 6" wide,'), ("NARRATOR", "he said.")]),
+            ('"The board is 6” wide," he said.',
+             [("SPOKEN", 'The board is 6” wide,'), ("NARRATOR", "he said.")]),
+            # Negative controls: opener-shaped later `"` starts a new speech, so `1945”` closes.
+            ('"It was 1945” he said. "Next speech."',
+             [("SPOKEN", "It was 1945"),
+              ("NARRATOR", "he said."),
+              ("SPOKEN", "Next speech.")]),
+            ('"It was 1945” he said. "5 people came."',
+             [("SPOKEN", "It was 1945"),
+              ("NARRATOR", "he said."),
+              ("SPOKEN", "5 people came.")]),
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+
     def test_compound_and_two_measurements_stay_narration(self):
         cases = [
             ('The board was 6" wide and the beam was 12" long. "Measure twice," she said.',

@@ -3113,6 +3113,33 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(expected, dialogue_spans.is_inch_mark(text, pos, '"', True))
 
+    def test_different_mark_inside_self_paired_opener_judges_real_closer_by_shape(self):
+        """#2398: a different inch mark inside `"` or `＂` is True when a closer-shaped end exists."""
+        cases = [
+            ('＂The board is 6" wide,＂ he said.', 15, '"', '＂', True),
+            ('"The board is 6” wide," he said.', 15, '”', '"', True),
+            ('＂The board is 6” wide,＂ he said.', 15, '”', '＂', True),
+            ('"The board is 6＂ wide," he said.', 15, '＂', '"', True),
+            ('"The board is 6” wide"', 15, '”', '"', True),
+            ('＂The board is 6" wide＂', 15, '"', '＂', True),
+            ('"The board is 6” by 8"', 15, '”', '"', True),
+            # Opener-shaped or padded later self-paired mark cannot close this speech, so this mark closes.
+            ('"It was 1945” he said. "Next speech."', 12, '”', '"', False),
+            ('"It was 1945” he said. "5 people came."', 12, '”', '"', False),
+            ('"It was 1945” he held a " thing.', 12, '”', '"', False),
+            ('＂It was 1945" he said. ＂Next speech.＂', 12, '"', '＂', False),
+            ('"Room 5” he said. —"No."', 7, '”', '"', False),
+            # No later closer, or only digit-preceded closer with non-measurement tail.
+            ('"The board is 6” wide', 15, '”', '"', False),
+            ('"The board is 6” she said 8"', 15, '”', '"', False),
+        ]
+        for text, pos, mark, opener, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(
+                    expected,
+                    dialogue_spans.is_inch_mark(text, pos, mark, True, opener=opener),
+                )
+
     def test_every_measurement_unit_and_link_is_recognized(self):
         units = (
             "wide", "long", "tall", "high", "deep", "thick", "thin", "broad",

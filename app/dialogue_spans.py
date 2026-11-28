@@ -549,6 +549,18 @@ def _is_glued_opener_shaped(text, position):
     return after in ".…'"
 
 
+def _is_closer_shaped(text, position):
+    """Does `position` sit after text and before a word boundary?
+
+    A self-paired mark (`"`, `＂`) cannot say whether it opens or closes;
+    text before it and a word boundary after it mark a closer. Shared by
+    both self-paired inside-speech branches in `is_inch_mark` (#2398).
+    """
+    following = position + 1
+    return (position > 0 and not text[position - 1].isspace()
+            and (following >= len(text) or not text[following].isalnum()))
+
+
 def _skip_spaces(text, index):
     """-> offset of the first non-space at or after `index`."""
     while index < len(text) and text[index] in " \t":
@@ -844,14 +856,14 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
     if inside_speech and opener is not None and opener != mark:
         paragraph_end = _paragraph_end(text, position)
         closers = _closer_marks(opener)
-        next_opener = _next_mark(text, opener, position + 1, paragraph_end)
         if opener in closers:
-            # A self-paired opener (＂…＂) cannot tell its own marks apart, so
-            # any later one may be the closer.
+            # A self-paired opener (`"`, `＂`) cannot tell its own marks apart,
+            # so any later plain one may be the closer.
             bound = paragraph_end
         else:
             # A closer after the next opener of this speech belongs to that
             # speech, so only marks before it can close this one.
+            next_opener = _next_mark(text, opener, position + 1, paragraph_end)
             bound = paragraph_end if next_opener == -1 else next_opener
         next_closer = _next_plain_mark(
             text, closers, position + 1, bound)
@@ -874,7 +886,11 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
             # `“12””`: the second same mark is the real closer and this one is
             # its decoration, as main reads it.
             return False
-        return next_opener == -1 or next_closer < next_opener
+        if opener in closers:
+            # A self-paired opener has no distinct closer character; judge the
+            # later mark by shape, just like the same-mark branch below (#2398).
+            return _is_closer_shaped(text, next_closer)
+        return True
     if position + 1 >= len(text) or text[position + 1] in "\r\n":
         if inside_speech:
             return False
@@ -904,9 +920,7 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
     # it decides nothing here and this mark closes as always.
     if _is_glued_opener_shaped(text, next_position):
         return False
-    following = next_position + 1
-    return (not text[next_position - 1].isspace()
-            and (following >= len(text) or not text[following].isalnum()))
+    return _is_closer_shaped(text, next_position)
 
 
 def _paired_spans(text):
