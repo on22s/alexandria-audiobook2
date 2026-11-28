@@ -100,6 +100,39 @@ class EpubPackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'unknown encoding'):
                     get_epub_package(archive)
 
+    def test_a_stylesheet_pi_before_the_declaration_is_a_named_refusal(self):
+        # #2452 N1: a real declaration after a PI is malformed XML, but the
+        # unusable encoding named by the PI (or by the misplaced declaration)
+        # must still be the named refusal, not a bare Expat ParseError.
+        pi = ('<?xml-stylesheet type="text/xsl" href="s.xsl" '
+              'encoding="idna"?>')
+        for declaration in ('<?xml version="1.0" encoding="utf-8"?>',
+                            '<?xml version="1.0" encoding="idna"?>'):
+            container = (pi + declaration +
+                         '<container xmlns="urn:oasis:names:tc:opendocument:'
+                         'xmlns:container"><rootfiles><rootfile '
+                         'full-path="book.opf"/></rootfiles></container>')
+            with self.subTest(site='container', declaration=declaration), \
+                    self.archive(container=container) as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+            with self.subTest(site='opf', declaration=declaration), \
+                    self.archive(pi + declaration + '<package/>') as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+
+    def test_a_stylesheet_pi_without_a_declaration_is_not_refused(self):
+        # Guard the #2452 fix from overreach: a PI alone is not the XML
+        # declaration, so its encoding pseudo-attribute cannot refuse a
+        # well-formed package.
+        pi = ('<?xml-stylesheet type="text/xsl" href="s.xsl" '
+              'encoding="idna"?>')
+        container = (pi + '<container xmlns="urn:oasis:names:tc:opendocument:'
+                     'xmlns:container"><rootfiles><rootfile '
+                     'full-path="book.opf"/></rootfiles></container>')
+        with self.archive(container=container) as archive:
+            self.assertEqual('book.opf', get_epub_package(archive)[0])
+
     def test_a_utf16_document_with_a_python_only_declaration_is_refused(self):
         # The declaration bytes are UTF-16, so only a prolog decoded with the
         # BOM/signature encoding can name the codec; the same shared decision

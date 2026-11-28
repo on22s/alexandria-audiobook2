@@ -1856,6 +1856,32 @@ class DeclaredEncodingFallbackTests(unittest.TestCase):
                 # The declaration was honoured, not rewritten by the fallback.
                 self.assertNotIn('encoding="utf-8"', text)
 
+    def test_utf32_chapters_are_refused_before_narration(self):
+        # #2448: UTF-32LE's BOM begins with UTF-16LE's, and BOM-less UTF-32 is
+        # otherwise valid UTF-8 full of NULs. EPUB 3.3 allows only UTF-8 and
+        # UTF-16, so every UTF-32 signature is refused by name.
+        template = ('<?xml version="1.0" encoding="{encoding}"?><html>'
+                    '<body><p>Caf\u00e9.</p></body></html>')
+        rows = {
+            'utf32-le-bom': template.format(encoding='utf-32').encode('utf-32'),
+            'utf32-be-bom': (b'\x00\x00\xfe\xff' +
+                             template.format(encoding='utf-32-be')
+                             .encode('utf-32-be')),
+            'utf32-le-no-bom': template.format(encoding='utf-32-le')
+                               .encode('utf-32-le'),
+            'utf32-be-no-bom': template.format(encoding='utf-32-be')
+                               .encode('utf-32-be'),
+        }
+        for name, doc in rows.items():
+            with self.subTest(case=name):
+                raw = make_epub('', raw_document=doc, toc_links=[])
+                with self.assertRaisesRegex(
+                        ValueError, r'UTF-32.*OEBPS/ch1\.xhtml') as caught:
+                    extract_epub_text('synthetic.epub', archive_bytes=raw)
+                message = str(caught.exception)
+                self.assertNotIn('\x00', message)
+                self.assertNotIn('\ufffd', message)
+
     def test_the_strict_fallback_refusal_names_the_spine_index(self):
         # L3 rev2: the #2368 refusal must be wrapped like every other
         # malformed-resource refusal, naming the spine index and resource.

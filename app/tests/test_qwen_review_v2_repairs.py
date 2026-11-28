@@ -2252,7 +2252,7 @@ class SvgFirstTests(unittest.TestCase):
         suffix = b' encoding="utf-8"?>'
         body = (b'<svg xmlns="http://www.w3.org/2000/svg">'
                 b'<text>spoken</text></svg>')
-        pad = (er._EPUB_XML_DECL_MAX_BYTES + 2) - len(prefix) - len(suffix)
+        pad = (er.EPUB_XML_DECL_MAX_BYTES + 2) - len(prefix) - len(suffix)
         payload = prefix + b' ' * pad + suffix + body
         self.assertGreater(len(prefix) + pad + len(suffix), 64 * 1024)
         self.assertLessEqual(len(prefix) + pad + len(suffix),

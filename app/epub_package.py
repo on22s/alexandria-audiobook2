@@ -74,7 +74,7 @@ def get_epub_declaration_refusal(raw):
     SVG probe (Rule 15): both ask :func:`alexandria_alignment.is_unusable_epub_codec`
     about the declaration bytes Expat itself reads. The declaration is read to
     its closing ``?>`` (bounded by
-    :data:`alexandria_alignment._EPUB_XML_DECL_MAX_BYTES`), so padding before
+    :data:`alexandria_alignment.EPUB_XML_DECL_MAX_BYTES`), so padding before
     ``encoding=`` cannot hide a codec; a declaration still unterminated at the
     cap is refused as malformed. ``None`` means the declaration is usable or
     absent.
