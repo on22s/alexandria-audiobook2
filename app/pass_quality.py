@@ -26,10 +26,14 @@ from script_preflight import find_adjacent_duplicate_blocks, find_seam_duplicate
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # Derive every quote-mark set from dialogue_spans' single PAIRED table so the
 # source-map and the generator's segmenter cannot drift apart.
-from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
+from dialogue_spans import (BLANK_LINE as _BLANK_LINE,
+                            PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
+                            dash_line_unverified_prefixes as _dash_prefixes,
+                            dash_line_unverified_ranges as _dash_ranges,
                             get_guillemet_direction as _get_guillemet_direction,
                             is_inch_mark as _is_inch_mark,
-                            is_number_char as _is_number_char)
+                            is_number_char as _is_number_char,
+                            split_dash_line as _split_dash_line)
 
 _QUOTE_CHARS = set(_DS_QUOTE_MARKS) | {'”'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
@@ -41,11 +45,611 @@ _SENTENCE_END = set('.!?…。！？')
 _CURLY_AND_JAPANESE_CLOSE = ({closer for _opener, closer in _PAIRED
                               if closer not in ('"', '＂', '«', '»')} | {'”'})
 _SELF_PAIRED = {'"', '＂'}
+# A single-quoted speech span must close in its own paragraph and within this
+# many characters; an opener with no closer nearby is an apostrophe or a stray
+# mark, not dialogue. The crystal-coding-time fork found an unbounded `‘` ran to
+# the next stray apostrophe in a later paragraph.
+_SINGLE_QUOTE_MAX_SPAN = 500
+_SINGLE_QUOTE_OPEN_CLOSE = {"\u2018": "\u2019", "'": "'"}
+# A straight single quote also elides: 'tis, 'em, '90s open a word, not speech.
+_STRAIGHT_SINGLE_ELISION = re.compile(
+    r"(?:\d|tis|twas|twere|twill|em|cause|cos|round|bout|til|till|n)(?![A-Za-z])",
+    re.IGNORECASE)
+# The other-convention pairs a single-quoted speech can quote someone with.
+# Derived from dialogue_spans' single PAIRED table (Rule 15) so guillemets and
+# corner brackets cannot drift out of this set.
+_DOUBLE_QUOTE_PAIRS = tuple(_PAIRED)
+
+
+def _contains_paired_quote(text, start=0, end=None):
+    """True when `text[start:end]` holds one of `_DOUBLE_QUOTE_PAIRS` as a pair.
+
+    A number-preceded mark is an inch mark, not a delimiter, decided by the
+    same `dialogue_spans.is_inch_mark` the analyzer and the gate use (Rule 15):
+    `6" by 8"` is a measurement, not a nested quote (#2331 review 2). The
+    range form keeps the absolute offsets that predicate needs.
+    """
+    stop = len(text) if end is None else end
+    for opener, closer in _DOUBLE_QUOTE_PAIRS:
+        position = text.find(opener, start, stop)
+        while position != -1:
+            if not _is_inch_mark(text, position, opener):
+                candidate = text.find(closer, position + 1, stop)
+                while (candidate != -1
+                       and _is_inch_mark(text, candidate, closer)):
+                    candidate = text.find(closer, candidate + 1, stop)
+                if candidate != -1:
+                    return True
+                # No non-inch closer after this opener, so none can follow a
+                # later opener either: one scan, not one per mark.
+                break
+            position = text.find(opener, position + 1, stop)
+    return False
+
+
+def _is_single_quote_opener(text, index):
+    """True when the mark at `index` can open single-quoted speech.
+
+    The caller has already looked the mark up in `_SINGLE_QUOTE_OPEN_CLOSE`.
+    Curly and straight apostrophes are one character family: a mark after a
+    word character writes a possessive or contraction (`Anna’s`, `the Joneses’`,
+    `can't`) and a mark before `tis`/`em`/`90s` writes an elision. A `‘` after a
+    word character is a wrong-direction closer (`‚Hallo‘`), not an opener.
+    """
+    char = text[index]
+    previous = text[index - 1] if index else ""
+    if previous and (previous.isalnum()
+                     or previous in "\u2018\u2019'\u201a"):
+        return False
+    following = text[index + 1] if index + 1 < len(text) else ""
+    if not following or following.isspace():
+        return False
+    if char == "'" and _STRAIGHT_SINGLE_ELISION.match(text, index + 1):
+        return False
+    return True
+
+
+def _record_single_quote_closer(text, index, limit=None, opener=None,
+                                ambiguous=None, memo=None):
+    """True when the mark at `index` closes the span it opened.
+
+    Records in `ambiguous` a mark whose two readings the possessive lookahead
+    cannot settle (the `record` verb signals that side effect, Rule 16).
+    `memo` is the per-scan cache `_find_single_quote_closer` fills (see there).
+
+    A letter or digit after the mark makes it an apostrophe inside a word
+    (`can't`, `Anna’s`), not the end of speech. The closer side also elides and
+    forms possessives (`rock ’n’ roll`, `dogs’`, `boys'`); such a candidate is
+    skipped only when the span keeps going to a later closer that follows a
+    paired quote, which is the #2331 shape. `opener` is the offset of the mark
+    that opened this span, so a possessive AFTER the nested quote is also
+    skipped (`… “run”, and the dogs’ bones are here,’`, #2331 review 2).
+    `‘He runs’ she said.` keeps its closer because no later nested quote and no
+    later closer exist.
+
+    `memo` caches this predicate per scan for a given `(index, limit, opener)`;
+    `_find_single_quote_closer` passes `opener=None`, and the repeated suffix
+    scans of a mixed input hit that entry (#2381 gate 3).
+    """
+    if memo is not None:
+        key = ("closer", index, limit, opener)
+        cached = memo.get(key)
+        if cached is None:
+            recorded = []
+            result = _walk_single_quote_closer(
+                text, index, limit, opener, recorded, memo)
+            cached = (result, recorded[0] if recorded else None)
+            memo[key] = cached
+        if ambiguous is not None and cached[1] is not None:
+            ambiguous.append(cached[1])
+        return cached[0]
+    return _walk_single_quote_closer(text, index, limit, opener, ambiguous,
+                                     None)
+
+
+def _text_has_paired_quote(text, memo):
+    """Does `text` hold a paired quote anywhere? Cached in the scan's memo.
+
+    A chunk with no paired quote cannot adopt a single span, so its ambiguity
+    list is never consumed; this lets a possessive mark skip the lookahead.
+    """
+    cached = memo.get("has_paired_quote")
+    if cached is None:
+        cached = _contains_paired_quote(text)
+        memo["has_paired_quote"] = cached
+    return cached
+
+
+def _walk_single_quote_closer(text, index, limit, opener, ambiguous, memo):
+    """The uncached predicate behind `_record_single_quote_closer`."""
+    following = text[index + 1] if index + 1 < len(text) else ""
+    if following and following.isalnum():
+        return False
+    previous = text[index - 1] if index else ""
+    if (previous.lower() == "n" and index >= 2
+            and text[index - 2] in "\u2018\u2019'"):
+        # `rock ’n’ roll`: this apostrophe closes the elision, not the speech.
+        return False
+    if (previous.lower() == "s" and following.isspace() and limit is not None
+            and memo is not None and not _text_has_paired_quote(text, memo)):
+        # No paired quote exists anywhere, so no span can be adopted and the
+        # ambiguity list is never read. The possessive lookahead would fall
+        # through both of its branches to `False`, so this mark is a closer;
+        # the ~500-character lookahead chain on `‘a s’ ` repeated is skipped
+        # (#2381 gate 3 finding 2, adversarial dense-possessive input).
+        # This branch runs only on the memoised walk (`memo is not None`), so
+        # on a pairless chunk the memoised scan can end with an empty
+        # `ambiguous` list where the uncached walk records a lookahead mark.
+        # That is the only internal difference between the two builds:
+        # `_ambiguous_single_marks` is read only when a span was adopted, and
+        # adoption needs a paired quote, while the failed-range uncertainty
+        # needs a pair inside the range. Outputs are therefore identical;
+        # neutralising this branch makes the two builds identical including
+        # the list (rev6 differential, #2381).
+        return True
+    if (previous.lower() == "s" and following.isspace() and limit is not None
+            and _record_possessive_continuation(
+                text, index, opener, limit, ambiguous, memo)):
+        # `The dogs’ “bones” are here,’`, `'The dogs' "bones",'` and
+        # `… “run”, and the dogs’ bones are here,’`: the apostrophe is a plural
+        # possessive, not the closer.
+        return False
+    return True
+
+
+def _find_single_quote_closer(text, start, limit, closer, ambiguous=None,
+                              memo=None):
+    """-> the first mark at or after `start` that can really close a span.
+
+    Records in `ambiguous` a mark whose two readings the closer predicate
+    cannot settle (it forwards the list to `_record_single_quote_closer`).
+
+    A letter after the mark makes it an apostrophe (`it’s`, `don’t`), and an
+    elision apostrophe does too, so neither can be the `later` closer the
+    possessive lookahead is looking for (#2331 review 4). Searching for the
+    raw character stopped at the apostrophe inside a nested `“it’s loud”`.
+
+    `memo` is the one scan's cache, keyed by `(start, limit, closer)`. The
+    search never reads `ambiguous`, so a cached result is exact; on a hit it
+    records one mark if that search recorded any, so the caller's uncertainty
+    signal is unchanged. Without it, a possessive inside a nested pair
+    re-entered the same suffix search from every spanning candidate and the
+    mixed-input scan was exponential (#2381 gate 3).
+    """
+    if memo is None:
+        memo = {}
+    key = ("find", start, limit, closer)
+    cached = memo.get(key)
+    if cached is None:
+        recorded = []
+        result = -1
+        position = text.find(closer, start, limit)
+        while position != -1:
+            if _record_single_quote_closer(
+                    text, position, limit, None, recorded, memo):
+                result = position
+                break
+            position = text.find(closer, position + 1, limit)
+        # Only the first mark matters: the scan turns the list into a
+        # truthiness test, and replaying every mark a hit recorded made the
+        # list copy quadratic per hit (the exponential input was still 45 s at
+        # 450 characters with the full list). One real recorded mark preserves
+        # every consumer's result.
+        cached = (result, recorded[0] if recorded else None)
+        memo[key] = cached
+    if ambiguous is not None and cached[1] is not None:
+        ambiguous.append(cached[1])
+    return cached[0]
+
+
+def _record_single_quote_opener_between(text, start, end, ambiguous=None,
+                                        limit=None, closer=None, memo=None):
+    """Does a candidate SIBLING speech opener start in `text[start:end]`?
+
+    Records the candidate in `ambiguous` when the nested and sibling readings
+    both fit (the `record` verb signals that side effect, Rule 16).
+
+    A candidate opener that has its own closer is a closed nested quotation,
+    not a sibling: `‘The dogs’ “run” and ‘fort’ are here,’` keeps `dogs’` as a
+    possessive because `‘fort’` has its own closer. Only an opener with no
+    closer of its own starts a new speech (#2331 review 4). Since `end` is the
+    earliest closer that could close the continuing span, the candidate's own
+    closer is `end` when it uses the SAME single-quote character. When it uses
+    the other convention (`'` inside `‘…’`, or the reverse) its closer lies
+    before `end`, so it is a closed nested quotation, not a sibling.
+
+    That case supports both readings: a nested quotation inside the continuing
+    speech, or a sibling speech whose closer is the same mark. A sentence
+    terminator between the mark and the candidate means the previous sentence
+    ended, so it is the sibling reading (`‘Yes’ she said. ‘He said “run”,’`);
+    without one it is the nested reading. When both readings remain plausible
+    the mark is recorded in `ambiguous` and the sibling reading wins, so the
+    chunk is never certified.
+
+    Without a terminator, the nested reading still needs a later mark to close
+    the continuing span. If `end` is the last mark that can close it, the nested
+    reading cannot produce a span at all: the lookahead would lose both the
+    outer and the inner speech. `‘Yes’ she said ‘He said “run”,’ he said.` is
+    that chunk, so the sibling reading is forced there and both spans survive.
+    The same shape is an unclosed speech whose candidate nests a pair (British
+    multi-paragraph, a chunk-end cut, a closer past the 500-character bound), so
+    the mark is recorded and the chunk is uncertain: `quotes` returns
+    `quote_forced`, never `quote_presegmented` (#2331 review 5 / gate review 1).
+
+    A candidate of the OTHER convention is a closed nested quotation whenever
+    it has its own closer, so it never forces the sibling reading. It can still
+    be read as a sibling whose closer is a later mark of the other convention,
+    and with no later closer that sibling reading would close the continuing
+    span early (`‘Yes’ she said, holding up 'Exhibit “A”' to the jurors’
+    faces.`). The mark is recorded so the chunk is uncertain, but the nested
+    reading wins and the span keeps going (#2381 gate 3 finding 1).
+    `memo` caches the walk per scan; the result is read-only, and the walk's
+    marks are replayed as one real mark on a hit (only the caller's truthiness
+    test consumes them).
+    """
+    if memo is None:
+        return _walk_single_quote_openers_between(
+            text, start, end, ambiguous, limit, closer, None)
+    key = ("open", start, end, limit, closer)
+    cached = memo.get(key)
+    if cached is None:
+        recorded = []
+        result = _walk_single_quote_openers_between(
+            text, start, end, recorded, limit, closer, memo)
+        cached = (result, recorded[0] if recorded else None)
+        memo[key] = cached
+    if ambiguous is not None and cached[1] is not None:
+        ambiguous.append(cached[1])
+    return cached[0]
+
+
+def _single_quote_opener_positions(text, memo):
+    """-> the positions in `text` that can open single-quoted speech.
+
+    Cached in the one scan's `memo`; the possessive lookahead re-walks the same
+    text many times (#2381 gate 3).
+    """
+    cached = memo.get("openers")
+    if cached is None:
+        cached = [index for index, char in enumerate(text)
+                  if char in _SINGLE_QUOTE_OPEN_CLOSE
+                  and _is_single_quote_opener(text, index)]
+        memo["openers"] = cached
+    return cached
+
+
+def _sentence_end_prefix(text, memo):
+    """-> `prefix[i]` = the number of sentence terminators in `text[:i]`."""
+    cached = memo.get("sentence_prefix")
+    if cached is None:
+        cached = [0] * (len(text) + 1)
+        total = 0
+        for index, char in enumerate(text):
+            if char in _SENTENCE_END:
+                total += 1
+            cached[index + 1] = total
+        memo["sentence_prefix"] = cached
+    return cached
+
+
+def _contains_paired_quote_cached(text, start, end, memo):
+    """`_contains_paired_quote`, memoised in the one scan's cache."""
+    if memo is None:
+        return _contains_paired_quote(text, start, end)
+    key = ("paired", start, end)
+    cached = memo.get(key)
+    if cached is None:
+        cached = _contains_paired_quote(text, start, end)
+        memo[key] = cached
+    return cached
+
+
+def _walk_single_quote_openers_between(text, start, end, ambiguous, limit,
+                                       closer, memo):
+    """The uncached walk behind `_record_single_quote_opener_between`."""
+    if memo is None:
+        positions = range(start, end)
+        sentence_end_prefix = None
+    else:
+        # Only real opener marks matter here, and the same text is walked by
+        # hundreds of possessive lookaheads. One per-scan list instead of a
+        # per-position predicate drops most of the walk's cost on quote-dense
+        # input (#2381 gate 3 finding 2).
+        from bisect import bisect_left
+        all_openers = _single_quote_opener_positions(text, memo)
+        positions = all_openers[bisect_left(all_openers, start):
+                                bisect_left(all_openers, end)]
+        sentence_end_prefix = _sentence_end_prefix(text, memo)
+        start_prefix = sentence_end_prefix[start]
+    sentence_end = False
+    for position in positions:
+        if sentence_end_prefix is not None:
+            sentence_end = sentence_end_prefix[position] > start_prefix
+        else:
+            if position > start and text[position - 1] in _SENTENCE_END:
+                # Running form of "is a sentence terminator between start and
+                # position" for the uncached path (#2381 gate 3). Update it on
+                # every position, before the opener filter skips one.
+                sentence_end = True
+            if (text[position] not in _SINGLE_QUOTE_OPEN_CLOSE
+                    or not _is_single_quote_opener(text, position)):
+                continue
+        own = _find_single_quote_closer(
+            text, position + 1, end + 1,
+            _SINGLE_QUOTE_OPEN_CLOSE[text[position]], ambiguous, memo)
+        if own == -1:
+            return True  # an opener with no closer of its own: a sibling
+        # `own == end` means the candidate is closed at the same mark that
+        # could close the continuing span. A candidate of the other convention
+        # closes before `end`, so it is a nested quotation and falls through
+        # below. A sentence terminator before it selects the sibling reading;
+        # otherwise it is a nested quotation.
+        if sentence_end and ambiguous is not None:
+            ambiguous.append(position)
+        if sentence_end:
+            return True
+        if (limit is not None and closer is not None
+                and _contains_paired_quote_cached(
+                    text, position + 1, own, memo)
+                # The later-closer lookahead deliberately takes no `ambiguous`.
+                # Every mark it sees lies past `end`, so recording one would
+                # only demote chunks for marks that belong to the next sentence.
+                # Round 8 re-measured the omission after the item-1 recording:
+                # restoring the argument changes 10,209 of 200,000 round-8 fuzz
+                # chunks, all two-sentence `mixed_sib_after`, and one gate-fuzz
+                # string, every one `quote_presegmented` -> `quote_forced`. The
+                # two-sentence subtests pin it (#2381 gate 3 finding 3).
+                and _find_single_quote_closer(
+                    text, end + 1, limit, closer, None, memo) == -1):
+            # No later mark can close the continuing span, so the nested
+            # reading would drop it and the candidate's own speech with it.
+            # Only the candidate is worth keeping when its own text nests the
+            # paired quote; otherwise forcing the sibling would close a span
+            # that holds no speech and certify the analysis it used to abstain
+            # from (`‘The dogs’ “run” and ‘fort’ are here,`).
+            # The forced reading is still one of two readings: an unclosed
+            # speech whose candidate nests a pair (British multi-paragraph,
+            # a chunk-end cut, a closer past the 500-character bound) looks
+            # the same from here. Record the mark so the chunk is uncertain and
+            # `quotes` returns `quote_forced` instead of certifying the split
+            # (#2331 gate review 1).
+            if ambiguous is not None:
+                ambiguous.append(position)
+            if own == end:
+                # Same convention: the candidate can only close at the mark
+                # that closes the continuing span, so the nested reading loses
+                # its own speech. Force the sibling reading.
+                return True
+            # Other convention: its own closer is before `end`, so the nested
+            # reading keeps the span. Recording the mark above is enough to
+            # abstain; do not force the sibling (#2381 gate 3, item 1).
+    return False
+
+
+def _record_possessive_continuation(text, index, opener, limit, ambiguous=None,
+                                    memo=None):
+    """Is the `…s’`/`…s'` mark at `index` a possessive with a later closer?
+
+    Records in `ambiguous` a candidate the sibling lookahead cannot settle (the
+    `record` verb signals that side effect, Rule 16).
+
+    The span keeps going when a paired quote sits anywhere between the opener
+    and the next closer, including a pair that straddles this mark
+    (`“the dogs’ bones”`). With no later closer the mark is the end of the
+    speech (`‘He runs’ she said.`). The closer is the first mark that passes
+    `_record_single_quote_closer`, so an apostrophe inside the nested quote
+    (`“it’s loud”`) is not mistaken for it (#2331 review 4).
+
+    A candidate sibling speech opener before that later closer ends the
+    lookahead: `‘Yes’ she said. ‘He said “run”,’ he said.` The `Yes’` mark ends
+    its own sentence and the sibling `‘` opens a new speech, so this is a
+    closer, not a possessive with a continuation (#2331 review 3). A closed
+    nested quotation between the mark and the later closer is not a sibling
+    (`‘The dogs’ “run” and ‘fort’ are here,’`), so it does not truncate the
+    span. Without the sibling/closer distinction both spans were lost and
+    main's inside-out split was certified.
+    """
+    if memo is not None:
+        key = ("poss", index, opener, limit)
+        cached = memo.get(key)
+        if cached is None:
+            recorded = []
+            result = _walk_possessive_continuation(
+                text, index, opener, limit, recorded, memo)
+            cached = (result, recorded[0] if recorded else None)
+            memo[key] = cached
+        if ambiguous is not None and cached[1] is not None:
+            ambiguous.append(cached[1])
+        return cached[0]
+    return _walk_possessive_continuation(
+        text, index, opener, limit, ambiguous, None)
+
+
+def _walk_possessive_continuation(text, index, opener, limit, ambiguous, memo):
+    """The uncached walk behind `_record_possessive_continuation`."""
+    closer = text[index]
+    later = _find_single_quote_closer(
+        text, index + 1, limit, closer, ambiguous, memo)
+    if later == -1:
+        return False
+    if _record_single_quote_opener_between(
+            text, index + 1, later, ambiguous, limit, closer, memo):
+        return False
+    if opener is not None:
+        # A pair that straddles the mark also belongs to the quote the span
+        # nests (`“the dogs’ bones”`): neither side alone contains the pair,
+        # so checking only before or only after it truncated the span at the
+        # possessive and certified main's inside-out split (#2331 review 5).
+        return _contains_paired_quote_cached(text, opener + 1, later, memo)
+    return _contains_paired_quote_cached(text, index + 1, later, memo)
+
+
+def _single_quote_span_limit(text, index):
+    """The end bound for a span opened at `index` (#2331)."""
+    limit = min(index + _SINGLE_QUOTE_MAX_SPAN + 1, len(text))
+    # Bound the paragraph search too: an unbounded search rescanned the rest
+    # of a quote-heavy chunk for every opener (#2331 review 2).
+    paragraph = _BLANK_LINE.search(text, index + 1, limit)
+    return paragraph.start() if paragraph else limit
+
+
+def _scan_single_quoted_speech_spans(text):
+    """-> (spans, failed_ranges, ambiguous_marks); the one scan (#2331)."""
+    spans, failed_ranges, ambiguous, index, length = [], [], [], 0, len(text)
+    memo = {}
+    while index < length:
+        closer = _SINGLE_QUOTE_OPEN_CLOSE.get(text[index])
+        if closer is None or not _is_single_quote_opener(text, index):
+            index += 1
+            continue
+        limit = _single_quote_span_limit(text, index)
+        stack = [(index, closer)]
+        cursor = index + 1
+        closed = False
+        while cursor < limit:
+            level_closer = stack[-1][1]
+            if (text[cursor] == level_closer
+                    and _record_single_quote_closer(text, cursor, limit,
+                                                    stack[-1][0], ambiguous,
+                                                    memo)):
+                stack.pop()
+                if not stack:
+                    if text[index + 1:cursor].strip():
+                        spans.append((index, index + 1, cursor, cursor))
+                    index = cursor + 1
+                    closed = True
+                    break
+            else:
+                inner_closer = _SINGLE_QUOTE_OPEN_CLOSE.get(text[cursor])
+                if (inner_closer is not None
+                        and _is_single_quote_opener(text, cursor)):
+                    stack.append((cursor, inner_closer))
+            cursor += 1
+        if not closed:
+            # The nesting could not be resolved: nothing inside this opener's
+            # range can be adopted, or a span that was only "top level" because
+            # the outer quote failed would be certified as speech.
+            failed_ranges.append((index, limit))
+            # An opener still on the stack started inside this failed range and
+            # never closed either. Record its own range as well, so a pair it
+            # contains still marks the chunk uncertain: resuming after the
+            # range used to hide the inner failed range (#2331 review 4). It is
+            # record-only; the spans found after the jump are still filtered.
+            # Only the innermost open range is recorded: every earlier stack
+            # range starts before it and the outer range already covers the
+            # text up to `limit`, so the innermost bound is the only one that
+            # can reach a pair past the outer bound. Recording the whole stack
+            # made the uncertainty pass superlinear on the 75 KB all-opener
+            # input.
+            if len(stack) > 1:
+                nested_index = stack[-1][0]
+                failed_ranges.append(
+                    (nested_index, _single_quote_span_limit(text, nested_index)))
+            # No span starting inside a failed range can be adopted (it is
+            # dropped below), so resume after the range instead of scanning
+            # every opener inside it. Without this an adversarial all-opener
+            # input was O(n * 500): 75 KB took 2.5-3.6 s (#2331 review 3).
+            index = limit
+            continue
+    return ([span for span in spans
+             if not any(start < span[0] < end for start, end in failed_ranges)],
+            failed_ranges, ambiguous)
+
+
+def get_single_quoted_speech_spans(text):
+    """-> [(opener, content_start, content_end, closer)] for single-quoted speech.
+
+    ONE function decides what a single-quoted speech span is, so the quote
+    decision and the segment gate cannot disagree (#2331). A span opens only on
+    a real opener and must close before the paragraph ends and within
+    `_SINGLE_QUOTE_MAX_SPAN` characters of that opener.
+
+    A span may itself quote with single quotes (`‘He said “run” to ‘Bob’ then
+    left,’`): an inner real opener raises the single-quote depth and its closer
+    lowers it, so the outer span closes only at depth 0 (#2331 review 2). When
+    the nesting cannot be resolved within the bound, no outer span is returned
+    (abstain) instead of closing at the inner mark.
+    """
+    return _scan_single_quoted_speech_spans(text)[0]
+
+
+def is_double_quote_inside_span(text, start, end):
+    """Does the single-quoted speech between these offsets quote someone with a
+    paired other-convention phrase?"""
+    return _contains_paired_quote(text, start, end)
+
+
+def _get_adopted_single_quote_spans(text, spans, failed_ranges=()):
+    """The adopted spans for a scan result; see get_adopted_single_quote_spans."""
+    adopted = [span for span in spans
+               if is_double_quote_inside_span(text, span[1], span[2])]
+    if not adopted:
+        return []
+    excluded = [(opener, closer + 1) for opener, _start, _end, closer in spans]
+    # A pair inside a range whose single-quote nesting could not be resolved is
+    # not the chunk's outer convention either: it may be the inner speech of a
+    # second speech the scan could not pair. Adopting the spans that did close
+    # and marking the chunk uncertain is the decided behaviour (#2331 review 4).
+    excluded.extend(failed_ranges)
+    if _has_paired_quote_outside(text, excluded):
+        return []
+    return adopted
+
+
+def get_adopted_single_quote_spans(text):
+    """-> the single-quoted spans this chunk adopts as its speech (#2331).
+
+    Only a span that nests a paired other-convention quote is adopted, so a
+    quoted title in narration (`Later ‘Hamlet’ was banned.`) stays narration.
+    A chunk that also pairs double quotes outside every single span and every
+    unresolved range is a double-quoted book whose narration quotes someone, so
+    nothing is adopted and the chunk keeps main's analysis. The same list is
+    the gate's only source of allowed nested marks, so decision and gate cannot
+    disagree.
+    """
+    spans, failed_ranges, _ambiguous = _scan_single_quoted_speech_spans(text)
+    return _get_adopted_single_quote_spans(text, spans, failed_ranges)
+
+
+def _is_plausible_uncertain_opener(text, index):
+    """Can the opener at `index` be a speech opener the model should be asked
+    about?
+
+    A straight `'` immediately before `-`/`"` after sentence punctuation is a
+    stray apostrophe in double-quoted prose (`composed?'"`, `applicants.'--`),
+    not a speech opener. Main's split for such a chunk is usually right, so the
+    uncertainty net must not fire there (#2331 review 4).
+    """
+    if not _is_single_quote_opener(text, index):
+        return False
+    if text[index] != "'":
+        return True
+    previous = text[index - 1] if index else ""
+    following = text[index + 1] if index + 1 < len(text) else ""
+    if previous in _SENTENCE_END and following in "-\u2010\u2011\u2012\u2013\u2014\u2015\"":
+        return False
+    return True
+
+
+def _has_paired_quote_outside(text, excluded_ranges):
+    """Is there a paired quote outside every range in `excluded_ranges`?"""
+    cursor = 0
+    for start, end in sorted(excluded_ranges):
+        if start >= cursor and _contains_paired_quote(text, cursor, start):
+            return True
+        cursor = max(cursor, end)
+    return _contains_paired_quote(text, cursor)
 
 
 _REPORTING_VERBS = (
     r"(?:murmured|whispered|said|replied|answered|asked|cried|shouted|exclaimed)"
 )
+# English-only, and deliberately separate from
+# `dialogue_spans._DASH_REPORTING_VERBS`: this one repairs a reporting verb
+# beside PAIRED quotes (prefix/suffix inference, #1216), where the verb list
+# must stay conservative and monolingual. The dash-tag decision has its own
+# multilingual, closed table there (#2390 review 3 nit 10). Changing one does
+# not change the other, by design.
 _REPORTING_VERB_TAIL = re.compile(
     rf"\b{_REPORTING_VERBS},?\s+([^\n]{{1,120}})$", re.IGNORECASE)
 _SOURCE_LABEL_TAIL = re.compile(r"(?:^|\n\n)([^\n]{1,60})$")
@@ -91,6 +695,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     outer_opener = None  # the mark that opened depth 1, for the inch predicate
     german_inner = False  # inside an English quote nested in a German speech
     skip_until = -1  # consumed by a line-dash dialogue region
+    unverified_dash = False  # dash line had interior break without tag evidence
 
     # One guillemet direction per text: an opposite-direction closer must not
     # be parsed as an opener (HIGH in the app-wide review). Decided by the
@@ -112,6 +717,48 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
         at = bisect_right(quote_positions, index)
         return quote_at[quote_positions[at]] if at < len(quote_positions) else None
 
+    # Single-quoted speech that quotes someone in another convention (#2331).
+    # Its outer convention is the single quote, so the other marks inside it
+    # are nested speech, not the mark that opens this chunk's speech. Only
+    # spans that nest such a quote are adopted, and nothing is adopted when
+    # the chunk already pairs double quotes outside them (a double-quoted book
+    # quoting in its narration), so a double-quoted book keeps its analysis
+    # byte for byte.
+    # The same scan supplies the failed ranges and the complete spans the
+    # analysis did not adopt. A span-start scan is not repeated (#2331).
+    _all_single_spans, _failed_single_ranges, _ambiguous_single_marks = (
+        _scan_single_quoted_speech_spans(text))
+    adopted_single_spans = _get_adopted_single_quote_spans(
+        text, _all_single_spans, _failed_single_ranges)
+    # A range whose single-quote nesting could not be resolved is uncertain
+    # when a paired quote sits inside it and the chunk does not already pair
+    # quotes outside it: the analysis cannot tell whether that pair is the
+    # chunk's outer convention or inner speech, so nothing may be certified
+    # (#2331 review 3). The outside check ignores the failed range and the
+    # spans the analysis adopted, so a targeted chunk that also has an
+    # unresolvable range is uncertain (`‘He said “run”,’ she said. ‘Then she
+    # said “go”`), while a double-quoted book whose prose has a stray straight
+    # apostrophe keeps main's analysis (#2331 review 4).
+    uncertain_single = any(
+        _is_plausible_uncertain_opener(text, start)
+        and _contains_paired_quote(text, start, end)
+        and not _has_paired_quote_outside(
+            text, [(start, end)]
+            + [(span[0], span[3] + 1) for span in adopted_single_spans])
+        for start, end in _failed_single_ranges)
+    if adopted_single_spans and _ambiguous_single_marks:
+        # The possessive lookahead could not choose between a nested quotation
+        # and a sibling speech; the scan took the sibling reading so the spans
+        # still split, but the chunk must not be certified (#2331 review 4).
+        uncertain_single = True
+    span_by_opener = {span[0]: span for span in adopted_single_spans}
+    single_openers = {opener: closer
+                      for opener, _content_start, _content_end, closer
+                      in adopted_single_spans}
+    nested_single = False
+    open_single_close = None
+    opened_single_spans = []  # only spans the analysis actually adopted
+
     def flush():
         nonlocal pending_source_label
         part = "".join(current).strip()
@@ -126,16 +773,22 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     for index, char in enumerate(text):
         if index < skip_until:
             continue
-        if dash_is_dialogue and char in "—–" and (index == 0 or text[index - 1] == "\n"):
-            # Continental line-dash dialogue: the rest of this line is speech.
+        if (dash_is_dialogue and not depth and char in "—–"
+                and not text[text.rfind("\n", 0, index) + 1:index].strip(" \t")):
+            # Continental line-dash dialogue: split at evidenced tags via the
+            # single shared rule in dialogue_spans (#2329).
             flush()
             line_end = text.find("\n", index)
             if line_end == -1:
                 line_end = len(text)
-            spoken = text[index + 1:line_end].strip()
-            if spoken:
-                regions.append({"type": "SPOKEN", "text": spoken})
-                saw_quote = True
+            parts, ambiguous = _split_dash_line(text, index + 1, line_end)
+            if ambiguous:
+                unverified_dash = True
+            for part_type, part_start, part_end in parts:
+                part_text = text[part_start:part_end].strip()
+                if part_text:
+                    regions.append({"type": part_type, "text": part_text})
+                    saw_quote = True
             skip_until = line_end
             continue
         if char == "\n" and text[index:index + 2] == "\n\n" and depth:
@@ -148,6 +801,24 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             # next English “…” read as a nested German quote: its speech went
             # to NARRATOR, or the narration before it to SPOKEN.
             open_stack.clear()
+        if index in single_openers and depth == 0:
+            # The span is the book's speech here even though ‘ and ' are not
+            # in PAIRED. Its outer delimiters are omitted like any others.
+            flush()
+            depth = 1
+            outer_opener = char
+            open_single_close = single_openers[index]
+            opened_single_spans.append(span_by_opener[index])
+            nested_single = True
+            saw_quote = True
+            continue
+        if (open_single_close is not None and index == open_single_close
+                and depth == 1):
+            flush()
+            depth = 0
+            outer_opener = None
+            open_single_close = None
+            continue
         if char == "“" and open_stack and open_stack[-1] == "„":
             # `“` closes German, but also opens English. If a `”` follows it
             # next, this is an English quote nested inside the German speech.
@@ -183,6 +854,10 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 depth = 1
                 outer_opener = char
                 saw_quote = True
+            elif outer_opener in _SINGLE_QUOTE_OPEN_CLOSE:
+                # A double quote nested inside single-quoted speech is inner
+                # speech, not a new top-level quote convention (#2331).
+                depth += 1
             elif not text[paragraph_start:index].strip():
                 # Publishers repeat an opening quote at the start of each
                 # paragraph in one continuous, multi-paragraph speech.
@@ -215,8 +890,14 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
         if char in closers and depth:
             # A closer-shaped mark after a number can be an inch mark instead;
             # the shared predicate settles it from the open speech's opener
-            # (#2314).
-            if _is_inch_mark(text, index, char, True, opener=outer_opener):
+            # (#2314). Inside single-quoted speech at depth 1 no nested quote
+            # is open, so a digit-preceded mark is a measurement (#2331).
+            if outer_opener in _SINGLE_QUOTE_OPEN_CLOSE and depth == 1:
+                if _is_inch_mark(text, index, char):
+                    current.append(char)
+                    saw_quote = True
+                    continue
+            elif _is_inch_mark(text, index, char, True, opener=outer_opener):
                 current.append(char)
                 saw_quote = True
                 continue
@@ -284,11 +965,28 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             # A straight mark after a number can be an inch mark (6" wide),
             # not a delimiter; the shared predicate also settles the
             # inside-speech case. It is text, so it stays in the region
-            # (#2314).
-            if _is_inch_mark(text, index, char, bool(depth),
-                             opener=outer_opener):
+            # (#2314). Inside single-quoted speech at depth 1 no nested quote
+            # is open, so a digit-preceded mark is a measurement (#2331).
+            if outer_opener in _SINGLE_QUOTE_OPEN_CLOSE and depth == 1:
+                if _is_inch_mark(text, index, char):
+                    current.append(char)
+                    saw_quote = True
+                    continue
+            elif _is_inch_mark(text, index, char, bool(depth),
+                               opener=outer_opener):
                 current.append(char)
                 saw_quote = True
+                continue
+            if outer_opener in _SINGLE_QUOTE_OPEN_CLOSE:
+                # A straight double-quote pair nested in single-quoted speech
+                # opens and closes a nesting level instead of toggling the
+                # outer speech (#2331).
+                if open_stack and open_stack[-1] == char:
+                    depth -= 1
+                    open_stack.pop()
+                else:
+                    depth += 1
+                    open_stack.append(char)
                 continue
             if depth == 0 and _is_metadata_paragraph(current):
                 saw_quote = True
@@ -317,9 +1015,44 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     else:
         flush()
     complete = depth == 0 or allow_open_end
-    return {"regions": regions if saw_quote and complete else [],
-            "repairs": repairs, "initial_depth": initial_depth,
-            "final_depth": depth}
+    # Complete single-quoted spans this analysis did not adopt. Only a
+    # targeted chunk reports them, and the gate accepts a SPOKEN row equal to
+    # one of them, so a model that splits sibling speeches the analyzer could
+    # not certify is not rejected (#2331 review 2). A non-targeted chunk keeps
+    # its rejection (`Titles in narration`), as on main.
+    unadopted_single_spans = []
+    if opened_single_spans:
+        opened = set(opened_single_spans)
+        unadopted_single_spans = [span for span in _all_single_spans
+                                  if span not in opened]
+    result = {"regions": regions if saw_quote and complete else [],
+              "repairs": repairs, "initial_depth": initial_depth,
+              "final_depth": depth,
+              # A chunk whose double-quoted speech is nested inside single-quoted
+              # speech: the double quotes are not this chunk's outer convention,
+              # so the quote decision must ask the model instead of trusting them
+              # (#2331). Kept beside the regions because the same analysis is the
+              # segment gate, which still needs the correct single-quote split.
+              "nested_single_quoted_speech": nested_single,
+              # A failed single-quote range that contains a paired quote. The
+              # analysis cannot tell which convention governs, so neither
+              # "auto"/"lexical" nor "quotes" may certify the split (#2331
+              # review 3). The gate result stays main's: no span was adopted.
+              "uncertain_single_quoted_speech": uncertain_single,
+              # The spans the analysis adopted as single-quoted speech. The gate
+              # allows nested quote marks only at positions inside these spans
+              # (#2331); an empty list means the chunk is untouched.
+              "adopted_single_quote_spans": opened_single_spans,
+              # Complete single-quoted speeches the analysis did not adopt. The
+              # gate accepts them as SPOKEN rows and "quotes" mode abstains from
+              # certifying when any exist (#2331 review 2).
+              "unadopted_single_quote_spans": unadopted_single_spans}
+    if unverified_dash:
+        result["unverified_dash"] = True
+        # The gate can still vouch for the opening speech of each unverified
+        # line (#2329 finding 5); the rest of the line is unchecked.
+        result["unverified_dash_prefixes"] = _dash_prefixes(text)
+    return result
 
 
 def split_outer_quote_regions(text):
@@ -406,13 +1139,13 @@ def classify_lexical_quote_regions(source_text, quote_analysis):
 
 
 def _split_quote_regions(source_text):
-    """Return normalized text regions outside and inside outer dialogue quotes."""
-    regions = split_outer_quote_regions(source_text)
-    outside = [entry["text"] for entry in regions
+    """Return (analysis, outside, inside) for outer dialogue quotes."""
+    analysis = analyze_outer_quote_regions(source_text)
+    outside = [entry["text"] for entry in analysis["regions"]
                if entry["type"] == "NARRATOR"]
-    inside = [entry["text"] for entry in regions
+    inside = [entry["text"] for entry in analysis["regions"]
               if entry["type"] == "SPOKEN"]
-    return outside, inside
+    return analysis, outside, inside
 
 
 def _number_mark_token(text, position):
@@ -443,17 +1176,48 @@ def _region_has_number_mark(region, token):
     return False
 
 
-def _has_quote_delimiter(text, region_texts):
-    """True unless every quote character in `text` is a kept inch mark.
+def _get_allowed_nested_quote_positions(text, adopted_spans, source_text):
+    """-> positions in `text` of quote marks that are content, not delimiters.
+
+    A mark is allowed only where the row reproduces an adopted single-quoted
+    span's content (#2331): the span content is located in the row by exact
+    text, and each of that span's quote characters is allowed at the matching
+    position. A row that keeps the outer delimiters, or merely repeats the same
+    character elsewhere, is not covered, so `mixed_quote_region` still fires.
+    """
+    allowed = set()
+    for _opener, content_start, content_end, _closer in adopted_spans:
+        content = source_text[content_start:content_end]
+        leading = len(content) - len(content.lstrip())
+        content = content.strip()
+        if not content:
+            continue
+        base = content_start + leading
+        offset = text.find(content)
+        while offset != -1:
+            for position in range(base, base + len(content)):
+                if source_text[position] in _QUOTE_CHARS:
+                    allowed.add(offset + position - base)
+            offset = text.find(content, offset + 1)
+    return allowed
+
+
+def _has_quote_delimiter(text, region_texts, allowed_positions=frozenset()):
+    """True unless every quote character in `text` is content, not a delimiter.
 
     An inch mark after a number (`6" wide`, `6” wide`) is speakable text, so
     a row carrying only those is not mixed (#2314). It counts as text only
     when the same number+mark appears in the analyzed region, which keeps
     measurements and drops delimiters: a row that kept a real closer after a
     digit has no such counterpart and stays mixed, as it was before #2314.
+
+    `allowed_positions` names marks that are content because the row is
+    reproducing an adopted single-quoted span that nests a quote (#2331). It
+    is positional on purpose: the same character elsewhere in the row is still
+    a delimiter.
     """
     for position, char in enumerate(text):
-        if char not in _QUOTE_CHARS:
+        if char not in _QUOTE_CHARS or position in allowed_positions:
             continue
         token = _number_mark_token(text, position)
         if (_is_inch_mark(text, position, char)
@@ -472,6 +1236,130 @@ def _region_contains_entry(regions, entry_text):
         haystack = normalize_text(region).split()
         if any(haystack[i:i + len(needle)] == needle
                for i in range(len(haystack) - len(needle) + 1)):
+            return True
+    return False
+
+
+def _paired_quote_ranges(text, start, end):
+    """-> [(opener_position, closer_position)] for non-inch paired quotes.
+
+    Rule 15: the same `_DOUBLE_QUOTE_PAIRS` and `is_inch_mark` predicate the
+    analyzer uses, so the gate sees the nested pair the analyzer adopted.
+    """
+    ranges = []
+    for opener, closer in _DOUBLE_QUOTE_PAIRS:
+        position = text.find(opener, start, end)
+        while position != -1:
+            if not _is_inch_mark(text, position, opener):
+                candidate = text.find(closer, position + 1, end)
+                while (candidate != -1
+                       and _is_inch_mark(text, candidate, closer)):
+                    candidate = text.find(closer, candidate + 1, end)
+                if candidate != -1:
+                    ranges.append((position, candidate))
+                    position = text.find(opener, candidate + 1, end)
+                    continue
+                break
+            position = text.find(opener, position + 1, end)
+    return sorted(ranges)
+
+
+def _nested_pair_only_entries(entries, adopted_spans, source_text):
+    """-> entry numbers whose SPOKEN text is only a nested pair, inside out.
+
+    In a targeted chunk the single-quote delimiters are real delimiters even
+    though `_QUOTE_CHARS` cannot see them. A row whose SPOKEN text is only the
+    paired phrase inside an adopted span, while a NARRATOR row reproduces text
+    from that span, is main's inside-out split: the nested phrase is not the
+    speech (#2331 review 4 finding 3).
+    """
+    narrator_words = [normalize_text(str(entry.get("text") or "")).split()
+                      for entry in entries
+                      if isinstance(entry, dict)
+                      and entry.get("type") == "NARRATOR"]
+    flagged = set()
+    for _opener, content_start, content_end, _closer in adopted_spans:
+        for nested_start, nested_end in _paired_quote_ranges(
+                source_text, content_start, content_end):
+            nested = normalize_text(
+                source_text[nested_start + 1:nested_end]).split()
+            if not nested:
+                continue
+            inside_fragments = [
+                words for words in (
+                    normalize_text(source_text[content_start:nested_start]).split(),
+                    normalize_text(source_text[nested_end + 1:content_end]).split())
+                if words]
+            if not inside_fragments:
+                continue
+            reproduced = any(
+                any(narrator[i:i + len(fragment)] == fragment
+                    for i in range(len(narrator) - len(fragment) + 1))
+                for narrator in narrator_words
+                for fragment in inside_fragments)
+            if not reproduced:
+                continue
+            for number, entry in enumerate(entries, 1):
+                if (isinstance(entry, dict)
+                        and entry.get("type") == "SPOKEN"
+                        and normalize_text(
+                            str(entry.get("text") or "")).split() == nested):
+                    flagged.add(number)
+    return flagged
+
+
+def _matches_unadopted_single_quote_span(text, spans, source_text):
+    """Is this row one complete single-quoted speech span the analysis did not
+    adopt?
+
+    The analyzer certifies only spans that nest a paired quote, so sibling
+    plain single-quoted speeches stay in its NARRATOR text; a model that splits
+    them as SPOKEN is right about the source and was rejected
+    `quote_region_misclassified` (#2331 review 2). Exact normalized equality
+    keeps a partial row or a delimiter-keeping row out.
+    """
+    target = normalize_text(text)
+    if not target:
+        return False
+    return any(normalize_text(source_text[start:end]) == target
+               for _opener, start, end, _closer in spans)
+
+
+def _contiguous_spoken_groups(entries):
+    """-> runs of consecutive SPOKEN entries as one text per run.
+
+    A NARRATOR entry between two SPOKEN ones breaks the run: the model put
+    narration there, so the words are no longer contiguous dialogue.
+    """
+    groups, current = [], []
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("type") == "SPOKEN":
+            current.append(str(entry.get("text") or ""))
+        elif current:
+            groups.append(" ".join(current))
+            current = []
+    if current:
+        groups.append(" ".join(current))
+    return groups
+
+
+def _entry_in_unverified_tail(entry_text, source_text, ranges):
+    """Is this entry inside text the segmenter could not vouch for?
+
+    Only containment of the ENTRY inside the tail is left to the model: a
+    model may sentence-split an unverified tail, and each piece is unchecked.
+    A tail inside the entry is not skipped (#2390 review 4 finding 1): an
+    entry that merges a confident line with an unverified tail still contains
+    vouched text, so the quote-region gate must validate it, or a confident
+    tag in the merged entry would escape validation. That is the same class as
+    the rev3 chunk-wide downgrade, one entry narrower.
+    """
+    needle = normalize_text(entry_text)
+    if not needle:
+        return True
+    for start, end in ranges:
+        tail = normalize_text(source_text[start:end])
+        if tail and needle in tail:
             return True
     return False
 
@@ -499,24 +1387,72 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
     disables itself without saying so is the shape that has already cost this
     project three separate measurements ([[Rule 8]]).
     """
+    unverified_prefixes = None
+    unverified_ranges = []
+    if quote_analysis and quote_analysis.get("unverified_dash"):
+        unverified_prefixes = (quote_analysis.get("unverified_dash_prefixes")
+                               or _dash_prefixes(source_text))
+        # The downgrade is per LINE, not per chunk: only the ambiguous line's
+        # unverified tail is unchecked, and every confident line in the same
+        # chunk keeps full region validation (#2390 review 3 finding 3).
+        unverified_ranges = _dash_ranges(source_text)
     if quote_analysis and not quote_analysis.get("regions"):
         quote_analysis = None
-    if not quote_analysis and not any(char in source_text for char in _QUOTE_CHARS):
-        try:
-            from dialogue_spans import detect_convention
-            convention = detect_convention(source_text)
-        except Exception as exc:                            # noqa: BLE001
-            return [], "skipped:error:" + type(exc).__name__
-        return [], "skipped:" + (convention or "none_detected")
-    if quote_analysis:
+    if not quote_analysis and unverified_prefixes is None and \
+            not any(char in source_text for char in _QUOTE_CHARS):
+        # A dash book with no evidenced split is unchecked, as before. An
+        # unverified dash line is not: its opening speech is still checked.
+        unverified_prefixes = _dash_prefixes(source_text) or None
+        if unverified_prefixes is None:
+            try:
+                from dialogue_spans import detect_convention
+                convention = detect_convention(source_text)
+            except Exception as exc:                        # noqa: BLE001
+                return [], "skipped:error:" + type(exc).__name__
+            return [], "skipped:" + (convention or "none_detected")
+    findings = []
+    if unverified_prefixes is not None:
+        # Only the text before the first interior break is unambiguous; the
+        # model owns the rest of an unverified line (#2329 finding 5). A model
+        # may split that opening speech into consecutive SPOKEN entries, so the
+        # prefix passes when its words lie in order across them (#2390 review 2).
+        for prefix in unverified_prefixes:
+            if not prefix or any(_region_contains_entry([group], prefix)
+                                 for group in _contiguous_spoken_groups(entries)):
+                continue
+            entry_number = next(
+                (number for number, entry in enumerate(entries, 1)
+                 if isinstance(entry, dict)
+                 and _region_contains_entry([str(entry.get("text") or "")],
+                                            prefix)), 1)
+            findings.append({
+                "code": "quote_region_misclassified", "entry_number": entry_number,
+                "message": "The opening speech of an unverified dash line must be SPOKEN; the rest of the line is unchecked."})
+    if not quote_analysis:
+        if unverified_prefixes is not None:
+            return findings, "ran"
+        source_analysis, outside, inside = _split_quote_regions(source_text)
+        adopted_spans = None
+    else:
         source_regions = quote_analysis["regions"]
         outside = [entry["text"] for entry in source_regions
                    if entry["type"] == "NARRATOR"]
         inside = [entry["text"] for entry in source_regions
                   if entry["type"] == "SPOKEN"]
-    else:
-        outside, inside = _split_quote_regions(source_text)
-    findings = []
+        adopted_spans = quote_analysis.get("adopted_single_quote_spans")
+        source_analysis = quote_analysis
+    if adopted_spans is None:
+        # The spans the analyzer actually adopted (Rule 15): a span it could
+        # not open is not speech, so its marks are not content either.
+        adopted_spans = source_analysis.get("adopted_single_quote_spans", [])
+    # Complete single-quoted speeches the analysis did not adopt (#2331
+    # review 2). Only a targeted chunk reports them.
+    unadopted_spans = source_analysis.get("unadopted_single_quote_spans") or []
+    # In a targeted chunk the adopted span's single-quote delimiters are real
+    # delimiters. A row that keeps only the nested pair as SPOKEN and puts the
+    # span's own words in NARRATOR is inside out (#2331 review 4 finding 3).
+    nested_pair_only = (_nested_pair_only_entries(
+        entries, adopted_spans, source_text) if adopted_spans else set())
     for number, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
             continue
@@ -526,13 +1462,30 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         if not enforce_entry:
             continue
         text = str(entry.get("text") or "")
+        if unverified_ranges and _entry_in_unverified_tail(
+                text, source_text, unverified_ranges):
+            continue
+        if number in nested_pair_only:
+            findings.append({"code": "quote_region_misclassified", "entry_number": number,
+                             "message": "SPOKEN text is only the phrase quoted inside single-quoted speech; the surrounding words are the speech."})
+            continue
         expected = inside if entry.get("type") == "SPOKEN" else outside
         other = outside if entry.get("type") == "SPOKEN" else inside
-        if _has_quote_delimiter(text, expected + other):
+        if _has_quote_delimiter(
+                text, expected + other,
+                _get_allowed_nested_quote_positions(text, adopted_spans,
+                                                   source_text)):
             findings.append({"code": "mixed_quote_region", "entry_number": number,
                              "message": "An entry combines quote delimiters with narration or dialogue; split at the quote boundary."})
             continue
         in_expected = _region_contains_entry(expected, text)
+        if (not in_expected and entry.get("type") == "SPOKEN" and adopted_spans
+                and _matches_unadopted_single_quote_span(
+                    text, unadopted_spans, source_text)):
+            # A targeted chunk also holds complete single-quoted speeches the
+            # analyzer did not adopt. The model's split of them is right even
+            # though they sit in the analyzer's NARRATOR text (#2331 review 2).
+            in_expected = True
         if not in_expected and _region_contains_entry(other, text):
             findings.append({"code": "quote_region_misclassified", "entry_number": number,
                              "message": "SPOKEN text must originate inside quotes and NARRATOR text outside quotes."})
@@ -575,9 +1528,13 @@ def _introduced_character_findings(source_text, output_text, entries, quote_anal
     role_specific = quoted_must_be_spoken and unquoted_must_be_narrator
     source_narration_text = None
     if role_specific:
-        quote_regions = (quote_analysis or {}).get("regions")
-        if not quote_regions:
-            quote_regions = analyze_outer_quote_regions(source_text).get("regions", [])
+        if (quote_analysis or {}).get("unverified_dash"):
+            quote_regions = []
+        else:
+            quote_regions = (quote_analysis or {}).get("regions")
+            if not quote_regions:
+                analyzed = analyze_outer_quote_regions(source_text)
+                quote_regions = [] if analyzed.get("unverified_dash") else analyzed.get("regions", [])
         source_narration_text = " ".join(region["text"] for region in quote_regions
                                          if region.get("type") == "NARRATOR") or source_text
     for duplicate in find_seam_duplicate_narration(
@@ -1117,9 +2074,20 @@ _TAG_QUOTE_PAIRS = frozenset(_PAIRED)
 # a PAIRED convention (’ is also the apostrophe), but Gutenberg texts use it
 # for the next quotation.
 _TAG_NEXT_QUOTE_OPENERS = frozenset(QUOTE_MARKS) | {"‘"}
+# ONE reading of a line break for every guard that folds hard wraps: a single
+# break is CRLF, a lone CR or LF, and CRLF is one break, not CR + LF. A
+# paragraph break is two line breaks with only horizontal whitespace between.
+# dialogue_spans.BLANK_LINE cannot express this: its alternation backtracks a
+# CRLF into CR + LF, so it reads a bare hard wrap as a paragraph break. Its
+# other callers (paragraph detection for quote spans) keep that reading, so the
+# continuation guards use this shared definition instead (#2391 r7 BLOCKER 1,
+# NIT 2). `\r(?!\n)` blocks the backtrack that would split CRLF.
+_LINE_BREAK = r"(?:\r\n|\r(?!\n)|\n)"
+_PARAGRAPH_BREAK = re.compile(rf"{_LINE_BREAK}[ \t]*{_LINE_BREAK}")
 # Gutenberg texts are hard-wrapped, so the tag's comma and the next quotation
 # can be separated by one line break or by one blank line (#2388 gate 3).
-_TAG_NEXT_QUOTE_WRAP = re.compile(r"[ \t]*\r?\n(?:[ \t]*\r?\n)?[ \t]*")
+_TAG_NEXT_QUOTE_WRAP = re.compile(
+    rf"[ \t]*(?:{_LINE_BREAK}[ \t]*){{1,2}}")
 
 
 def _get_title_key(word):
@@ -1225,6 +2193,269 @@ def _is_same_tag_identity(speaker, expected, established_pool):
     return full[:len(short)] == short or full[-len(short):] == short
 
 
+# Quotation continuations (#2333). A quotation that follows a bare speech tag
+# in the same paragraph ("Go," Nita said. "Now.") inherits that tag's speaker
+# only when the quotation carries no tag of its own. The continuation matcher
+# is a BARE tag: one clause, anchored, with no object or second name. It is
+# built from the same verb/adverb/name vocabulary as the direct speech-tag
+# check (#2388), with the direct rule's `to <name>` / `told <name>` object form
+# deliberately absent (a bare tag has no object). Only the evidence role
+# differs.
+_CONTINUATION_TAG_CORE = (
+    rf"^[ \t]*(?:[,;][ \t]*)?(?:"
+    rf"(?P<before>{_TAG_NAME})"
+    rf"(?:[ \t]+{_TAG_ADVERB}[ \t]+(?P<verb_a>{_SOURCE_TAG_VERBS})|"
+    rf"[ \t]+(?P<verb_b>{_SOURCE_TAG_VERBS})(?:[ \t]+{_TAG_ADVERB})?)|"
+    rf"(?P<verb_c>{_SOURCE_TAG_VERBS})[ \t]+(?P<after>{_TAG_NAME})(?:[ \t]+{_TAG_ADVERB})?)"
+)
+_BARE_CONTINUATION_TAG = re.compile(
+    _CONTINUATION_TAG_CORE + r"[ \t]*[,.!?:;][ \t]*$", re.IGNORECASE)
+# Clause-shaped tags use reporting verbs the direct tag rule deliberately does
+# not carry (began, went on, cut in, put in). This list is used ONLY to decide
+# that a quotation carries its own tag and must abstain; it never creates
+# evidence. The evidence verb list stays _SOURCE_TAG_VERBS (#2388, Rule 15).
+# added/adds/continued/continues repeat that list on purpose: the direct rule's
+# adverb slot accepts only a lowercase -ly adverb, so a non-ly adverb after one
+# of them ("she added afterwards,") is not a direct tag and this clause form is
+# what keeps the quotation from inheriting A's speaker.
+_CONTINUATION_OWN_TAG_VERBS = (
+    r"(?:began|begun|starts?|started|went on|goes on|going on|"
+    r"cut in|cuts in|broke in|breaks in|broke off|breaks off|"
+    r"carried on|carries on|added|adds|continued|continues|"
+    r"put in|puts in)"
+)
+_CONTINUATION_TAG_PRONOUNS = frozenset({
+    "he", "she", "they", "it", "we", "you", "i",
+})
+_CONTINUATION_TAG_PRONOUN_ALT = "|".join(sorted(_CONTINUATION_TAG_PRONOUNS))
+# A clause subject is a named/articled subject: a capitalised name ("Kit") or
+# a determiner/possessive plus up to three words ("the man", "his mother",
+# "the old man"). _TAG_NAME already caps the subject at four words. A bare
+# lowercase non-determiner ("somebody") does not count, so the guard is not
+# simply "any subject".
+_CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS = frozenset({
+    "the", "a", "an", "his", "her", "their", "my", "your", "our", "its",
+})
+# A bare reply after a question is very often the other speaker, so a
+# continuation that follows a question abstains instead of inheriting.
+_CONTINUATION_QUESTION_VERBS = frozenset({
+    "asked", "asks", "inquired", "inquires", "enquired", "enquires",
+    "demanded", "demands",
+})
+# The same four-word subject cap as _TAG_NAME, then a clause verb. The dash
+# introducer belongs here: "No"-Kit began. is still the quotation's own tag.
+# A comma- or dash-delimited interjection of up to twelve words may sit between
+# subject and verb ("Kit, however, said.", "Kit — smiling — said.", "Kit, who
+# had been silent for a long while now, said."), and a parenthetical may too
+# ("Kit (smiling) said."); the verb there may be a clause verb or one the direct
+# rule already carries.
+_CONTINUATION_CLAUSE_VERBS = (
+    rf"(?:{_SOURCE_TAG_VERBS}|{_CONTINUATION_OWN_TAG_VERBS})"
+)
+# An interjection is bracketed by a comma or a dash on each side.
+_CONTINUATION_CLAUSE_BREAK = (
+    r"[ \t]*(?:,[ \t]*|[\u2014\u2013][ \t]*|-[ \t]+)"
+)
+_CONTINUATION_OWN_TAG_CLAUSE = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
+    rf"(?:(?P<pronoun>{_CONTINUATION_TAG_PRONOUN_ALT})|(?P<subject>{_TAG_NAME}))"
+    rf"(?:[ \t]+(?:{_CONTINUATION_OWN_TAG_VERBS})\b"
+    rf"|{_CONTINUATION_CLAUSE_BREAK}(?P<interject>{_TAG_WORD}"
+    rf"(?:[ \t]+{_TAG_WORD}){{0,11}}){_CONTINUATION_CLAUSE_BREAK}"
+    rf"(?:{_CONTINUATION_CLAUSE_VERBS})\b"
+    rf"|[ \t]*\([^)\n]{{1,40}}\)[ \t]*(?:{_CONTINUATION_CLAUSE_VERBS})\b)",
+    re.IGNORECASE)
+# Verb-first clause tags are the same own-tag shape inverted ("began Kit.",
+# "put in Kit."). A direct reporting verb in that position is already the
+# direct rule's verb-first form, so only the clause verbs are needed here.
+_CONTINUATION_OWN_TAG_INVERTED = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
+    rf"(?:{_CONTINUATION_OWN_TAG_VERBS})[ \t]+(?P<subject>{_TAG_NAME})"
+    rf"(?:[ \t]+{_TAG_ADVERB})?(?=[ \t]*[,.!?:;])", re.IGNORECASE)
+# A lowercase reporting verb the lists do not carry, followed immediately by
+# a capitalised name, is the same inverted own-tag shape ("interposed Kit.",
+# "came Kit's reply.", "was Kit's answer."). The first word must start
+# lowercase and the next word must start uppercase, so a lowercase non-name
+# clause ("somebody began.", "she added afterwards,") and a participle that
+# names a character later ("fixing her eyes upon Elinor,") stay continuations.
+_CONTINUATION_OWN_TAG_VERB_FIRST = re.compile(
+    r"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
+    r"(?-i:[a-z])[^\W\d_]*[ \t]+"
+    r"(?P<subject>(?-i:[A-Z])[\w’'-]*)"
+    r"(?:[ \t]+[\w’'-]+(?:[ \t]+[\w’'-]+){0,2})?"
+    r"(?=[ \t]*[,.!?:;])")
+# A period inside a title abbreviation ("Mrs. Bennet said.", "Col. Brandon
+# said.") is a character _TAG_WORD cannot cross, so the continuation guards
+# would miss the quotation's own tag or beat. This is a shape, not a second
+# title list (Rule 15): any capitalised word of up to six letters followed by
+# a period and a word that can follow a title has the period dropped before
+# matching. The coordinated form is included ("Mr. and Mrs. Bennet said."),
+# where the word after the first title is lowercase "and" (or "&") rather than
+# the next capitalised name (#2391 r6 BLOCKER 2: stripping only before a
+# capitalised word was how r4 lost the gate-2 fix). The flattened text is only
+# tested; it never becomes evidence, and the direct read does not use it.
+# Out-of-vocabulary titles ("Col.", "M.", "Messrs.") therefore work without
+# extending #2388's NAME_TITLE_PREFIXES. A coordinated title may spell its
+# conjunction as "&" ("Mr. & Mrs. Bennet said."); the guard shapes read words,
+# so "&" is normalised to "and" before matching (#2391 r7 LOW 2).
+_CONTINUATION_AMPERSAND = re.compile(r"[ \t]+&[ \t]+")
+_CONTINUATION_DOTTED_ABBREVIATION = re.compile(
+    r"\b(?P<title>[A-Z][a-z]{0,5})\.(?=[ \t]+(?:[A-Z]|and\b))")
+# A tag attached by a dash directly after the closing mark is the quotation's
+# own tag for the continuation guard. It must NOT become direct-tag evidence:
+# #2388 disclosed the em-dash gap and this PR leaves it in place.
+_DASH_TAG_INTRODUCER = re.compile(r"^[ \t]*[\u2014\u2013-][ \t]*")
+# Gutenberg prose is hard-wrapped: one line break inside a paragraph is only a
+# space, and a paragraph break ends the paragraph. The continuation guards read
+# a whole paragraph with its single line breaks folded, so a wrapped paragraph
+# behaves exactly like the same text on one line (#2391 r5), however the source
+# spells the break: CRLF, a lone CR or LF (#2391 r7 BLOCKER 1). When the next
+# quotation starts its own line the line break is a new turn, not a
+# continuation of the tag before it (#2391 r6 BLOCKER 1).
+_CONTINUATION_LINE_WRAP = re.compile(rf"[ \t]*{_LINE_BREAK}[ \t]*")
+_CONTINUATION_TRAILING_LINE_BREAK = re.compile(rf"{_LINE_BREAK}[ \t]*$")
+# A beat's pre-subject adverb is sentence-initial, so its first letter may be
+# uppercase ("Slowly, Kit shook his head."); _TAG_ADVERB is lowercase-only.
+_CONTINUATION_BEAT_ADVERB = (
+    r"(?-i:[A-Za-z][\w’'" + _SILENT_IN_WORD + r"-]*ly)")
+# A coordinated adverb phrase before the subject is still the beat's adverb
+# slot, not its subject: "Slowly and carefully, Kit shook his head." and
+# "Slowly, carefully, Kit shook his head." (#2391 r7 LOW 1).
+_CONTINUATION_BEAT_ADVERB_PHRASE = (
+    rf"{_CONTINUATION_BEAT_ADVERB}"
+    rf"(?:[ \t]+and[ \t]+{_CONTINUATION_BEAT_ADVERB}"
+    rf"|[ \t]*,[ \t]*{_CONTINUATION_BEAT_ADVERB})?")
+# A sentence opener can repeat, and a repeat word can follow it: "Then again
+# Kit laughed.", "And then Kit laughed.". Neither word is the beat's subject.
+_CONTINUATION_BEAT_REPEAT_ALT = "again|once|twice|too|also"
+# A determiner phrase longer than _TAG_NAME's four-word cap ("the stranger in
+# the cloak", "the old man by the door") is still the quotation's own tag. This
+# shape is abstain-only: it never becomes evidence and the direct read does not
+# use it (NIT 1, #2391 r5). The word cap stays bounded so it cannot run on into
+# the next sentence; it covers a subject of up to twelve words, beyond the eight
+# the earlier r5 cap allowed (#2391 r6 LOW 3).
+_CONTINUATION_LONG_SUBJECT = (
+    rf"(?:{'|'.join(sorted(_CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS))})"
+    rf"(?:[ \t]+{_TAG_WORD}){{1,11}}")
+_CONTINUATION_OWN_TAG_LONG_SUBJECT = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?(?:"
+    rf"(?P<subject>{_CONTINUATION_LONG_SUBJECT})[ \t]+{_SOURCE_TAG_VERBS}\b"
+    rf"|{_SOURCE_TAG_VERBS}[ \t]+(?P<subject_after>{_CONTINUATION_LONG_SUBJECT}))"
+    rf"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
+
+
+def _fold_continuation_line_wraps(text):
+    """Fold one paragraph's hard line wraps to spaces; a blank line ends it."""
+    paragraph = _PARAGRAPH_BREAK.split(text, 1)[0]
+    return _CONTINUATION_LINE_WRAP.sub(" ", paragraph)
+
+
+def _flatten_continuation_dotted_title(tail):
+    """Drop the period of a title abbreviation so the guard shapes can match.
+
+    "Mrs. Bennet said." becomes "Mrs Bennet said.", and the same happens
+    anywhere in `tail` ("old Mr. Bennet said."), so a title outside the
+    vocabulary ("Col.", "M.", "Messrs.") is covered by the same shape. A
+    coordinated "&" is normalised to "and" first, so both spellings of the
+    conjunction are covered. Only the period is removed; the whitespace after
+    it stays. The result is only tested by the continuation guard and never
+    becomes evidence.
+    """
+    tail = _CONTINUATION_AMPERSAND.sub(" and ", tail)
+    return _CONTINUATION_DOTTED_ABBREVIATION.sub(r"\g<title>", tail)
+
+
+def _quote_ends_with_question(text):
+    """Whether a quotation's own text ends in a question mark (incl. ?!)."""
+    text = text.rstrip()
+    return text.endswith("?") or text.endswith("?!")
+
+
+def _get_continuation_tag_verb(match):
+    """The speech verb a bare continuation tag carries, casefolded."""
+    for group in ("verb_a", "verb_b", "verb_c"):
+        value = match.group(group)
+        if value:
+            return value.casefold()
+    return None
+
+
+def _has_continuation_own_tag(tail):
+    """Whether the text after a closing quote carries that quotation's tag.
+
+    True when `tail` matches the direct-tag rule ("Kit said.", "Kit muttered.",
+    "Kit said to Nita."), the same rule behind a dash introducer
+    ("No"-Kit said.), a clause-shaped tag ("Kit began.", "Kit went on.",
+    "Kit, however, said.", "Kit (smiling) said."), or that clause inverted
+    ("began Kit.", "interposed Kit.", "came Kit's reply."). A subject longer
+    than the direct rule's four-word cap ("the old man by the door said.")
+    is still recognised, because a quotation with a tag of its own must never
+    inherit the previous speaker. A title abbreviation's period ("Mrs. Bennet
+    said.", "old Mr. Bennet said.", "Col. Brandon said.") is dropped first,
+    because _TAG_WORD cannot cross it.
+    Any hit means the quotation belongs to that tag, so it must not inherit
+    the previous quotation's speaker; it also means the dash/clause form is
+    not evidence.
+    """
+    tail = _flatten_continuation_dotted_title(tail)
+    if _SOURCE_SPEECH_TAG.match(tail):
+        return True
+    dash = _DASH_TAG_INTRODUCER.match(tail)
+    if dash and _SOURCE_SPEECH_TAG.match(tail[dash.end():]):
+        return True
+    clause = _CONTINUATION_OWN_TAG_CLAUSE.match(tail)
+    if clause is not None:
+        if clause.group("pronoun"):
+            return True
+        subject = clause.group("subject").split()
+        if (subject[0][:1].isupper()
+                or subject[0].casefold()
+                in _CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS):
+            return True
+    return (_CONTINUATION_OWN_TAG_INVERTED.match(tail) is not None
+            or _CONTINUATION_OWN_TAG_VERB_FIRST.match(tail) is not None
+            or _CONTINUATION_OWN_TAG_LONG_SUBJECT.match(tail) is not None)
+
+
+# An action beat that names another character is not evidence that the
+# quotation continues the earlier tag: "No." Kit crossed his arms. Pronouns and
+# determiner phrases ("She", "the man") are not names, so "No." She shook her
+# head. keeps the inherited speaker; a beat naming A's own speaker adds
+# nothing, so it keeps it too. A sentence-opening word ("Then Kit laughed."),
+# optionally followed by a comma and/or one -ly adverb ("Then, Kit laughed.",
+# "Then suddenly Kit laughed.", "Slowly, Kit shook his head."), a repeated opener
+# and a repeat word ("Then again Kit laughed.") are skipped so the beat's real
+# subject is still read. This guard only ever adds an abstention.
+_CONTINUATION_SENTENCE_OPENER_ALT = "|".join(sorted(_SENTENCE_OPENING_WORDS))
+_CONTINUATION_ACTION_BEAT = re.compile(
+    rf"^[ \t]*(?:[,;\u2014\u2013-][ \t]*)?"
+    rf"(?:(?i:{_CONTINUATION_SENTENCE_OPENER_ALT})[ \t]*,?[ \t]*){{0,2}}"
+    rf"(?:(?P<adverb>{_CONTINUATION_BEAT_ADVERB_PHRASE})[ \t]*,?[ \t]*)?"
+    rf"(?:(?i:{_CONTINUATION_BEAT_REPEAT_ALT})[ \t]+)?"
+    rf"(?P<subject>{_TAG_WORD})"
+    rf"(?=[ \t]+{_TAG_WORD}"
+    rf"|,[ \t]*{_TAG_WORD}(?:[ \t]+{_TAG_WORD}){{0,2}}[ \t]*,[ \t]*{_TAG_WORD})")
+
+
+def _get_continuation_action_beat_subject(tail):
+    """The character an action-beat clause after the quotation names, or None."""
+    flat = _flatten_continuation_dotted_title(tail)
+    match = _CONTINUATION_ACTION_BEAT.match(flat)
+    if match is None:
+        return None
+    first = match.group("subject")
+    key = first.casefold()
+    if (not first[:1].isupper() or key in _CONTINUATION_TAG_PRONOUNS
+            or key in _CONTINUATION_OWN_TAG_SUBJECT_DETERMINERS
+            or key in _SENTENCE_OPENING_WORDS):
+        return None
+    if _get_title_key(first) in NAME_TITLE_PREFIXES:
+        # "Mrs Bennet crossed her arms." (the period was flattened above).
+        rest = flat[match.end():].split()
+        return f"{first} {rest[0]}" if rest else None
+    return first
+
+
 def get_attribution_source_digest(source_text):
     """Bind UTF-8 source, abstaining from repair for unencodable strings."""
     try:
@@ -1292,14 +2523,21 @@ def _get_silent_folded_source_spans(source_text, needle_text):
 
 
 def get_attribution_tag_proofs(entries, source_text, established_names=(),
-                                 speaker_aliases=None):
-    """Map batch indexes to uniquely resolved, immediately following tags.
+                               speaker_aliases=None):
+    """Map batch indexes to uniquely resolved tags on the quotations they follow.
 
     Repeated text and incomplete quotation spans are deliberately uncheckable.
     Source matching is one shared traversal per batch, outside the retry loop.
+
+    Returns ``(proofs, continuation_evidence)``. A continuation entry receives
+    only the speaker name for a quotation that continues a paragraph's bare
+    speech tag (``“Go,” Nita said. “Now.”``). Continuations never produce a
+    full proof: they cannot feed the exact-shift repair, which needs
+    reporting-tag/name offsets. Callers that need them pass both maps to
+    get_attribution_tag_evidence_projection.
     """
     if not source_text:
-        return {}
+        return {}, {}
     from dialogue_spans import get_source_match_positions, spoken_spans
     from speaker_identity import get_speaker_identity_key, get_speaker_label_index
     aliases = speaker_aliases or {}
@@ -1339,13 +2577,16 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
                 forms.append(" ".join(label.split()[:title_count + 1]))
         for key in get_speaker_label_index(forms):
             identities.setdefault(key, set()).add(canonical)
+    spans = spoken_spans(source_text, "paired_quotes")
     quote_bounds = {}
-    for start, end in spoken_spans(source_text, "paired_quotes"):
+    span_index = {}
+    for span_pos, (start, end) in enumerate(spans):
         content = source_text[start:end]
         content_start = start + len(content) - len(content.lstrip(" \t"))
         content_end = end - len(content) + len(content.rstrip(" \t"))
         quote_bounds[remove_silent_word_characters(
             source_text[content_start:content_end])] = (content_start, content_end)
+        span_index[(content_start, content_end)] = span_pos
     # One folded traversal for the whole batch (#2316), so repeated retries do
     # not rescan the source and an occurrence count still spans every entry.
     folded_source, source_offsets = remove_silent_word_characters_with_offsets(source_text)
@@ -1355,7 +2596,50 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         folded_source, [needle for needle in folded_needles if needle])
     source_digest = get_attribution_source_digest(source_text)
     context_digest = get_attribution_snapshot_digest([sorted(established_names), aliases])
+
+    def resolve_name_speaker(name):
+        """Speaker a tag or beat name resolves to, or None when unsure."""
+        name = remove_silent_word_characters(name)
+        if not _is_valid_tag_name(name):
+            return None
+        key = next(iter(get_speaker_label_index([name])), None)
+        candidates = identities.get(key, set())
+        if len(candidates) == 1:
+            return next(iter(candidates))
+        if not candidates and is_attested_name(name, source_text):
+            # A source-attested character need not have spoken in an earlier
+            # batch. Ambiguous existing identities must still abstain.
+            return name.upper()
+        return None
+
+    def resolve_tag_speaker(match):
+        """Speaker named by a direct or continuation tag, or None when unsure."""
+        return resolve_name_speaker(match.group("before") or match.group("after"))
+
+    def get_following_tag_speaker(span_pos):
+        """Speaker named by the tag immediately after a span, or None."""
+        span_end = spans[span_pos][1]
+        after_span = source_text[span_end:span_end + 160].lstrip(" \t")
+        if not after_span:
+            return None
+        direct = _SOURCE_SPEECH_TAG.match(
+            _fold_continuation_line_wraps(after_span[1:]))
+        if not direct:
+            return None
+        if direct.group("adv_before") and (direct.group("adv_after")
+                                           or direct.group("adv_after_t")):
+            return None
+        obj = (direct.group("obj_b") or direct.group("obj_a")
+               or direct.group("obj_t"))
+        if obj is not None:
+            obj_clean = remove_silent_word_characters(obj)
+            if (obj_clean not in _TAG_OBJECT_PRONOUNS
+                    and not _is_valid_tag_name(obj_clean)):
+                return None
+        return resolve_tag_speaker(direct)
+
     evidence = {}
+    continuation_evidence = {}
     for index, entry in enumerate(entries):
         if entry.get("type") != "SPOKEN":
             continue
@@ -1372,37 +2656,38 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         after = source_text[end:end + 160].lstrip(" \t")
         if not before or not after or (before[-1], after[0]) not in _TAG_QUOTE_PAIRS:
             continue
-        tail = after[1:].split("\n", 1)[0]
-        tag = _SOURCE_SPEECH_TAG.match(tail)
-        if not tag:
-            continue
-        # At most one optional -ly adverb, before or after the verb.
-        if tag.group("adv_before") and (tag.group("adv_after")
-                                        or tag.group("adv_after_t")):
-            continue
-        if (text and text[-1] in _SENTENCE_END and tag.group("before")
-                and not tail.lstrip(" \t").startswith((",", ";"))):
-            # Read past the tag from the source, not from the line-truncated
-            # tail, so a single hard line wrap can be seen (#2388 gate 2).
-            rest = after[1:][tag.end():].lstrip(" \t")
-            after_punct = (rest[1:].lstrip(" \t")
-                           if rest and rest[0] in (",", ":") else "")
-            wrap = _TAG_NEXT_QUOTE_WRAP.match(after_punct)
-            if wrap:
-                after_punct = after_punct[wrap.end():]
-            if after_punct and after_punct[0] in _TAG_NEXT_QUOTE_OPENERS:
+        # The direct tag read stays exactly as main reads it (line-local), so
+        # direct evidence is byte-identical. The continuation guards below get
+        # the whole paragraph with its single line wraps folded (#2391 r5).
+        line_tail = after[1:].split("\n", 1)[0]
+        tail = _fold_continuation_line_wraps(after[1:])
+        tag = _SOURCE_SPEECH_TAG.match(line_tail)
+        if tag:
+            # At most one optional -ly adverb, before or after the verb.
+            if tag.group("adv_before") and (tag.group("adv_after")
+                                            or tag.group("adv_after_t")):
                 continue
-        obj = tag.group("obj_b") or tag.group("obj_a") or tag.group("obj_t")
-        if obj is not None:
-            obj_clean = remove_silent_word_characters(obj)
-            if obj_clean not in _TAG_OBJECT_PRONOUNS and not _is_valid_tag_name(obj_clean):
+            if (text and text[-1] in _SENTENCE_END and tag.group("before")
+                    and not line_tail.lstrip(" \t").startswith((",", ";"))):
+                # Read past the tag from the source, not from the line-truncated
+                # tail, so a single hard line wrap can be seen (#2388 gate 2).
+                rest = after[1:][tag.end():].lstrip(" \t")
+                after_punct = (rest[1:].lstrip(" \t")
+                               if rest and rest[0] in (",", ":") else "")
+                wrap = _TAG_NEXT_QUOTE_WRAP.match(after_punct)
+                if wrap:
+                    after_punct = after_punct[wrap.end():]
+                if after_punct and after_punct[0] in _TAG_NEXT_QUOTE_OPENERS:
+                    continue
+            obj = tag.group("obj_b") or tag.group("obj_a") or tag.group("obj_t")
+            if obj is not None:
+                obj_clean = remove_silent_word_characters(obj)
+                if (obj_clean not in _TAG_OBJECT_PRONOUNS
+                        and not _is_valid_tag_name(obj_clean)):
+                    continue
+            speaker = resolve_tag_speaker(tag)
+            if speaker is None:
                 continue
-        name = remove_silent_word_characters(tag.group("before") or tag.group("after"))
-        if not _is_valid_tag_name(name):
-            continue
-        key = next(iter(get_speaker_label_index([name])), None)
-        candidates = identities.get(key, set())
-        def get_proof(speaker):
             # Identity uses only fields the original evidence decision reads.
             # Opaque unrelated row metadata must not break the legacy projection.
             opener = max(0, start - 8) + len(before) - 1
@@ -1410,27 +2695,110 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             close = end + len(suffix) - len(after)
             base = close + 1
             group = "before" if tag.group("before") else "after"
-            return {"speaker": speaker, "source_sha256": source_digest,
-                    "entry_identity_sha256": get_attribution_identity_digest(entry),
-                    "quote_bounds": [start, end], "opener_offset": opener,
-                    "closing_offset": close,
-                    "reporting_tag_bounds": [base + tag.start(), base + tag.end()],
-                    "name_bounds": [base + tag.start(group), base + tag.end(group)],
-                    "resolver_context_sha256": context_digest}
-        if len(candidates) == 1:
-            evidence[index] = get_proof(next(iter(candidates)))
-        elif not candidates and is_attested_name(name, source_text):
-            # A source-attested character need not have spoken in an earlier
-            # batch. Ambiguous existing identities must still abstain.
-            evidence[index] = get_proof(name.upper())
+            evidence[index] = {
+                "speaker": speaker, "source_sha256": source_digest,
+                "entry_identity_sha256": get_attribution_identity_digest(entry),
+                "quote_bounds": [start, end], "opener_offset": opener,
+                "closing_offset": close,
+                "reporting_tag_bounds": [base + tag.start(), base + tag.end()],
+                "name_bounds": [base + tag.start(group), base + tag.end(group)],
+                "resolver_context_sha256": context_digest,
+            }
+            # The quotation carries its own tag, even when its name did not
+            # resolve: it must never inherit the previous quotation's speaker.
+            continue
+        # No direct tag after this quotation. A dash-attached tag or a
+        # clause-shaped tag ("Kit began.", "Kit went on.") is still the
+        # quotation's own tag, so it abstains instead of inheriting one.
+        if _has_continuation_own_tag(tail):
+            continue
+        # Otherwise a bare tag between this quotation and the previous one in
+        # the same paragraph (``"Go," Nita said. "Now."``) names this
+        # continuation's speaker. This is validation-only name evidence: it
+        # never produces a proof, so it cannot reach the exact-shift repair.
+        span_pos = span_index.get((start, end))
+        if span_pos is None or span_pos == 0:
+            continue
+        prev_start, prev_end = spans[span_pos - 1]
+        cur_start = spans[span_pos][0]
+        if (prev_start <= 0 or prev_end >= len(source_text) or cur_start <= 0
+                or (source_text[prev_start - 1], source_text[prev_end])
+                not in _TAG_QUOTE_PAIRS):
+            continue
+        between = source_text[prev_end + 1:cur_start - 1]
+        # A paragraph break is two line breaks with only horizontal whitespace
+        # between. So is a line break with only whitespace after it before this
+        # quotation: the quotation starts its own line, so it is a new turn and
+        # must not inherit the tag before it (#2391 r6 BLOCKER 1). A line break
+        # with the tag text after it is only a space inside the paragraph
+        # (#2391 r5). CRLF is one line break here, not CR + LF (#2391 r7).
+        if _PARAGRAPH_BREAK.search(between):
+            continue
+        if _CONTINUATION_TRAILING_LINE_BREAK.search(between):
+            continue
+        cont_tag = _BARE_CONTINUATION_TAG.match(
+            _CONTINUATION_LINE_WRAP.sub(" ", between))
+        if not cont_tag:
+            continue
+        # A bare reply after a question is very often the other speaker. A
+        # question quotation (including ?! and a closing mark that follows the
+        # ?) or a question tag verb therefore abstains instead of inheriting.
+        if _quote_ends_with_question(source_text[prev_start:prev_end]):
+            continue
+        if _get_continuation_tag_verb(cont_tag) in _CONTINUATION_QUESTION_VERBS:
+            continue
+        speaker = resolve_tag_speaker(cont_tag)
+        if speaker is None:
+            continue
+        beat = _get_continuation_action_beat_subject(tail)
+        if beat is not None and resolve_name_speaker(beat) != speaker:
+            # The quotation is followed by a clause about another character, so
+            # it is an action beat, not evidence that it continues the tag.
+            continue
+        # A paragraph that already carries two different tagged speakers is
+        # the textbook unsure case: this quotation's bare tag may belong to
+        # either of them. Abstain rather than guess the nearer one (LOW 3).
+        paragraph_speakers = {speaker}
+        earlier = span_pos - 1
+        while earlier >= 0:
+            gap = source_text[spans[earlier][1] + 1:spans[earlier + 1][0] - 1]
+            if _PARAGRAPH_BREAK.search(gap):
+                break
+            tag_speaker = get_following_tag_speaker(earlier)
+            if tag_speaker is not None:
+                paragraph_speakers.add(tag_speaker)
+            elif _has_continuation_own_tag(_fold_continuation_line_wraps(gap)):
+                # A tag the direct read cannot resolve (a dotted title, a long
+                # subject) still marks another speaker. The paragraph holds two
+                # tagged speakers, so the nearer tag may be either: abstain
+                # (#2391 r6 LOW 1).
+                paragraph_speakers.add(None)
+            earlier -= 1
+        if len(paragraph_speakers) >= 2:
+            continue
+        continuation_evidence[index] = speaker
+    return evidence, continuation_evidence
+
+
+def get_attribution_tag_evidence_projection(proofs, continuation_evidence=None):
+    """Legacy name evidence from proofs plus continuation-only speakers.
+
+    Continuations deliberately carry no proof record, so their speakers can
+    only be merged here. Keeping the merge in one place stops each caller from
+    rebuilding it, and keeps a continuation out of the proof map the
+    exact-shift repair consumes (Rule 15).
+    """
+    evidence = {index: proof["speaker"] for index, proof in proofs.items()}
+    evidence.update(continuation_evidence or {})
     return evidence
 
 
 def get_attribution_tag_evidence(entries, source_text, established_names=(),
                                  speaker_aliases=None):
     """Legacy name evidence, projected from the shared source proof."""
-    return {index: proof["speaker"] for index, proof in get_attribution_tag_proofs(
-        entries, source_text, established_names, speaker_aliases).items()}
+    proofs, continuations = get_attribution_tag_proofs(
+        entries, source_text, established_names, speaker_aliases)
+    return get_attribution_tag_evidence_projection(proofs, continuations)
 
 
 _ATTRIBUTION_REPAIR_UNSAFE_FIELDS = frozenset({
@@ -1605,7 +2973,7 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
                                      "entry_number": i, "value": speaker,
                                      "source_line": source_line,
                                      "expected": expected_speaker,
-                                     "message": "The immediately following source speech tag "
+                                     "message": "The source speech tag "
                                                 f"names {expected_speaker}, not {speaker}."})
             if not speaker or speaker.upper() == "NARRATOR":
                 findings.append({"code": "spoken_not_named", "entry_number": i,
