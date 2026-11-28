@@ -158,16 +158,26 @@ def _owns_intentional_difference(text):
 
     The frozen-main differentials below must compare the rest of the language
     against main; these inputs are owned by the dedicated #2395 (ASCII `--`
-    line dashes, attribution/signature lines) and #2399 (reversed guillemets)
-    tests instead, so pinning them here would only compare head with a copy of
-    itself. The exclusion is explicit rather than inferred from a failing diff.
+    line dashes, attribution/signature lines) and #2399 (a guillemet match
+    whose delimiter is already a primary pair boundary, or the added `›…‹`
+    pattern) tests instead, so pinning them here would only compare head with
+    a copy of itself. The exclusion is explicit rather than inferred from a
+    failing diff.
     """
-    if any(mark in text for mark in "«»‹›"):
-        return True
     for match in dialogue_spans.DASH_LINE.finditer(text):
         if (match.group(0).lstrip().startswith("--")
                 or dialogue_spans.is_dash_attribution(match.group(1))):
             return True
+    pairs = sorted(dialogue_spans._paired_spans(text))
+    primary = {offset for begin, stop in pairs for offset in (begin - 1, stop)}
+    for pattern, opener, _closer, kind in dialogue_spans._OTHER_PAIRED_SPECS:
+        if kind == "single_guillemet" and opener == "›" and pattern.search(text):
+            return True
+        if kind == "double_guillemet":
+            for match in pattern.finditer(text):
+                if (match.start() in primary
+                        or match.end() - 1 in primary):
+                    return True
     return False
 
 
