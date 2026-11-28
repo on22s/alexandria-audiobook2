@@ -1709,10 +1709,11 @@ def get_refreshed_saved_script_metadata(script_path, script_bytes, *, cancel_che
     would name the previous bytes and the recorded normalizations would be
     dropped. Reads the records from the current companion (validated against
     the script bytes still on disk) and rebinds them to ``script_bytes`` through
-    the one producer above (Rule 15). Returns None when the book has no
-    ``.meta.json``; a companion that cannot be parsed is left unchanged and
-    reported in the log, so the rewrite still proceeds and the stale companion
-    keeps failing closed at read time.
+    the one producer above (Rule 15). A companion with neither normalization
+    field nor authorized records is left byte-identical. Returns None when the
+    book has no ``.meta.json``; a companion that cannot be parsed is left
+    unchanged and reported in the log, so the rewrite still proceeds and the
+    stale companion keeps failing closed at read time.
     """
     meta_path = os.path.splitext(script_path)[0] + ".meta.json"
     doc, error = _read_bounded_json_document(meta_path, cancel_check)
@@ -1723,6 +1724,10 @@ def get_refreshed_saved_script_metadata(script_path, script_bytes, *, cancel_che
         return None
     recorded = get_recorded_source_normalizations(
         None, script_path, cancel_check=cancel_check)
+    if (not recorded and "source_normalizations" not in doc
+            and "source_normalizations_script_sha256" not in doc):
+        # Nothing to carry or retire: leave the companion byte-identical.
+        return None
     doc = dict(doc)
     doc.pop("source_normalizations", None)
     doc.pop("source_normalizations_script_sha256", None)
