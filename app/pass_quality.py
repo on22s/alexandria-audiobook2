@@ -107,11 +107,12 @@ def _is_single_quote_opener(text, index):
 
 
 def _record_single_quote_closer(text, index, limit=None, opener=None,
-                                ambiguous=None):
+                                ambiguous=None, memo=None):
     """True when the mark at `index` closes the span it opened.
 
     Records in `ambiguous` a mark whose two readings the possessive lookahead
     cannot settle (the `record` verb signals that side effect, Rule 16).
+    `memo` is the per-scan cache `_find_single_quote_closer` fills (see there).
 
     A letter or digit after the mark makes it an apostrophe inside a word
     (`can't`, `Anna’s`), not the end of speech. The closer side also elides and
@@ -122,7 +123,29 @@ def _record_single_quote_closer(text, index, limit=None, opener=None,
     skipped (`… “run”, and the dogs’ bones are here,’`, #2331 review 2).
     `‘He runs’ she said.` keeps its closer because no later nested quote and no
     later closer exist.
+
+    `memo` caches this predicate per scan for a given `(index, limit, opener)`;
+    `_find_single_quote_closer` passes `opener=None`, and the repeated suffix
+    scans of a mixed input hit that entry (#2381 gate 3).
     """
+    if memo is not None:
+        key = ("closer", index, limit, opener)
+        cached = memo.get(key)
+        if cached is None:
+            recorded = []
+            result = _walk_single_quote_closer(
+                text, index, limit, opener, recorded, memo)
+            cached = (result, recorded[0] if recorded else None)
+            memo[key] = cached
+        if ambiguous is not None and cached[1] is not None:
+            ambiguous.append(cached[1])
+        return cached[0]
+    return _walk_single_quote_closer(text, index, limit, opener, ambiguous,
+                                     None)
+
+
+def _walk_single_quote_closer(text, index, limit, opener, ambiguous, memo):
+    """The uncached predicate behind `_record_single_quote_closer`."""
     following = text[index + 1] if index + 1 < len(text) else ""
     if following and following.isalnum():
         return False
@@ -133,7 +156,7 @@ def _record_single_quote_closer(text, index, limit=None, opener=None,
         return False
     if (previous.lower() == "s" and following.isspace() and limit is not None
             and _record_possessive_continuation(
-                text, index, opener, limit, ambiguous)):
+                text, index, opener, limit, ambiguous, memo)):
         # `The dogs’ “bones” are here,’`, `'The dogs' "bones",'` and
         # `… “run”, and the dogs’ bones are here,’`: the apostrophe is a plural
         # possessive, not the closer.
@@ -141,7 +164,8 @@ def _record_single_quote_closer(text, index, limit=None, opener=None,
     return True
 
 
-def _find_single_quote_closer(text, start, limit, closer, ambiguous=None):
+def _find_single_quote_closer(text, start, limit, closer, ambiguous=None,
+                              memo=None):
     """-> the first mark at or after `start` that can really close a span.
 
     Records in `ambiguous` a mark whose two readings the closer predicate
@@ -151,22 +175,42 @@ def _find_single_quote_closer(text, start, limit, closer, ambiguous=None):
     elision apostrophe does too, so neither can be the `later` closer the
     possessive lookahead is looking for (#2331 review 4). Searching for the
     raw character stopped at the apostrophe inside a nested `“it’s loud”`.
+
+    `memo` is the one scan's cache, keyed by `(start, limit, closer)`. The
+    search never reads `ambiguous`, so a cached result is exact; on a hit it
+    records one mark if that search recorded any, so the caller's uncertainty
+    signal is unchanged. Without it, a possessive inside a nested pair
+    re-entered the same suffix search from every spanning candidate and the
+    mixed-input scan was exponential (#2381 gate 3).
     """
-    position = text.find(closer, start, limit)
-    while position != -1:
-        if _record_single_quote_closer(text, position, limit, None, ambiguous):
-            return position
-        position = text.find(closer, position + 1, limit)
-    return -1
-
-
-def _has_sentence_end_between(text, start, end):
-    """Does a sentence terminator sit in `text[start:end]`?"""
-    return any(char in _SENTENCE_END for char in text[start:end])
+    if memo is None:
+        memo = {}
+    key = ("find", start, limit, closer)
+    cached = memo.get(key)
+    if cached is None:
+        recorded = []
+        result = -1
+        position = text.find(closer, start, limit)
+        while position != -1:
+            if _record_single_quote_closer(
+                    text, position, limit, None, recorded, memo):
+                result = position
+                break
+            position = text.find(closer, position + 1, limit)
+        # Only the first mark matters: the scan turns the list into a
+        # truthiness test, and replaying every mark a hit recorded made the
+        # list copy quadratic per hit (the exponential input was still 45 s at
+        # 450 characters with the full list). One real recorded mark preserves
+        # every consumer's result.
+        cached = (result, recorded[0] if recorded else None)
+        memo[key] = cached
+    if ambiguous is not None and cached[1] is not None:
+        ambiguous.append(cached[1])
+    return cached[0]
 
 
 def _record_single_quote_opener_between(text, start, end, ambiguous=None,
-                                        limit=None, closer=None):
+                                        limit=None, closer=None, memo=None):
     """Does a candidate SIBLING speech opener start in `text[start:end]`?
 
     Records the candidate in `ambiguous` when the nested and sibling readings
@@ -198,35 +242,132 @@ def _record_single_quote_opener_between(text, start, end, ambiguous=None,
     multi-paragraph, a chunk-end cut, a closer past the 500-character bound), so
     the mark is recorded and the chunk is uncertain: `quotes` returns
     `quote_forced`, never `quote_presegmented` (#2331 review 5 / gate review 1).
+
+    A candidate of the OTHER convention is a closed nested quotation whenever
+    it has its own closer, so it never forces the sibling reading. It can still
+    be read as a sibling whose closer is a later mark of the other convention,
+    and with no later closer that sibling reading would close the continuing
+    span early (`‘Yes’ she said, holding up 'Exhibit “A”' to the jurors’
+    faces.`). The mark is recorded so the chunk is uncertain, but the nested
+    reading wins and the span keeps going (#2381 gate 3 finding 1).
+    `memo` caches the walk per scan; the result is read-only, and the walk's
+    marks are replayed as one real mark on a hit (only the caller's truthiness
+    test consumes them).
     """
-    for position in range(start, end):
-        if (text[position] not in _SINGLE_QUOTE_OPEN_CLOSE
-                or not _is_single_quote_opener(text, position)):
-            continue
+    if memo is None:
+        return _walk_single_quote_openers_between(
+            text, start, end, ambiguous, limit, closer, None)
+    key = ("open", start, end, limit, closer)
+    cached = memo.get(key)
+    if cached is None:
+        recorded = []
+        result = _walk_single_quote_openers_between(
+            text, start, end, recorded, limit, closer, memo)
+        cached = (result, recorded[0] if recorded else None)
+        memo[key] = cached
+    if ambiguous is not None and cached[1] is not None:
+        ambiguous.append(cached[1])
+    return cached[0]
+
+
+def _single_quote_opener_positions(text, memo):
+    """-> the positions in `text` that can open single-quoted speech.
+
+    Cached in the one scan's `memo`; the possessive lookahead re-walks the same
+    text many times (#2381 gate 3).
+    """
+    cached = memo.get("openers")
+    if cached is None:
+        cached = [index for index, char in enumerate(text)
+                  if char in _SINGLE_QUOTE_OPEN_CLOSE
+                  and _is_single_quote_opener(text, index)]
+        memo["openers"] = cached
+    return cached
+
+
+def _sentence_end_prefix(text, memo):
+    """-> `prefix[i]` = the number of sentence terminators in `text[:i]`."""
+    cached = memo.get("sentence_prefix")
+    if cached is None:
+        cached = [0] * (len(text) + 1)
+        total = 0
+        for index, char in enumerate(text):
+            if char in _SENTENCE_END:
+                total += 1
+            cached[index + 1] = total
+        memo["sentence_prefix"] = cached
+    return cached
+
+
+def _contains_paired_quote_cached(text, start, end, memo):
+    """`_contains_paired_quote`, memoised in the one scan's cache."""
+    if memo is None:
+        return _contains_paired_quote(text, start, end)
+    key = ("paired", start, end)
+    cached = memo.get(key)
+    if cached is None:
+        cached = _contains_paired_quote(text, start, end)
+        memo[key] = cached
+    return cached
+
+
+def _walk_single_quote_openers_between(text, start, end, ambiguous, limit,
+                                       closer, memo):
+    """The uncached walk behind `_record_single_quote_opener_between`."""
+    if memo is None:
+        positions = range(start, end)
+        sentence_end_prefix = None
+    else:
+        # Only real opener marks matter here, and the same text is walked by
+        # hundreds of possessive lookaheads. One per-scan list instead of a
+        # per-position predicate drops most of the walk's cost on quote-dense
+        # input (#2381 gate 3 finding 2).
+        from bisect import bisect_left
+        all_openers = _single_quote_opener_positions(text, memo)
+        positions = all_openers[bisect_left(all_openers, start):
+                                bisect_left(all_openers, end)]
+        sentence_end_prefix = _sentence_end_prefix(text, memo)
+        start_prefix = sentence_end_prefix[start]
+    sentence_end = False
+    for position in positions:
+        if sentence_end_prefix is not None:
+            sentence_end = sentence_end_prefix[position] > start_prefix
+        else:
+            if position > start and text[position - 1] in _SENTENCE_END:
+                # Running form of "is a sentence terminator between start and
+                # position" for the uncached path (#2381 gate 3). Update it on
+                # every position, before the opener filter skips one.
+                sentence_end = True
+            if (text[position] not in _SINGLE_QUOTE_OPEN_CLOSE
+                    or not _is_single_quote_opener(text, position)):
+                continue
         own = _find_single_quote_closer(
             text, position + 1, end + 1,
-            _SINGLE_QUOTE_OPEN_CLOSE[text[position]], ambiguous)
+            _SINGLE_QUOTE_OPEN_CLOSE[text[position]], ambiguous, memo)
         if own == -1:
             return True  # an opener with no closer of its own: a sibling
         # `own == end` means the candidate is closed at the same mark that
         # could close the continuing span. A candidate of the other convention
-        # closes before `end` and is handled as a nested quotation above. A
-        # sentence terminator before it selects the sibling reading; otherwise
-        # it is a nested quotation.
-        sentence_end = _has_sentence_end_between(text, start, position)
+        # closes before `end`, so it is a nested quotation and falls through
+        # below. A sentence terminator before it selects the sibling reading;
+        # otherwise it is a nested quotation.
         if sentence_end and ambiguous is not None:
             ambiguous.append(position)
         if sentence_end:
             return True
-        if (limit is not None and closer is not None and own == end
-                and _contains_paired_quote(text, position + 1, own)
-                # The later-closer lookahead deliberately takes no `ambiguous`:
-                # every mark it sees lies past `end` and outside this span, so
-                # recording one only demotes mixed-convention chunks (198 of
-                # 50,000 in the gate's fuzz) without changing any
-                # single-convention chunk.
+        if (limit is not None and closer is not None
+                and _contains_paired_quote_cached(
+                    text, position + 1, own, memo)
+                # The later-closer lookahead deliberately takes no `ambiguous`.
+                # Every mark it sees lies past `end`, so recording one would
+                # only demote chunks for marks that belong to the next sentence.
+                # Round 8 re-measured the omission after the item-1 recording:
+                # restoring the argument changes 10,209 of 200,000 round-8 fuzz
+                # chunks, all two-sentence `mixed_sib_after`, and one gate-fuzz
+                # string, every one `quote_presegmented` -> `quote_forced`. The
+                # two-sentence subtests pin it (#2381 gate 3 finding 3).
                 and _find_single_quote_closer(
-                    text, end + 1, limit, closer) == -1):
+                    text, end + 1, limit, closer, None, memo) == -1):
             # No later mark can close the continuing span, so the nested
             # reading would drop it and the candidate's own speech with it.
             # Only the candidate is worth keeping when its own text nests the
@@ -241,11 +382,19 @@ def _record_single_quote_opener_between(text, start, end, ambiguous=None,
             # (#2331 gate review 1).
             if ambiguous is not None:
                 ambiguous.append(position)
-            return True
+            if own == end:
+                # Same convention: the candidate can only close at the mark
+                # that closes the continuing span, so the nested reading loses
+                # its own speech. Force the sibling reading.
+                return True
+            # Other convention: its own closer is before `end`, so the nested
+            # reading keeps the span. Recording the mark above is enough to
+            # abstain; do not force the sibling (#2381 gate 3, item 1).
     return False
 
 
-def _record_possessive_continuation(text, index, opener, limit, ambiguous=None):
+def _record_possessive_continuation(text, index, opener, limit, ambiguous=None,
+                                    memo=None):
     """Is the `…s’`/`…s'` mark at `index` a possessive with a later closer?
 
     Records in `ambiguous` a candidate the sibling lookahead cannot settle (the
@@ -267,20 +416,39 @@ def _record_possessive_continuation(text, index, opener, limit, ambiguous=None):
     span. Without the sibling/closer distinction both spans were lost and
     main's inside-out split was certified.
     """
+    if memo is not None:
+        key = ("poss", index, opener, limit)
+        cached = memo.get(key)
+        if cached is None:
+            recorded = []
+            result = _walk_possessive_continuation(
+                text, index, opener, limit, recorded, memo)
+            cached = (result, recorded[0] if recorded else None)
+            memo[key] = cached
+        if ambiguous is not None and cached[1] is not None:
+            ambiguous.append(cached[1])
+        return cached[0]
+    return _walk_possessive_continuation(
+        text, index, opener, limit, ambiguous, None)
+
+
+def _walk_possessive_continuation(text, index, opener, limit, ambiguous, memo):
+    """The uncached walk behind `_record_possessive_continuation`."""
     closer = text[index]
-    later = _find_single_quote_closer(text, index + 1, limit, closer, ambiguous)
+    later = _find_single_quote_closer(
+        text, index + 1, limit, closer, ambiguous, memo)
     if later == -1:
         return False
     if _record_single_quote_opener_between(
-            text, index + 1, later, ambiguous, limit, closer):
+            text, index + 1, later, ambiguous, limit, closer, memo):
         return False
     if opener is not None:
         # A pair that straddles the mark also belongs to the quote the span
         # nests (`“the dogs’ bones”`): neither side alone contains the pair,
         # so checking only before or only after it truncated the span at the
         # possessive and certified main's inside-out split (#2331 review 5).
-        return _contains_paired_quote(text, opener + 1, later)
-    return _contains_paired_quote(text, index + 1, later)
+        return _contains_paired_quote_cached(text, opener + 1, later, memo)
+    return _contains_paired_quote_cached(text, index + 1, later, memo)
 
 
 def _single_quote_span_limit(text, index):
@@ -295,6 +463,7 @@ def _single_quote_span_limit(text, index):
 def _scan_single_quoted_speech_spans(text):
     """-> (spans, failed_ranges, ambiguous_marks); the one scan (#2331)."""
     spans, failed_ranges, ambiguous, index, length = [], [], [], 0, len(text)
+    memo = {}
     while index < length:
         closer = _SINGLE_QUOTE_OPEN_CLOSE.get(text[index])
         if closer is None or not _is_single_quote_opener(text, index):
@@ -308,7 +477,8 @@ def _scan_single_quoted_speech_spans(text):
             level_closer = stack[-1][1]
             if (text[cursor] == level_closer
                     and _record_single_quote_closer(text, cursor, limit,
-                                                    stack[-1][0], ambiguous)):
+                                                    stack[-1][0], ambiguous,
+                                                    memo)):
                 stack.pop()
                 if not stack:
                     if text[index + 1:cursor].strip():

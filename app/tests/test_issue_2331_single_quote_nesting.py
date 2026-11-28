@@ -92,15 +92,30 @@ The gate review of rev6 added the cross-convention case:
   - the forced branch also fired when the candidate used the OTHER single-quote
     convention, because its own closer is not `end`; `own == end` now keeps that
     mark a possessive and `quotes` certifies the truthful split again;
-  - the later-closer lookahead deliberately records nothing, which is what
-    keeps the two-sentence mixed family certified (`mixed_sib_after`);
+  - the later-closer lookahead deliberately records nothing;
   - the second M30 chunk (same convention, closed at the later closer) is
     pinned, and `_record_possessive_continuation` is the Rule 16 rename.
+
+The gate review of rev7 found that `own == end` certified wrong splits on
+realistic mixed-convention text:
+  - `‘Yes’ she said, holding up 'Exhibit “A”' to the jurors’ faces.`: the other
+    convention's candidate is also a plausible sibling whose closer lies later,
+    so with no later closer the mark must be recorded even though the nested
+    reading keeps the span. `quote_forced` replaces the wrong certification;
+  - the truthful `mixed_sib_after` one-sentence row still passes both gate
+    paths, while its chunk becomes uncertain. The two-sentence family has a
+    later closer and stays certified;
+  - the scan is memoised per chunk: `_find_single_quote_closer`,
+    `_record_single_quote_closer`, `_record_possessive_continuation` and the
+    opener walk share one cache, and opener positions/paired-quote checks are
+    precomputed. The mixed-input scan is linear and 75 KB completes in under a
+    second instead of never finishing.
 """
 import hashlib
 import io
 import json
 import os
+import time
 import unittest
 from unittest import mock
 
@@ -1180,6 +1195,71 @@ class SingleQuotedSpeechTests(unittest.TestCase):
             self.assertIsNotNone(endpos, "unbounded paragraph search")
             self.assertLessEqual(endpos, pos + pq._SINGLE_QUOTE_MAX_SPAN)
 
+    def test_the_per_scan_memo_key_discriminates(self):
+        # Gate review 3 finding 2: the memo must key on every input that can
+        # change the result. Each pair below returns different results for the
+        # same scan but a different `closer`, `limit` or `start`; if the key
+        # drops that component the second call reuses the first result and the
+        # assertion fails (mutation check for the memo key).
+        text = "\u2018a\u2019 'b' rest"
+        memo = {}
+        self.assertNotEqual(
+            pq._find_single_quote_closer(text, 0, len(text), "\u2019", None,
+                                         memo),
+            pq._find_single_quote_closer(text, 0, len(text), "'", None, memo))
+        memo = {}
+        self.assertNotEqual(
+            pq._find_single_quote_closer(text, 1, 2, "\u2019", None, memo),
+            pq._find_single_quote_closer(text, 1, len(text), "\u2019", None,
+                                         memo))
+        memo = {}
+        self.assertNotEqual(
+            pq._find_single_quote_closer(text, 0, len(text), "\u2019", None,
+                                         memo),
+            pq._find_single_quote_closer(text, 5, len(text), "'", None, memo))
+        # The closer cache is opener-sensitive: the same mark is a closer for
+        # the scan but a possessive for a span opened at 0 (`(index, limit,
+        # opener)` is the key). The pair `“run”` lies between opener + 1 and
+        # the mark, so the later pair `…here,’` makes it a possessive there.
+        chunk = ("\u2018He said \u201crun\u201d and the dogs\u2019 bones are "
+                 "here,\u2019 she said.")
+        index = chunk.index("dogs") + len("dogs")
+        memo = {}
+        self.assertFalse(
+            pq._record_single_quote_closer(chunk, index, len(chunk), 0, None,
+                                           memo))
+        self.assertTrue(
+            pq._record_single_quote_closer(chunk, index, len(chunk), None,
+                                           None, memo))
+
+    def test_the_mixed_convention_scan_is_linear_and_bounded(self):
+        # Gate review 3 finding 2: `‘a dogs’ 'b “c”' ` repeated was exponential
+        # (300 characters took 6.3 s and 75 KB never finished). The per-scan
+        # memo must keep it near-linear. Measured here: 300 characters ~2 ms,
+        # 15,000 characters ~120 ms, 75 KB ~0.8 s. The ratio bound (5x the
+        # characters, at most 15x the time) is what makes this robust on a
+        # slower CI host; the absolute bound still fails a return to
+        # exponential behaviour.
+        unit = "\u2018a dogs\u2019 'b \u201cc\u201d' "
+        short = (unit * 200)[:300]
+        mid = (unit * 1600)[:15000]
+        long = (unit * 8000)[:75000]
+
+        def best(text, rounds=3):
+            times = []
+            for _ in range(rounds):
+                started = time.perf_counter()
+                analyze_outer_quote_regions(text)
+                times.append(time.perf_counter() - started)
+            return min(times)
+
+        short_time = best(short)
+        mid_time = best(mid)
+        long_time = best(long, 2)
+        self.assertLess(short_time, 0.5)
+        self.assertLess(long_time, 2.0)
+        self.assertLess(long_time, mid_time * 15)
+
     def test_straight_elision_guard_without_an_outside_pair(self):
         # Rev2 finding 6: the earlier straight-elision cases all had a second
         # outside double pair, which masked the elision regex.
@@ -1751,16 +1831,23 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                 self.assertTrue(report["passed"], report["findings"])
 
     def test_a_mixed_convention_closed_candidate_is_not_a_sibling(self):
-        # Gate review 2 finding 1 / round 7 item 1: the forced branch's `own`
-        # is `end` only when the candidate uses the same single-quote character.
-        # A candidate of the other convention is a CLOSED nested quotation
-        # (`… 'game “fetch”' …`), so `dogs’` is a plural possessive, the span
-        # continues to the real closer, and `quotes` certifies the truthful
-        # split. Removing `own == end` splits at `dogs’`, so the single-sentence
-        # cases fail on spans and on the truthful gate row (mutation check).
-        # The two-sentence family also pins round 7 item 3: r6's dropped
-        # `ambiguous` argument in the later-closer lookahead must keep the
-        # truthful split certified.
+        # Gate review 2 finding 1 / round 7 item 1: a candidate of the other
+        # convention is a CLOSED nested quotation (`… 'game “fetch”' …`), so
+        # `dogs’` is a plural possessive and the span continues to the real
+        # closer. Gate review 3 finding 1: when no later mark can close the
+        # continuing span, the same closed candidate also fits the sibling
+        # reading, so the walk records it and the chunk is uncertain. The
+        # one-sentence family therefore splits into one span but is
+        # `quote_forced`; the truthful row still passes both gate paths. The
+        # two-sentence family has a later closer, so it stays certified, and
+        # that `quote_presegmented` assertion is the discriminating pin for
+        # the later-closer lookahead's dropped `ambiguous` argument: restoring
+        # it demotes both two-sentence subcases to `quote_forced` (gate review
+        # 3 finding 3, re-measured in round 8).
+        one_sentence = {
+            "curly outer, straight candidate",
+            "straight outer, curly candidate",
+        }
         for label, (chunk, truthful, spans) in \
                 MIXED_SIB_AFTER_CASES.items():
             with self.subTest(case=label):
@@ -1769,7 +1856,9 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                                  analysis.get("adopted_single_quote_spans"))
                 self.assertEqual([], analysis.get("unadopted_single_quote_spans"))
                 self.assertTrue(analysis.get("nested_single_quoted_speech"))
-                self.assertFalse(
+                uncertain = label in one_sentence
+                self.assertEqual(
+                    uncertain,
                     analysis.get("uncertain_single_quoted_speech"))
                 for mode in ("auto", "lexical"):
                     self.assertEqual(
@@ -1777,7 +1866,9 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                         tp.quote_regions_decision(mode, chunk, analysis))
                 entries, resolution = tp.quote_regions_decision(
                     "quotes", chunk, analysis)
-                self.assertEqual("quote_presegmented", resolution)
+                self.assertEqual(
+                    "quote_forced" if uncertain else "quote_presegmented",
+                    resolution)
                 self.assertEqual(analysis["regions"], entries)
                 for gate_label, kwargs in (
                         ("analysis-backed", {"quote_analysis": analysis}),
@@ -1786,6 +1877,41 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                         report = validate_segment_quality(
                             chunk, truthful, **kwargs)
                         self.assertTrue(report["passed"], report["findings"])
+
+    def test_realistic_mixed_convention_closer_still_abstains(self):
+        # Gate review 3 finding 1: `Yes’`/`is’`/`us’` before a closed
+        # other-convention quotation and a later plural possessive are real
+        # sentence-final closers, not possessives. Before the record-and-
+        # continue branch, `quotes` certified a wrong wider span
+        # (`S: Yes’ she said … jurors / N: faces.`); now the mark is recorded,
+        # `auto`/`lexical` abstain and `quotes` returns `quote_forced`. The
+        # same-convention forms are the disclosed wider-span residual and are
+        # pinned separately by the paragraph above them.
+        for chunk in (
+                "\u2018Yes\u2019 she said, holding up 'Exhibit \u201cA\u201d' "
+                "to the jurors\u2019 faces.",
+                "\u2018I know what it is\u2019 Anna said, reading "
+                "'The Dog \u201cRex\u201d' to the cats\u2019 owner.",
+                "\u2018This is\u2019 he said, pointing at 'Exhibit \u201cA\u201d' "
+                "near the dogs\u2019 bowls.",
+                "\u2018Give it to us\u2019 she said with 'the look "
+                "\u201cplease\u201d' at the boys\u2019 door.",
+                "'It is what it is' she said, humming \u2018the tune "
+                "\u201cla\u201d\u2019 for the girls' party.",
+                "'Give it to us' she said with \u2018the look "
+                "\u201cplease\u201d\u2019 at the boys' door."):
+            with self.subTest(chunk=chunk):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertTrue(
+                    analysis.get("uncertain_single_quoted_speech"))
+                self.assertTrue(analysis.get("adopted_single_quote_spans"))
+                for mode in ("auto", "lexical"):
+                    self.assertEqual(
+                        (None, None),
+                        tp.quote_regions_decision(mode, chunk, analysis))
+                _entries, resolution = tp.quote_regions_decision(
+                    "quotes", chunk, analysis)
+                self.assertEqual("quote_forced", resolution)
 
     def test_a_no_terminator_nested_quotation_still_abstains(self):
         # The forced sibling reading above must not fire when the candidate
