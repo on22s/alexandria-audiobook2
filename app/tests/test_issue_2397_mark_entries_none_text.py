@@ -24,8 +24,6 @@ class MarkEntriesNoneTextTest(unittest.TestCase):
             "paired_quotes",
         )
         self.assertEqual(marked, [{"speaker": None, "text": None}])
-        for forbidden in ("spoken", "source_span", "source_speaker", "dialogue_ambiguity"):
-            self.assertNotIn(forbidden, marked[0])
 
         # With corroborated printed speaker labels, no source_speaker is stamped either.
         labeled_source = (
@@ -119,6 +117,10 @@ class MarkEntriesNoneTextTest(unittest.TestCase):
         )
 
     def test_fallback_match_positions_does_not_index_none_text(self):
+        # This asserts on the needles passed to the fallback matcher because
+        # that is the only available discriminator: reverting the fallback-site
+        # _entry_needle call changed no output for any input the gate tried, so
+        # an output-only assertion could not catch it.
         captured_needles = []
         original = dialogue_spans.get_source_match_positions
 
