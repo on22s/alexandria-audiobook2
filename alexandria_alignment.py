@@ -343,38 +343,6 @@ def _find_epub_xml_declaration_span(prolog):
     return end + 2, False
 
 
-_LEADING_PI_RE = re.compile(r'\s*<\?(?!xml(?=\s)).*?\?>\s*', re.DOTALL)
-
-
-def _get_encoding_name(markup):
-    """Return the first ``encoding`` pseudo-attribute value in ``markup``."""
-    match = re.search(r'\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', markup)
-    return match.group(1) if match else None
-
-
-def _find_misplaced_declaration(prolog):
-    """Return ``(declaration, leading_pi_text, unterminated)``.
-
-    A real XML declaration must be the first construct after an optional BOM.
-    When it follows one or more processing instructions the document is
-    malformed, but its encoding still decides the reader's named refusal
-    (#2452). ``declaration`` is None when no real declaration follows the
-    leading PIs; ``leading_pi_text`` is then None too.
-    """
-    cursor = 0
-    while True:
-        pi = _LEADING_PI_RE.match(prolog, cursor)
-        if pi is None:
-            break
-        cursor = pi.end()
-    if cursor == 0:
-        return None, None, False
-    end, unterminated = _find_epub_xml_declaration_span(prolog[cursor:])
-    if end is None:
-        return None, None, unterminated
-    return prolog[cursor:cursor + end], prolog[:cursor], False
-
-
 def get_epub_declared_encoding(raw):
     """Return ``(name, present, unterminated)`` for an XML declaration's encoding.
 
@@ -392,13 +360,6 @@ def get_epub_declared_encoding(raw):
     would hand to Python is classified from the same bytes Expat reads; a
     UTF-8 BOM is skipped. The declaration's extent is
     :func:`_find_epub_xml_declaration_span`, shared with the strict fallback.
-
-    A real declaration misplaced after a leading processing instruction is
-    malformed XML, but an unusable encoding pseudo-attribute in that PI, or in
-    the declaration itself, is still reported here (#2452): callers turn it
-    into the named refusal instead of letting a bare Expat parse error escape.
-    The PI's pseudo-attribute is consulted only when the declaration is
-    misplaced; a PI on its own is not a declaration.
     """
     if not isinstance(raw, (bytes, bytearray)):
         return None, False, False
@@ -414,26 +375,18 @@ def get_epub_declared_encoding(raw):
     else:
         head = raw[:EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
     end, unterminated = _find_epub_xml_declaration_span(head)
-    declaration = head[:end] if end is not None else ''
-    pi_text = None
     if end is None:
-        if unterminated:
-            # A declaration that needs more than the cap is malformed. Do not
-            # fall through to Expat: it would read the unbounded declaration
-            # and hand an unclassifiable codec to Python.
-            return None, True, True
-        declaration, pi_text, unterminated = _find_misplaced_declaration(head)
-        if unterminated:
-            return None, True, True
-        if declaration is None:
+        if not unterminated:
             return None, False, False
-    name = _get_encoding_name(declaration)
-    if pi_text is not None:
-        pi_name = _get_encoding_name(pi_text)
-        if pi_name is not None and is_unusable_epub_codec(pi_name):
-            name = pi_name
-    if name is None:
+        # A declaration that needs more than the cap is malformed. Do not fall
+        # through to Expat: it would read the unbounded declaration and hand an
+        # unclassifiable codec to Python.
+        return None, True, True
+    declaration = head[:end]
+    match = re.search(r'\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', declaration)
+    if match is None:
         return None, False, False
+    name = match.group(1)
     if not name.isascii():
         # A non-ASCII name is not a valid EncName; Expat reports it as malformed
         # XML, which every reader already handles. It is still a declaration.
@@ -441,7 +394,7 @@ def get_epub_declared_encoding(raw):
     return name, True, False
 
 
-def _does_declared_multibyte_encoding_fit(raw: bytes, encoding: str) -> bool:
+def _declared_multibyte_encoding_fits(raw: bytes, encoding: str) -> bool:
     """Return whether a declared UTF-16/UTF-32 codec legitimately reads ``raw``.
 
     A BOM or a real UTF-16 byte signature is detected before the declaration is
@@ -466,7 +419,7 @@ def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
     is not an ASCII codec name this build can look up: a non-ASCII name, a name
     containing NUL, or no such codec. It is also False for a Python-only
     transform codec, and for a UTF-16/UTF-32 declaration that does not fit the
-    bytes (see :func:`_does_declared_multibyte_encoding_fit`). The returned
+    bytes (see :func:`_declared_multibyte_encoding_fits`). The returned
     codec is then the fallback, UTF-8 with BOM handling. A codec that passes this
     classification can still refuse the document's bytes; that is decided on
     the real bytes in :func:`_read_epub_markup`.
@@ -493,7 +446,7 @@ def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
         return 'utf-8-sig', False
     codec = codecs.lookup(encoding)
     if (codec.name in _UTF16_32_CODECS
-            and not _does_declared_multibyte_encoding_fit(raw, encoding)):
+            and not _declared_multibyte_encoding_fits(raw, encoding)):
         return 'utf-8-sig', False
     return encoding, True
 
@@ -518,6 +471,14 @@ def _is_utf32_markup(raw):
     return prefix in _UTF32_SIGNATURES or prefix.count(0) >= 3
 
 
+def _get_utf32_refusal(resource=None):
+    """Return the named refusal for a UTF-32 EPUB markup resource."""
+    label = f' {resource!r}' if resource else ''
+    return ValueError(
+        'EPUB resource is UTF-32 encoded, which EPUB 3.3 does not allow:'
+        f'{label}')
+
+
 def _read_epub_markup(raw: bytes, *, resource=None) -> tuple[str, bool]:
     """Return ``(text, declared_usable)`` for an item's one encoding sniff.
 
@@ -536,10 +497,7 @@ def _read_epub_markup(raw: bytes, *, resource=None) -> tuple[str, bool]:
     this path and stay byte-identical to ``origin/main``.
     """
     if _is_utf32_markup(raw):
-        label = f' {resource!r}' if resource else ''
-        raise ValueError(
-            'EPUB resource is UTF-32 encoded, which EPUB 3.3 does not allow:'
-            f'{label}')
+        raise _get_utf32_refusal(resource)
     encoding, declared_usable = _decode_head_encoding(raw)
     if declared_usable:
         try:
@@ -1026,6 +984,9 @@ def load_epub(path: str) -> str:
             # (&#9;, &#10;, &#13;, &#12;) stays unsplit inside EpubHtml.properties.
             continue
         media_type = getattr(item, 'media_type', '')
+        content = getattr(item, 'content', None) or b''
+        if _is_utf32_markup(content):
+            raise _get_utf32_refusal(item.get_name())
         considered_documents += 1
         # One predicate (Rule 15) decides hidden handling for every path:
         # application/xhtml+xml AND well-formed XML. The well-formedness answer
@@ -1038,7 +999,7 @@ def load_epub(path: str) -> str:
             # HTML reserialization: that parser lowercases attribute names and
             # applies HTML implied-end rules, which would leak hidden text and
             # hide visible text (review gate 1, findings 1-2).
-            hidden_scan = strip_hidden_xml(getattr(item, 'content', None) or b'')
+            hidden_scan = strip_hidden_xml(content)
         hidden_applies = html_hidden_handling_applies(
             media_type, xml_well_formed=hidden_scan is not None)
         item_hidden = False

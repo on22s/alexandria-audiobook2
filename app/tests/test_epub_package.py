@@ -101,9 +101,9 @@ class EpubPackageTests(unittest.TestCase):
                     get_epub_package(archive)
 
     def test_a_stylesheet_pi_before_the_declaration_is_a_named_refusal(self):
-        # #2452 N1: a real declaration after a PI is malformed XML, but the
-        # unusable encoding named by the PI (or by the misplaced declaration)
-        # must still be the named refusal, not a bare Expat ParseError.
+        # #2452 N1: a real declaration after a PI is malformed XML. Expat's
+        # XML_ERROR_XML_DECL is mapped to the named refusal, not a bare
+        # ParseError; the PI's bogus encoding is not what decides it.
         pi = ('<?xml-stylesheet type="text/xsl" href="s.xsl" '
               'encoding="idna"?>')
         for declaration in ('<?xml version="1.0" encoding="utf-8"?>',

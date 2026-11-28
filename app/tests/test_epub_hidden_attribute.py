@@ -1881,6 +1881,9 @@ class DeclaredEncodingFallbackTests(unittest.TestCase):
                 message = str(caught.exception)
                 self.assertNotIn('\x00', message)
                 self.assertNotIn('\ufffd', message)
+                with self.assertRaisesRegex(
+                        ValueError, r'UTF-32.*ch1\.xhtml'):
+                    _load_bytes(raw)
 
     def test_the_strict_fallback_refusal_names_the_spine_index(self):
         # L3 rev2: the #2368 refusal must be wrapped like every other

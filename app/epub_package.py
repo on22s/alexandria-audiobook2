@@ -37,6 +37,12 @@ _XML_WHITESPACE = re.compile(r'[ \t\n\f\r]+')
 # an unfixed declaration class must not be mistaken for one.
 _EXPAT_MULTIBYTE_REFUSAL = 'multi-byte encodings are not supported'
 
+# ``xml.parsers.expat`` code 17 is ``XML_ERROR_XML_DECL``: a malformed or
+# misplaced XML declaration. A declaration after a leading processing
+# instruction has this code, so it becomes the named refusal rather than a
+# bare ParseError (#2452).
+_XML_DECL_ERROR = 17
+
 
 class EpubXmlEncodingError(ValueError):
     """An XML declaration Expat cannot process for this EPUB resource."""
@@ -99,7 +105,10 @@ def parse_epub_xml(raw):
     ``undefined``) is refused before it can raise raw codec text. The two
     Expat refusal classes that remain become :class:`EpubXmlEncodingError`, so
     every caller maps it to the same documented refusal or fallback per reader
-    (#2370, #2375). ``raw`` is read by the caller, so the member read stays
+    (#2370, #2375). A declaration that follows a processing instruction is
+    malformed XML; Expat reports that as ``XML_ERROR_XML_DECL`` and it takes
+    the same named refusal instead of escaping as a bare :class:`ET.ParseError`
+    (#2452). ``raw`` is read by the caller, so the member read stays
     size-bounded.
     """
     refusal = get_epub_declaration_refusal(raw)
@@ -108,6 +117,10 @@ def parse_epub_xml(raw):
     try:
         # reviewed: callers bound the member read; expat is the only parser
         return ET.fromstring(raw)  # nosec B314
+    except ET.ParseError as error:
+        if getattr(error, 'code', None) == _XML_DECL_ERROR:
+            raise EpubXmlEncodingError(str(error)) from error
+        raise
     except (LookupError, ValueError) as error:
         refusal = get_epub_encoding_refusal(error)
         if refusal is not None:
