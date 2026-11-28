@@ -2120,6 +2120,48 @@ class DashDialogueTagTests(unittest.TestCase):
         # The same line through both production callers leaves the speaker.
         self.assertEqual("EMMA", apply_source_narration(mapped)[0][2]["speaker"])
 
+    def test_period_tag_continuation_is_ambiguous_in_a_weak_ascii_book_too(self):
+        """The `--` form of the pinned em-dash tail contract (#2447 r7 B1).
+
+        The tail scan must ask the same whole-book question as labelling: with
+        the book's `dash_lines` answer and its weak evidence, the period-tag
+        tail is routed `unverified_dash_tail` and the model's EMMA label is
+        kept, exactly as the `—` form above. Without the answer the tail scan
+        yields nothing and the map confidently overwrites EMMA with NARRATOR.
+        """
+        line = "-- Partez! dit Emma. C'est se moquer, je vous chasse."
+        source = "\n".join([line] + [f"-- Filler {i} dit-il." for i in range(5)])
+        self.assertEqual("dash_lines", detect_convention(source))
+        self.assertTrue(
+            dialogue_spans._weak_dash_dialogue_established(source))
+        self.assertEqual([(21, 53)],
+                         dialogue_spans.dash_line_unverified_tails(
+                             source, "dash_lines", True))
+        # The prefix and range helpers take the same book answers (Rule 15),
+        # so a whole-book caller cannot label the weak line by one answer and
+        # route its interior breaks by another.
+        self.assertEqual(
+            ["Partez"],
+            dialogue_spans.dash_line_unverified_prefixes(
+                source, "dash_lines", True))
+        self.assertEqual(
+            [(21, 53)],
+            dialogue_spans.dash_line_unverified_ranges(
+                source, "dash_lines", True))
+        entries = [
+            {"speaker": "EMMA", "text": "Partez!"},
+            {"speaker": "NARRATOR", "text": "dit Emma."},
+            {"speaker": "EMMA", "text": "C'est se moquer, je vous chasse."},
+        ]
+        mapped = apply_dialogue_map(entries, source)["entries"]
+        self.assertTrue(mapped[0]["spoken"])
+        self.assertIs(False, mapped[1]["spoken"])
+        self.assertNotIn("spoken", mapped[2])
+        self.assertEqual("unverified_dash_tail", mapped[2]["dialogue_ambiguity"])
+        self.assertEqual("EMMA", mapped[2]["speaker"])
+        self.assertEqual([], apply_dialogue_map(entries, source)["narration_changes"])
+        self.assertEqual("EMMA", apply_source_narration(mapped)[0][2]["speaker"])
+
     def test_confident_comma_tag_keeps_the_source_map(self):
         line = "— Oui, répondit-il, je viens demain."
         source = "\n".join([line] + [f"— Filler {i} dit-il." for i in range(5)])
@@ -3003,9 +3045,9 @@ class DashDialogueTagTests(unittest.TestCase):
                 book += vocative + "\n"
                 book += "".join("— Tak %d.\n" % i for i in range(20))
                 book += f"Czytał {quote} przy oknie.\n"
-                self.assertTrue(
-                    dialogue_spans.has_established_dash_convention(
-                        book, "dash_lines"))
+                self.assertEqual("dash_lines", detect_convention(book))
+                self.assertFalse(
+                    dialogue_spans.has_established_dash_convention(book))
                 mapped = apply_dialogue_map(
                     [{"speaker": "ANA", "text": vocative.lstrip("— ")}], book)
                 self.assertEqual("dash_lines", mapped["convention"])
@@ -3101,12 +3143,6 @@ class DashDialogueTagTests(unittest.TestCase):
         self.assertEqual("dash_lines", detect_convention(real))
         self.assertTrue(
             dialogue_spans.has_established_dash_convention(real))
-        self.assertTrue(
-            dialogue_spans.has_established_dash_convention(
-                real, "dash_lines"))
-        self.assertFalse(
-            dialogue_spans.has_established_dash_convention(
-                real, "paired_quotes"))
         chunk = "He walked in.\n-- Hello there.\n-- Come with me.\nHe sat down.\n"
         self.assertFalse(
             dialogue_spans.has_established_dash_convention(chunk))
@@ -3488,6 +3524,53 @@ class DashDialogueTagTests(unittest.TestCase):
         self.assertNotIn(
             "Or so he thought.",
             [book[a:b] for a, b in spoken_spans(book)])
+
+    def test_paired_quote_book_with_anchored_ascii_asides_flips_to_dash_lines(self):
+        """#2447 r7 low 1: pins the DECIDED ratio direction.
+
+        When at least a third of the `--` asides carry `?`/`!` (here six of
+        fourteen, against six quote spans), the ratio veto does not fire, the
+        dialogue anchor passes, and the book detects `dash_lines`. The asides
+        keep the model's character label and are `spoken: True` where a
+        `paired_quotes` reading would have corrected them to `NARRATOR` /
+        `spoken: False`, and the quoted dialogue routes `other_convention`.
+        This is the direction `_DASH_PAIRED_VETO_RATIO = 1` implies and is
+        disclosed in the body's Limits; a higher ratio would close it but
+        would need the five real `--` books re-measured.
+        """
+        quoted = ('"I cannot stay," she said.\n\n"Then go," he answered.\n\n'
+                  '"I will not come back."\n\n"You will," he said.\n\n"No."\n\n'
+                  '"We shall see."')
+        anchored = "\n\n".join([
+            "-- Where had he seen her before?", "-- What did the letter say?",
+            "-- Why had nobody told him?", "-- Who had been in the garden?",
+            "-- When would the rain stop?", "-- How could she have known?"])
+        narration = "\n\n".join([
+            "-- Or so he thought.", "-- The rain had stopped by then.",
+            "-- Nobody in the town believed it.", "-- The door was already open.",
+            "-- She remembered the garden.", "-- The lamps were still burning.",
+            "-- It was nearly midnight.", "-- And the house was quiet."])
+        book = "\n\n".join([anchored, quoted, narration])
+        self.assertEqual(6, len(dialogue_spans._paired_spans(book)))
+        self.assertEqual(
+            14, sum(1 for _match in dialogue_spans._weak_dash_evidence(book)))
+        self.assertEqual(
+            6, sum(1 for match in dialogue_spans._weak_dash_evidence(book)
+                   if dialogue_spans._weak_dash_is_anchored(match.group(1))))
+        self.assertEqual("dash_lines", detect_convention(book))
+        mapped = apply_dialogue_map(
+            [{"speaker": "ANA", "text": "Or so he thought."}], book)
+        self.assertEqual("dash_lines", mapped["convention"])
+        row = mapped["entries"][0]
+        self.assertEqual("ANA", row["speaker"])
+        self.assertIs(True, row["spoken"])
+        self.assertNotIn("dialogue_ambiguity", row)
+        self.assertEqual(0, len(mapped["narration_changes"]))
+        self.assertEqual(
+            "other_convention",
+            apply_dialogue_map(
+                [{"speaker": "BOB", "text": "I cannot stay,"}],
+                book)["entries"][0]["dialogue_ambiguity"])
 
     def test_em_dash_signature_pair_still_certifies_like_main(self):
         """#2447 gate 2 Limits: `—` signatures are main's certified SPOKEN.

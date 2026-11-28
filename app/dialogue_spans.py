@@ -296,29 +296,23 @@ def _weak_dash_dialogue_established(text):
     return anchored * _DASH_ANCHOR_DIVISOR >= len(evidence)
 
 
-def has_established_dash_convention(text, convention=None):
+def has_established_dash_convention(text):
     """-> True when the weak `--` form carries dialogue in `text`.
 
-    ONE predicate for the weak dash question (Rule 15):
+    ONE predicate for the weak dash question (Rule 15), asked on a WHOLE book
+    (floor, per-line filters, ratio veto, anchor). A chunk cannot see its
+    book, so this is never a certification rule for a chunk: callers pass the
+    whole-book answer down as `weak_dash=` (`mark_entries`,
+    `split_into_chunk_records`, which also checks the detected convention).
 
-    * A caller that knows the WHOLE book's detected `convention` settles it
-      outright: only `dash_lines` certifies a `--` line. With no convention
-      (or any other) a `--` chunk abstains exactly as main did, because a
-      chunk cannot tell `--Chapter I. The Beginning.` from `--Where are you
-      going?` (#2447 gate 2 blocker 2 / low 1).
-    * With no caller convention, this is the whole-book evidence question
-      `detect_convention` asks: `_weak_dash_dialogue_established(text)`
-      (floor, per-line filters, ratio veto, anchor).
-    * `detect_convention` additionally requires `MIN_CONVENTION_PAIRS` (5)
-      dash lines, so the EFFECTIVE detection floor for a weak `--` book is 5:
-      three or four lines are established evidence but still too short to be
-      a book (#2447 r5 low 4).
+    `detect_convention` additionally requires `MIN_CONVENTION_PAIRS` (5)
+    dash lines, so the EFFECTIVE detection floor for a weak `--` book is 5:
+    three or four lines are established evidence but still too short to be a
+    book (#2447 r5 low 4).
 
     `—`/`–` never enter this predicate: they certify on strength, exactly as
     on main, in every context.
     """
-    if convention is not None:
-        return convention == "dash_lines"
     return _weak_dash_dialogue_established(text)
 
 
@@ -1921,14 +1915,17 @@ def split_dash_line(text, start, end):
     return parts, ambiguous
 
 
-def dash_line_unverified_prefixes(text):
+def dash_line_unverified_prefixes(text, convention=None, weak_dash=None):
     """-> opening speech before the first interior break for ambiguous lines.
 
     The quote gate cannot vouch for the rest of an unverified dash line, but
     the opening speech is unambiguous: it must be SPOKEN (#2329 finding 5).
+    `convention` / `weak_dash` are the book's answers, exactly as for
+    `iter_dash_lines`: a whole-book caller passes them so a weak `--` line is
+    scanned under the same per-line predicate as labelling (Rule 15).
     """
     prefixes = []
-    for match in iter_dash_lines(text):
+    for match in iter_dash_lines(text, convention, weak_dash):
         _parts, ambiguous, first_break, _ranges = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if ambiguous and first_break is not None and first_break[0] < first_break[1]:
@@ -1936,7 +1933,7 @@ def dash_line_unverified_prefixes(text):
     return prefixes
 
 
-def dash_line_unverified_tails(text):
+def dash_line_unverified_tails(text, convention=None, weak_dash=None):
     """-> ranges after an unverified break on ambiguous dash lines.
 
     A period-like tag ends the tag clause, but the text after it may be the
@@ -1945,9 +1942,15 @@ def dash_line_unverified_tails(text):
     ranges become `dialogue_ambiguity`, exactly like
     `get_interior_dash_ambiguities`, and `apply_source_narration` leaves the
     model's label alone (#2390 review 1).
+
+    `convention` / `weak_dash` are the book's answers, exactly as for
+    `iter_dash_lines`. `mark_entries` passes them, so a weak `--` line in a
+    book that runs `--` dialogue is scanned at all and its ambiguous tail is
+    routed instead of becoming a confident NARRATOR claim (Rule 15, #2447
+    r7 BLOCKER 1).
     """
     ranges = []
-    for match in iter_dash_lines(text):
+    for match in iter_dash_lines(text, convention, weak_dash):
         _parts, ambiguous, _break, tails = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if ambiguous:
@@ -1955,16 +1958,20 @@ def dash_line_unverified_tails(text):
     return ranges
 
 
-def dash_line_unverified_ranges(text):
+def dash_line_unverified_ranges(text, convention=None, weak_dash=None):
     """-> ranges on ambiguous dash lines whose speaker is not vouched for.
 
     The quote gate checks one line at a time (#2390 review 3 finding 3): every
     ambiguous line contributes the text from its first unverified break to the
     line end, including a whole-line break where no tag split the line at all.
     Confident lines elsewhere in the chunk keep full region validation.
+
+    `convention` / `weak_dash` are the book's answers, exactly as for
+    `iter_dash_lines` (Rule 15). A chunk-level caller leaves them unset and
+    gets main's strong-dash-only scan.
     """
     ranges = []
-    for match in iter_dash_lines(text):
+    for match in iter_dash_lines(text, convention, weak_dash):
         _parts, ambiguous, first_break, tails = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if not ambiguous:
@@ -2312,7 +2319,8 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
                  and _weak_dash_dialogue_established(source_text))
     spans = spoken_spans(source_text, convention, weak_dash)
     ambiguities = get_interior_dash_ambiguities(source_text, convention)
-    unverified_tails = (dash_line_unverified_tails(source_text)
+    unverified_tails = (dash_line_unverified_tails(
+                            source_text, convention, weak_dash)
                         if convention == "dash_lines" else [])
     other_speech, no_body_openers = _other_speech_spans(
         source_text, convention, weak_dash)
