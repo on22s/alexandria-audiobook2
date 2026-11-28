@@ -7,7 +7,7 @@ import zipfile
 from unittest.mock import patch
 
 from PIL import Image
-from epub_publication import get_epub_publication_candidate
+from epub_publication import get_epub_cover_member, get_epub_publication_candidate
 
 
 class EpubPublicationTests(unittest.TestCase):
@@ -80,12 +80,21 @@ class EpubPublicationTests(unittest.TestCase):
 
     def test_external_escaping_or_url_decorated_covers_are_refused_but_metadata_remains(self):
         for href in ('https://example.invalid/cover.png', '%2e%2e/%2e%2e/cover.png',
-                     '/cover.png', 'C:/cover.png', 'dir\\cover.png', '../Images/cover.png?x', '../Images/cover.png#x'):
+                     '/cover.png', 'C:/cover.png', 'dir\\cover.png', '../Images/cover.png?x',
+                     '../Images/cover.png#x', 'http://[', 'http://[::1', '//['):
             with self.subTest(href=href):
                 result = self.candidate(self.epub(href=href))
                 self.assertEqual('unavailable', result['cover_status'])
                 self.assertIsNone(result['cover'])
                 self.assertEqual(['Fixture Author'], result['fields']['author'])
+
+    def test_an_unparsable_cover_href_is_the_documented_unsafe_refusal(self):
+        # #2377 rev2: urlsplit('http://[') raises ValueError; the cover
+        # resolver must refuse the href it cannot classify, not crash.
+        for href in ('http://[', 'http://[::1', '//['):
+            with self.subTest(href=href):
+                with self.assertRaisesRegex(ValueError, 'Unsafe EPUB cover reference'):
+                    get_epub_cover_member('Text/book.opf', href)
 
     def test_duplicate_members_and_conflicting_declarations_never_pick_a_cover(self):
         self.assertEqual('unavailable', self.candidate(self.epub(duplicate=True))['cover_status'])

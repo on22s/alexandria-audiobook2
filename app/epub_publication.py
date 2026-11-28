@@ -7,11 +7,11 @@ from pathlib import PurePosixPath, PureWindowsPath
 import posixpath
 import re
 import stat
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote
 import zipfile
 
 from alexandria_alignment import validate_epub_archive
-from epub_package import get_epub_package
+from epub_package import get_epub_package, split_epub_href
 from m4b_cover import MAX_COVER_BYTES, get_normalized_cover
 
 MAX_PUBLICATION_XML_BYTES = 2 * 1024**2
@@ -22,9 +22,10 @@ DC = '{http://purl.org/dc/elements/1.1/}'
 
 def get_epub_cover_member(opf_path, href):
     """Resolve an internal href while refusing external and escaping paths."""
-    parsed = urlsplit(href)
-    path = unquote(parsed.path)
-    if (parsed.scheme or parsed.netloc or parsed.query or parsed.fragment or not path
+    parsed = split_epub_href(href)
+    path = unquote(parsed.path) if parsed is not None else ''
+    if (parsed is None or parsed.scheme or parsed.netloc or parsed.query
+            or parsed.fragment or not path
             or '\\' in path or '\0' in path or path.startswith('/')
             or PureWindowsPath(path).drive):
         raise ValueError('Unsafe EPUB cover reference')

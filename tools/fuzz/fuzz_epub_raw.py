@@ -25,10 +25,6 @@ from _common import (
     is_expected_zip_bz2_error,
     is_expected_zip_filename_unicode_error,
     is_expected_zip_runtime_error,
-    is_known_empty_zip_member_index_error,
-    is_known_package_xml_encoding_error,
-    is_known_xhtml_encoding_error,
-    is_known_xml_toc_encoding_error,
     require_linux,
     set_headless_env,
 )
@@ -63,22 +59,16 @@ def test_one_input(data: bytes) -> None:
     except UnicodeError as exc:
         # UnicodeError subclasses ValueError; catch before _EXPECTED_REFUSALS
         # so unexpected codec errors are never swallowed as refusal ValueErrors.
-        # Excluded: corrupt UTF-8 ZIP header filenames (stdlib zipfile refusal)
-        # and #2368 (get_epub_xhtml_text non-ASCII/non-text XML encoding).
-        if is_expected_zip_filename_unicode_error(exc) or is_known_xhtml_encoding_error(exc):
+        # The only expected one is a corrupt UTF-8 ZIP header filename (stdlib
+        # zipfile's refusal).
+        if is_expected_zip_filename_unicode_error(exc):
             return
         raise
     except ValueError as exc:
-        # Only the documented malformed-archive/XML/HTML refusals (plus the
-        # tracked encoding-declaration bugs) are ignored; a ValueError from
-        # anywhere else must crash the harness instead of being silently
-        # treated as a refusal.
-        if (
-            is_expected_epub_extract_value_error(exc)
-            or is_known_xhtml_encoding_error(exc)
-            or is_known_xml_toc_encoding_error(exc)
-            or is_known_package_xml_encoding_error(exc)
-        ):
+        # Only the documented malformed-archive/XML/HTML refusals are ignored;
+        # a ValueError from anywhere else must crash the harness instead of
+        # being silently treated as a refusal.
+        if is_expected_epub_extract_value_error(exc):
             return
         raise
     except _EXPECTED_REFUSALS:
@@ -93,22 +83,6 @@ def test_one_input(data: bytes) -> None:
         raise
     except OSError as exc:
         if is_expected_zip_bz2_error(exc):
-            return
-        raise
-    except IndexError as exc:
-        # Excluded pending fix for #2367 (empty-filename ZIP member in validate_epub_archive).
-        if is_known_empty_zip_member_index_error(exc):
-            return
-        raise
-    except LookupError as exc:
-        # Excluded pending fixes for #2368 (get_epub_xhtml_text),
-        # #2370 (_get_epub3_toc_entries / _get_epub2_toc_entries ET.fromstring),
-        # and #2375 (get_epub_package ET.fromstring on OPF / container.xml).
-        if (
-            is_known_xhtml_encoding_error(exc)
-            or is_known_xml_toc_encoding_error(exc)
-            or is_known_package_xml_encoding_error(exc)
-        ):
             return
         raise
 

@@ -26,8 +26,6 @@ from _common import (
     is_expected_load_epub_value_error,
     is_expected_missing_member_key_error,
     is_known_ebooklib_parse_nav_index_error,
-    is_known_package_xml_encoding_error,
-    is_known_xml_toc_encoding_error,
     require_linux,
     set_headless_env,
 )
@@ -91,7 +89,8 @@ def _load_epub_from_bytes(raw: bytes) -> str:
 #     so #2350 is only reachable via the nav-candidate itemref).
 #   * #2369: non-exact `application/xhtml+xml` spine items (e.g. `text/html`).
 #   * #2371: `ebooklib._parse_nav` `IndexError` on multi-token/non-toc `<nav>`.
-# - Not excluded here because the parity builder cannot produce them:
+# - Not exercisable in parity mode by construction (their #2367/#2368/#2370/
+#   #2375 exemptions are retired; a recurrence now crashes the harness):
 #   * #2367: every archive entry written by `_epub_builder` has a non-empty path
 #     (never `""`).
 #   * #2368: `parity_mode=True` sets `allow_tricky_encodings=False`, so chapters
@@ -124,13 +123,8 @@ def test_one_input(data: bytes) -> None:
         raise
     except ValueError as exc:
         # Only the extractor's documented malformed-archive/XML/HTML refusals
-        # (plus the tracked encoding-declaration bugs) are ignorable; an
-        # unexpected ValueError must crash the harness.
-        if (
-            is_expected_epub_extract_value_error(exc)
-            or is_known_xml_toc_encoding_error(exc)
-            or is_known_package_xml_encoding_error(exc)
-        ):
+        # are ignorable; an unexpected ValueError must crash the harness.
+        if is_expected_epub_extract_value_error(exc):
             extract_error = exc
         else:
             raise
