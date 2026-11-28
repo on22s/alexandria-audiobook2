@@ -1741,7 +1741,8 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
     if mode == "lexical":
         analysis = classify_lexical_quote_regions(chunk, analysis)
     regions = analysis["regions"]
-    if len(regions) > 1 or analysis.get("initial_depth") or analysis.get("final_depth"):
+    if (not analysis.get("unverified_dash")
+            and (len(regions) > 1 or analysis.get("initial_depth") or analysis.get("final_depth"))):
         quality = validate_segment_quality(
             chunk, regions, quote_analysis=analysis,
             quoted_must_be_spoken=quoted_must_be_spoken,
