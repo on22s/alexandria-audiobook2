@@ -177,6 +177,15 @@ def _walk_single_quote_closer(text, index, limit, opener, ambiguous, memo):
         # through both of its branches to `False`, so this mark is a closer;
         # the ~500-character lookahead chain on `‘a s’ ` repeated is skipped
         # (#2381 gate 3 finding 2, adversarial dense-possessive input).
+        # This branch runs only on the memoised walk (`memo is not None`), so
+        # on a pairless chunk the memoised scan can end with an empty
+        # `ambiguous` list where the uncached walk records a lookahead mark.
+        # That is the only internal difference between the two builds:
+        # `_ambiguous_single_marks` is read only when a span was adopted, and
+        # adoption needs a paired quote, while the failed-range uncertainty
+        # needs a pair inside the range. Outputs are therefore identical;
+        # neutralising this branch makes the two builds identical including
+        # the list (rev6 differential, #2381).
         return True
     if (previous.lower() == "s" and following.isspace() and limit is not None
             and _record_possessive_continuation(
