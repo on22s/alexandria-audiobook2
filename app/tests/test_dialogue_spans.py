@@ -3210,11 +3210,11 @@ class DashDialogueTagTests(unittest.TestCase):
         """#2447 gate 3 nit 1: a punctuated signature row is not evidence.
 
         `is_dash_attribution` accepts a name body only without sentence-final
-        punctuation, so `--J. B. Smith, Esq.` needs the structural filter's
-        own rstrip before the name-shape question. Without that branch the six
-        signature rows join the three anchored lines as evidence: 9 lines,
-        3 anchored, which passes the one-third anchor and flips the book to
-        `dash_lines`.
+        punctuation, so `--J. B. Smith, Esq.` needs the shared attribution
+        question to strip that stop before asking the name shape. Without it
+        the six signature rows join the three anchored lines as evidence:
+        9 lines, 3 anchored, which passes the one-third anchor and flips the
+        book to `dash_lines`.
         """
         anchored = ["-- Where are you going?", "-- Why did you leave?",
                     "-- Come back to me?"]
@@ -3223,7 +3223,9 @@ class DashDialogueTagTests(unittest.TestCase):
         self.assertIs(False,
                       dialogue_spans.is_dash_attribution("J. B. Smith, Esq."))
         self.assertIs(True,
-                      dialogue_spans._weak_dash_is_structural("J. B. Smith, Esq"))
+                      dialogue_spans._weak_dash_is_attribution("J. B. Smith, Esq."))
+        self.assertIs(False,
+                      dialogue_spans._weak_dash_is_structural("J. B. Smith, Esq."))
         self.assertEqual(
             3, sum(1 for _match in dialogue_spans._weak_dash_evidence(book)))
         self.assertIsNone(detect_convention(book))

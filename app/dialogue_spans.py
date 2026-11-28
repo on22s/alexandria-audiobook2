@@ -82,11 +82,12 @@ DASH_LINE = re.compile(rf"^[ \t]*{_DASH_MARK_PATTERN}[ \t]*(\S.*)$", re.M)
 # other than a particle, has the SHAPE of an attribution (#2395 review 1
 # blocker 1, Rule 15). Lowercase words are refused, which subsumes the "no
 # lowercase verb" condition: only particles may be lowercase. The shape is
-# consulted for the weak `--` form only, by whole-book detection
-# (`_weak_dash_evidence`). `—`/`–` lines never consult it, so they keep main's
-# label in every context: `— Mamo` in a quote-dense book and the `—John Smith`
-# signature pair are main's `other_convention`/SPOKEN verdicts respectively
-# (#2447 gate 2 blocker 1).
+# consulted for the weak `--` form only, by the ONE per-line predicate that
+# both whole-book detection and labelling use (`_weak_dash_line_is_dialogue`).
+# `—`/`–` lines never consult it, so they keep main's label in every context:
+# `— Mamo` in a quote-dense book and the `—John Smith` signature pair are
+# main's `other_convention`/SPOKEN verdicts respectively (#2447 gate 2
+# blocker 1).
 _DASH_ATTRIBUTION_PARTICLES = frozenset(
     ("de", "van", "von", "der", "den", "da", "di", "du", "la", "le", "del",
      "della", "dos", "das", "of", "bin", "ibn", "al", "el", "y", "e"))
@@ -136,13 +137,14 @@ def _starts_like_speech(body):
     return bool(body) and not body[0].islower()
 
 
-# Whole-book detection cannot certify a chunk; it asks whether `--` lines are
-# this book's dialogue at all. A ToC, list, diary row or punctuated signature
-# has the same "capitalised and punctuated" shape as speech, so those cannot
-# count as evidence (#2447 gate 2 blocker 2). Kept to a handful of shapes,
-# which is enough for the gate repros: a heading word, a day-and-month row, a
-# one-or-two word item, or an attribution-shaped body once its final
-# punctuation is removed (`--J. B. Smith, Esq.`).
+# Whole-book detection cannot certify a chunk, so it asks whether `--` lines
+# are this book's dialogue at all; labelling asks the same per-line question
+# once the book's weak form is established. A ToC, list or diary row has the
+# same "capitalised and punctuated" shape as speech, so those are never
+# `--` evidence or `--` dialogue (#2447 gate 2 blocker 2). Kept to a handful
+# of shapes, which is enough for the gate repros: a heading word, a
+# day-and-month row, or a one-or-two word item. Attribution is the separate
+# `_weak_dash_is_attribution` question (`--J. B. Smith, Esq.`).
 _DASH_HEADING_SHAPE = re.compile(
     r"^(?:contents|table of contents|chapter|part|book|section|act|scene|"
     r"interlude|appendix|preface|foreword|prologue|epilogue|index)\b",
@@ -172,12 +174,28 @@ _DASH_ANCHOR_DIVISOR = 3
 _DASH_PAIRED_VETO_RATIO = 1
 
 
-def _weak_dash_is_structural(body):
-    """-> True when a weak `--` body is a ToC/list/diary/signature row.
+def _weak_dash_is_attribution(body):
+    """-> True when a weak `--` body has the shape of an attribution.
 
-    Shape read for WHOLE-BOOK detection only. Chunk certification never asks
-    this question, because a chunk cannot tell `--Chapter I.` from
-    `--Where are you?` (#2447 gate 2 blocker 2).
+    ONE attribution question for detection and labelling (Rule 15, #2447 r1 /
+    gate 3 blocker 1). A signature row ends with a full stop, which
+    `is_dash_attribution` refuses by design (`--Author Name.` is spoken for
+    the strong form), so the stop is removed and the same name-shape question
+    asked. Removing this question lets a punctuated signature row become
+    `--` evidence (#2447 gate 3 nit 1).
+    """
+    stripped = (body or "").strip()
+    return (is_dash_attribution(stripped)
+            or is_dash_attribution(stripped.rstrip(".,;:!")))
+
+
+def _weak_dash_is_structural(body):
+    """-> True when a weak `--` body is a ToC/list/diary row.
+
+    Shape read for detection and labelling alike (Rule 15): these shapes have
+    the same capitalised, punctuated look as speech but are never `--`
+    dialogue. Attribution (`_weak_dash_is_attribution`) is a separate
+    question.
     """
     stripped = body.strip()
     if not stripped:
@@ -189,10 +207,7 @@ def _weak_dash_is_structural(body):
     if (stripped[-1] in ".;" and len(words) <= _DASH_SHORT_ITEM_WORDS
             and all(word[0].isupper() or word[0].isdigit() for word in words)):
         return True
-    # A signature row ends with a full stop, which `is_dash_attribution`
-    # refuses by design (`--Author Name.` is spoken); for detection only,
-    # remove that stop and ask the same name-shape question.
-    return is_dash_attribution(stripped.rstrip(".,;:!"))
+    return False
 
 
 def _weak_dash_is_hard_wrap(text, start):
@@ -224,7 +239,7 @@ def _weak_dash_line_is_dialogue(text, match):
     `—`/`–` lines never consult it, exactly as on main.
     """
     body = match.group(1)
-    return (not is_dash_attribution(body)
+    return (not _weak_dash_is_attribution(body)
             and _starts_like_speech(body)
             and not _weak_dash_is_structural(body)
             and not _weak_dash_is_hard_wrap(text, match.start()))
