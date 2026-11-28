@@ -145,8 +145,10 @@ class OptionalDiacriticTests(unittest.TestCase):
     def test_optional_diacritics_do_not_change_the_key(self, diacritic, others):
         # A diacritic that is still a combining mark is optional for Latin,
         # Greek, Cyrillic and Arabic names, so `q́` is the name `q`. The S4
-        # mutant (keep every Mn/Mc mark) makes the two keys differ here, while
-        # the example-based `test_speaker_identity` cases do not cover it.
+        # mutant (keep every Mn/Mc mark) makes the two keys differ here. The
+        # example-based `test_speaker_identity` cases fail it too (`ǰ`/`j`,
+        # `İbrahim`/`Ibrahim`, Arabic harakat); they pin a fixed list, while
+        # this property generates the combinations.
         base, mark = diacritic
         without = " ".join(others + [base + "ra"])
         with_mark = " ".join(others + [base + mark + "ra"])
