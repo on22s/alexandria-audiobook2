@@ -318,6 +318,31 @@ def is_unusable_epub_codec(name):
             or codec.name in _PYTHON_ONLY_CODECS)
 
 
+def _epub_xml_declaration_span(prolog):
+    """Return ``(end, unterminated)`` for a leading XML declaration.
+
+    ``end`` is the index just past the declaration's closing ``?>`` in
+    ``prolog``, or None when the document does not start with one.
+    ``unterminated`` is True when a declaration starts but its ``?>`` is not
+    inside ``prolog``; callers pass a prolog already bounded by
+    :data:`_EPUB_XML_DECL_MAX_BYTES`.
+
+    Only ``<?xml`` followed by whitespace is the declaration: a processing
+    instruction whose target merely begins with the same letters
+    (``<?xml-stylesheet ...?>``) is not one, even when it carries an
+    ``encoding`` pseudo-attribute (review 3 N3). One extent serves both
+    consumers (Rule 15) - the codec decision and the strict fallback's
+    declaration strip must agree on where the declaration ends.
+    """
+    start = re.match(r'\s*<\?xml(?=\s)', prolog)
+    if start is None:
+        return None, False
+    end = prolog.find('?>', start.end())
+    if end < 0:
+        return None, True
+    return end + 2, False
+
+
 def get_epub_declared_encoding(raw):
     """Return ``(name, present, unterminated)`` for an XML declaration's encoding.
 
@@ -333,7 +358,8 @@ def get_epub_declared_encoding(raw):
     ``punycode``/``idna``/``undefined`` escape. The prolog is decoded with the
     encoding a BOM or UTF-16 byte signature selects, so a declaration Expat
     would hand to Python is classified from the same bytes Expat reads; a
-    UTF-8 BOM is skipped.
+    UTF-8 BOM is skipped. The declaration's extent is
+    :func:`_epub_xml_declaration_span`, shared with the strict fallback.
     """
     if not isinstance(raw, (bytes, bytearray)):
         return None, False, False
@@ -348,16 +374,15 @@ def get_epub_declared_encoding(raw):
         head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('utf-16-be', errors='replace')
     else:
         head = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
-    start = re.match(r'\s*<\?xml\b', head)
-    if start is None:
-        return None, False, False
-    end = head.find('?>', start.end())
-    if end < 0:
+    end, unterminated = _epub_xml_declaration_span(head)
+    if end is None:
+        if not unterminated:
+            return None, False, False
         # A declaration that needs more than the cap is malformed. Do not fall
         # through to Expat: it would read the unbounded declaration and hand an
         # unclassifiable codec to Python.
         return None, True, True
-    declaration = head[:end + 2]
+    declaration = head[:end]
     match = re.search(r'\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', declaration)
     if match is None:
         return None, False, False
@@ -451,11 +476,14 @@ def _read_epub_markup(raw: bytes, *, resource=None) -> tuple[str, bool]:
     except UnicodeDecodeError as error:
         # The unusable declaration is metadata, not narration: discard it and
         # decode the document body strictly, so a non-ASCII name byte does not
-        # by itself refuse an otherwise valid UTF-8 resource.
-        match = re.match(br'\s*<\?xml\b[^>]*\?>', raw[:256])
-        if match is not None:
+        # by itself refuse an otherwise valid UTF-8 resource. The strip uses
+        # the shared declaration extent (Rule 15), so a padded declaration
+        # recovers exactly like the unpadded form and like origin/main.
+        prolog = raw[:_EPUB_XML_DECL_MAX_BYTES].decode('latin-1')
+        end, _unterminated = _epub_xml_declaration_span(prolog)
+        if end is not None:
             try:
-                body = raw[match.end():].decode('utf-8-sig')
+                body = raw[end:].decode('utf-8-sig')
             except UnicodeDecodeError:
                 body = None
             if body is not None:
@@ -486,11 +514,16 @@ def decode_epub_markup(raw, *, resource=None):
 
 
 _XML_DECL_ENCODING_RE = re.compile(
-    r'^(\s*<\?xml\b[^>]*?\bencoding\s*=\s*[\'"])([^\'"]*)([\'"])', re.ASCII)
+    r'^(\s*<\?xml(?=\s)[^>]*?\bencoding\s*=\s*[\'"])([^\'"]*)([\'"])', re.ASCII)
 
 
 def _normalize_xml_declaration_to_utf8(text: str) -> str:
-    """Point a document's XML declaration at the UTF-8 it was read with."""
+    """Point a document's XML declaration at the UTF-8 it was read with.
+
+    Only a real declaration is rewritten: ``<?xml-stylesheet ...?>`` is a
+    processing instruction, not the declaration, even when it carries an
+    ``encoding`` pseudo-attribute (review 3 N3).
+    """
     if text.startswith('\ufeff'):
         text = text[1:]
     return _XML_DECL_ENCODING_RE.sub(r'\1utf-8\3', text, count=1)

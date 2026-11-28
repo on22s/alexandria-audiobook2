@@ -15,7 +15,7 @@ import zipfile
 from fastapi import FastAPI
 import httpx
 import core
-from epub_package import is_navigation_document
+from epub_package import get_epub_declared_encoding, is_navigation_document
 from epub_readaloud import build_epub_readaloud
 from routers import script
 from routers.script import extract_epub_text
@@ -290,6 +290,35 @@ class EpubNavigationDocumentTests(unittest.TestCase):
         self.assertEqual('Story begins.\n\nStory ends.', text)
         self.assertIn('missing_or_malformed_navigation',
                       [row.get('reason') for row in report['rows']])
+
+    def test_a_stylesheet_processing_instruction_is_not_the_declaration(self):
+        # Review 3 N3: only ``<?xml`` followed by whitespace is the XML
+        # declaration. A navigation document that starts with a
+        # ``<?xml-stylesheet ... encoding="idna"?>`` processing instruction (no
+        # declaration) carries no declaration, so the nav is used instead of
+        # being refused as malformed; its pseudo-attribute is not rewritten.
+        pi = (b'<?xml-stylesheet type="text/xsl" href="s.xsl" '
+              b'encoding="idna"?>')
+        self.assertEqual((None, False, False),
+                         get_epub_declared_encoding(pi + b'<html/>'))
+        visible = script.get_epub_xhtml_text(pi + b'<html/>')
+        self.assertIn('encoding="idna"', visible)
+        self.assertNotIn('encoding="utf-8"', visible)
+        # The declaration normaliser applies the same rule when it rewrites an
+        # unusable declaration: a leading PI is not one and is left alone.
+        import alexandria_alignment
+        self.assertEqual(
+            pi.decode('ascii'),
+            alexandria_alignment._normalize_xml_declaration_to_utf8(
+                pi.decode('ascii')))
+        nav_body = (pi + b'<html xmlns="http://www.w3.org/1999/xhtml" '
+                    b'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                    b'<nav epub:type="toc"><a href="one.xhtml">A Cold Morning</a>'
+                    b'<a href="two.xhtml">The Bridge</a></nav></body></html>')
+        text, report = extract(navigation_epub(nav_body=nav_body))
+        self.assertEqual(CHAPTERS, text)
+        self.assertNotIn('missing_or_malformed_navigation',
+                         [row.get('reason') for row in report['rows']])
 
     def test_manifest_href_with_invalid_ipv6_authority_does_not_abort_import(self):
         # #2377: urlsplit('http://[') raises ValueError before the href can be

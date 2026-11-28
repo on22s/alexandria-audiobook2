@@ -1746,6 +1746,25 @@ class DeclaredEncodingFallbackTests(unittest.TestCase):
                         'synthetic.epub',
                         archive_bytes=make_epub('', raw_document=doc, toc_links=[])))
 
+    def test_a_padded_declaration_with_non_utf8_name_bytes_still_recovers(self):
+        # Review 3 L1: the strict fallback strips the declaration through the
+        # one shared declaration extent, not the old fixed 256-byte window. A
+        # padded declaration whose name bytes are not UTF-8 therefore recovers
+        # the valid UTF-8 body exactly like the unpadded form and origin/main.
+        for name_bytes in (b'\xff', b'\x80', b'\xc3'):
+            for pad in (0, 230, 1000, 10000):
+                declaration = (b'<?xml version="1.0"' + b' ' * pad
+                               + b' encoding="' + name_bytes + b'"?>')
+                with self.subTest(name=name_bytes, pad=pad):
+                    doc = (declaration
+                           + b'<html xmlns="http://www.w3.org/1999/xhtml">'
+                           b'<body><p>Story.</p></body></html>')
+                    self.assertEqual(
+                        'Story.', extract_epub_text(
+                            'synthetic.epub',
+                            archive_bytes=make_epub('', raw_document=doc,
+                                                    toc_links=[])))
+
     def test_a_codec_that_refuses_the_document_does_not_crash_load_epub(self):
         # punycode passes codecs.lookup() and then refuses these bytes. That is
         # an unusable declaration: load_epub must narrate origin/main's text

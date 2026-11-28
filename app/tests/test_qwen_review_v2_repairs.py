@@ -2240,6 +2240,25 @@ class SvgFirstTests(unittest.TestCase):
         built, _report = self._build(self._source_with_svg(payload))
         er.validate_epub_readaloud(built)
 
+    def test_svg_probe_reads_the_tree_parsers_declaration_extent(self):
+        # Review 3 N4: the probe's first chunk was exactly 64 KiB while the
+        # tree parser reads 64 KiB after a UTF-8 BOM, so a BOM pushed the
+        # declaration's closing ?> a few bytes past the probe's bound. The
+        # probe now reads the shared cap plus the BOM, so both see the same
+        # extent; with the old 64 KiB chunk this valid SVG was refused as an
+        # unterminated declaration.
+        import epub_readaloud as er
+        prefix = b'\xef\xbb\xbf<?xml version="1.0"'
+        suffix = b' encoding="utf-8"?>'
+        body = (b'<svg xmlns="http://www.w3.org/2000/svg">'
+                b'<text>spoken</text></svg>')
+        pad = (er._EPUB_XML_DECL_MAX_BYTES + 2) - len(prefix) - len(suffix)
+        payload = prefix + b' ' * pad + suffix + body
+        self.assertGreater(len(prefix) + pad + len(suffix), 64 * 1024)
+        self.assertLessEqual(len(prefix) + pad + len(suffix),
+                            64 * 1024 + 3)
+        self.assertTrue(er._svg_has_text(io.BytesIO(payload)))
+
     def test_archive_budget_refused_before_svg_scan(self):
         import archive_utils
         import epub_readaloud as er

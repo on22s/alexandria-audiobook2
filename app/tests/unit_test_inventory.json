@@ -6079,6 +6079,7 @@
   ]
   , "test_epub_hidden_attribute": [
     "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_a_codec_that_refuses_the_document_does_not_crash_load_epub"
+    , "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_a_padded_declaration_with_non_utf8_name_bytes_still_recovers"
     , "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_a_padded_unusable_declaration_is_still_a_named_refusal"
     , "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_a_supported_declared_encoding_is_decoded_and_kept"
     , "tests.test_epub_hidden_attribute.DeclaredEncodingFallbackTests.test_a_utf16_declaration_over_non_utf8_bytes_refuses_that_member"
@@ -6152,6 +6153,7 @@
   ]
   , "test_epub_navigation_document": [
     "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_a_nav_only_book_whose_nav_member_is_absent_is_not_navigation_only"
+    , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_a_stylesheet_processing_instruction_is_not_the_declaration"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_a_utf8_bom_before_a_padded_declaration_is_still_classified"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_epub2_ncx_and_nav_outside_the_spine_are_unchanged"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_epub2_properties_in_the_spine_is_still_the_navigation_document"
@@ -12446,6 +12448,7 @@
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_multi_leading_punctuation_preserved"
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_multibyte_svg_declaration_is_translated_to_the_shared_refusal"
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_padded_unusable_svg_declarations_are_a_tolerated_skip"
+    , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_svg_probe_reads_the_tree_parsers_declaration_extent"
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_text_first_large_svg_refused"
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_textless_svg_accepted_and_cancel_during_scan_refused"
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_unusable_svg_declaration_is_a_tolerated_skip"

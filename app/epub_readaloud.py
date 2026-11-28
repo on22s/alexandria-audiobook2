@@ -50,6 +50,7 @@ import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
 from alexandria_alignment import (
+    _EPUB_XML_DECL_MAX_BYTES,
     html_hidden_handling_applies,
     is_html_hidden_attrs,
 )
@@ -1149,8 +1150,11 @@ def _svg_has_text(stream, cancel_check=None):
     parser = ET.XMLParser(target=target)  # nosec B314
     # Classify the declaration from the first stream chunk with the same
     # shared decision the tree parser uses: Expat would hand punycode/idna/
-    # undefined to Python's codec and raise raw UnicodeError text.
-    chunk = stream.read(64 * 1024)
+    # undefined to Python's codec and raise raw UnicodeError text. Read the
+    # classifier's own bound plus a UTF-8 BOM, so the probe's declaration
+    # extent is exactly the tree parser's and not a few bytes tighter (review
+    # 3 N4). The extra bytes only shift the following chunks.
+    chunk = stream.read(_EPUB_XML_DECL_MAX_BYTES + 3)
     if chunk:
         refusal = get_epub_declaration_refusal(chunk)
         if refusal is not None:
