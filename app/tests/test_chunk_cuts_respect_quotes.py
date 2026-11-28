@@ -59,6 +59,42 @@ class QuoteSafeCuts(unittest.TestCase):
         self.assertTrue(any(r.get("cut_inside_quote") for r in records))
         self.assertTrue(all(len(r["text"]) <= 400 for r in records))
 
+    def test_a_long_weak_dialogue_line_is_not_cut_inside_when_the_book_says_dash(self):
+        """#2447 gate 3 blocker 1: a `--` book's long line is a quote to protect.
+
+        The whole-book question (`detect_convention` + the weak evidence) is
+        asked once and passed down. Without it (`weak_dash` False) the
+        sentence ends inside the line become cut points and the record is
+        split between them; with it the line is one spoken span and the
+        fallback space split marks the record `cut_inside_quote`.
+        """
+        intro = "\n\n".join([
+            "-- Where are you going now?", "-- Come back to me.",
+            "-- Why did you leave?", "-- I am sorry.",
+            "-- Come back to me."])
+        long_line = "-- " + " ".join(
+            ["The road went on toward the hills."] * 120)
+        records = split_into_chunk_records(intro + "\n\n" + long_line + "\n",
+                                           3000)
+        self.assertTrue(any(r.get("cut_inside_quote") for r in records),
+                        [r["text"][:40] for r in records])
+
+    def test_a_long_weak_narration_line_in_an_em_dash_book_still_cuts(self):
+        """#2447 gate 3 blocker 1: an em-dash book's `--` line is narration.
+
+        The em dashes make the book `dash_lines`, but the book does not run
+        `--` dialogue, so the long `--`-opened narration line is not a spoken
+        span and its sentence ends stay safe cut points. Certifying it (a
+        `weak_dash` forced True) would swallow those cuts and flag the record.
+        """
+        em = "\n\n".join("—¿Vienes mañana? —preguntó Juan." for _ in range(6))
+        long_line = "-- " + " ".join(
+            ["The road went on toward the hills."] * 120)
+        records = split_into_chunk_records(em + "\n\n" + long_line + "\n", 3000)
+        self.assertTrue(records)
+        self.assertFalse(any(r.get("cut_inside_quote") for r in records),
+                         [r["text"][:40] for r in records])
+
     def test_continuation_metadata_still_links_the_pieces(self):
         records = split_into_chunk_records("\n".join(LINES), 500)
         self.assertFalse(records[0]["continues_paragraph_from_previous"])

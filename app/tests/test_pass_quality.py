@@ -957,6 +957,26 @@ class InchMarkTests(unittest.TestCase):
              ("NARRATOR", "she said.")],
             self._regions(source))
 
+    def test_different_inch_mark_inside_self_paired_speech_stays_spoken(self):
+        """#2398: straight/curly inch mark inside a different self-paired opener stays SPOKEN."""
+        for source, expected in (
+            ('＂The board is 6" wide,＂ he said.',
+             [("SPOKEN", 'The board is 6" wide,'), ("NARRATOR", "he said.")]),
+            ('"The board is 6” wide," he said.',
+             [("SPOKEN", 'The board is 6” wide,'), ("NARRATOR", "he said.")]),
+            # Negative controls: opener-shaped later `"` starts a new speech, so `1945”` closes.
+            ('"It was 1945” he said. "Next speech."',
+             [("SPOKEN", "It was 1945"),
+              ("NARRATOR", "he said."),
+              ("SPOKEN", "Next speech.")]),
+            ('"It was 1945” he said. "5 people came."',
+             [("SPOKEN", "It was 1945"),
+              ("NARRATOR", "he said."),
+              ("SPOKEN", "5 people came.")]),
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+
     def test_compound_and_two_measurements_stay_narration(self):
         cases = [
             ('The board was 6" wide and the beam was 12" long. "Measure twice," she said.',
@@ -2196,6 +2216,155 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
             [("SPOKEN", "— Oui, répondit-il.")],
             [(row["type"], row["text"]) for row in analysis["regions"]],
         )
+
+    def test_name_only_line_in_established_dash_chunk_is_spoken(self):
+        """A name-only `—` line in a dash chunk keeps main's SPOKEN label.
+
+        The attribution exclusion is `--`-only (#2447 gate 2 blocker 1), so
+        these vocatives are speech in every context, exactly as on main.
+        """
+        from three_pass_generate import quote_regions_decision
+
+        for vocative in ("—Mamá", "— Señor García", "—Maman", "—Мама",
+                         "—Ana", "—YES", "—Yes, Sir", "—_Yes_"):
+            with self.subTest(vocative=vocative):
+                chunk = f"— Buenos días, señor.\n{vocative}\n— Buenos días.\n"
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertNotIn("unverified_dash", analysis)
+                self.assertEqual(
+                    [("SPOKEN", "Buenos días, señor."),
+                     ("SPOKEN", vocative.lstrip("— ")),
+                     ("SPOKEN", "Buenos días.")],
+                    [(row["type"], row["text"]) for row in analysis["regions"]],
+                )
+                self.assertEqual(
+                    "quote_presegmented",
+                    quote_regions_decision("auto", chunk, analysis)[1],
+                )
+
+    def test_ascii_dash_chunks_abstain_without_the_book_convention(self):
+        """#2447 gate 2 blocker 2: a chunk cannot certify the weak `--` form.
+
+        pass_quality holds no whole-book convention, so every `--` chunk
+        abstains exactly as main did, including chunks whose own shape looks
+        like two lines of dialogue. Certification happens once for the whole
+        book in `dialogue_spans`, where the caller passes `dash_lines`.
+        """
+        from three_pass_generate import quote_regions_decision
+
+        for chunk in (
+            "He walked into the room and looked around.\n"
+            "-- The door was already open.\n"
+            "He sat down and waited for someone to come.",
+            "He walked in.\n-- Hello there.\n-- Hi.\nHe sat down.\n",
+            "CONTENTS\n--Chapter One\n--Chapter Two\n--Chapter Three\n",
+            "Yours very truly,\n--John Smith\n--Mary Smith\n",
+            "Things to bring:\n--Bread.\n--Water.\n--A lamp.\n",
+            ("Vanity of vanities, all is vanity.\n--Ecclesiastes\n"
+             "The paths of glory lead but to the grave.\n--Thomas Gray\n"
+             "The story begins.\n"),
+            ("and I thought of her\n--and wept.\nThe rain fell\n"
+             "--the road was gone.\n"),
+            "-- Hola --dijo Ana--. Vamos.\n-- Bien, dijo Luis.",
+            "He paused.\n-- Wait -- I forgot the keys.\n-- Fine.",
+        ):
+            with self.subTest(chunk=chunk):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertEqual([], analysis["regions"])
+                self.assertNotIn("unverified_dash", analysis)
+                self.assertEqual((None, None),
+                                 quote_regions_decision("auto", chunk, analysis))
+
+    def test_ascii_dash_book_certifies_its_chunks_once_the_book_is_known(self):
+        """The whole book settles the weak form; its chunks then certify.
+
+        `detect_convention` on the book runs `--` dialogue evidence
+        (#2447 gate 2), and a chunk handed the book's `dash_lines` convention
+        and the whole-book `weak_dash` decision certifies through the one
+        predicate (#2447 gate 3 blocker 1: a chunk cannot see its book).
+        """
+        from dialogue_spans import detect_convention, spoken_spans
+        book = "The hall was quiet.\n" + "".join(
+            "-- %s, she said, and waited.\n-- %s?\n" % (word, word)
+            for word in ("Where are you going", "Come back",
+                         "Why did you leave", "I don't know", "Tell me",
+                         "Never mind")) + "The hall was quiet.\n"
+        self.assertEqual("dash_lines", detect_convention(book))
+        chunk = "-- Come back, she said, and waited.\n-- Tell me?\n"
+        self.assertEqual(
+            ["Come back,", "and waited.", "Tell me?"],
+            [chunk[a:b] for a, b in
+             spoken_spans(chunk, "dash_lines", weak_dash=True)],
+        )
+
+    def test_em_dash_lines_keep_main_behaviour(self):
+        """`—` is strong: it certifies in every context, as on main."""
+        from three_pass_generate import quote_regions_decision
+        chunk = ("He walked into the room and looked around.\n"
+                 "— The door was already open.\n"
+                 "He sat down and waited for someone to come.")
+        self.assertEqual(
+            "quote_presegmented",
+            quote_regions_decision("auto", chunk,
+                                   analyze_outer_quote_regions(chunk))[1],
+        )
+        signed = "—John Smith\n—Mary Smith\n"
+        self.assertEqual(
+            [("SPOKEN", "John Smith"), ("SPOKEN", "Mary Smith")],
+            [(row["type"], row["text"])
+             for row in analyze_outer_quote_regions(signed)["regions"]],
+        )
+
+    def test_line_dash_gate_takes_both_strong_marks_from_the_dash_table(self):
+        """#2447 r5 nit 2: the chunk gate recognises every strong table form.
+
+        The condition derives its marks from `DASH_MARKS` through
+        `get_dash_mark`, so the en dash certifies exactly like the em dash and
+        a future fourth strong row is covered once (Rule 15). A weak `--` line
+        is still not a line-dash here.
+        """
+        from dialogue_spans import DASH_MARKS, get_dash_mark
+        strong = [mark for mark, _length, strength in DASH_MARKS
+                  if strength == "strong"]
+        self.assertIn("—", strong)
+        self.assertIn("–", strong)
+        for mark in strong:
+            with self.subTest(mark=mark):
+                self.assertEqual((1, "strong"), get_dash_mark(mark + " Hi.", 0))
+                chunk = (f"{mark} The door was already open.\n"
+                         f"{mark} Nobody had come.\n")
+                self.assertEqual(
+                    [("SPOKEN", "The door was already open."),
+                     ("SPOKEN", "Nobody had come.")],
+                    [(row["type"], row["text"])
+                     for row in analyze_outer_quote_regions(chunk)["regions"]],
+                )
+        weak = "-- The door was already open.\n-- Nobody had come.\n"
+        self.assertEqual(
+            [], analyze_outer_quote_regions(weak)["regions"])
+
+    def test_unchecked_weak_dash_chunk_keeps_mains_skip_reason(self):
+        """#2447 r5 nit 3: an unchecked `--` chunk reports `none_detected`.
+
+        The gate only understands the strong forms, so it checked nothing.
+        main reported `skipped:none_detected` for these chunks; naming
+        `dash_lines` would advertise a check that did not happen. A strong
+        dash chunk keeps `skipped:dash_lines` when no analysis is supplied.
+        """
+        weak = "\n".join(["-- Where are you going now?", "-- Come back to me.",
+                          "-- Why did you leave.", "-- I am sorry.",
+                          "-- Tell me again.", "-- I will, she said."])
+        report = validate_segment_quality(
+            weak, [{"type": "NARRATOR", "text": weak}],
+            quote_analysis=analyze_outer_quote_regions(weak))
+        self.assertEqual("skipped:none_detected", report["quote_gate"])
+        self.assertTrue(report["passed"])
+        strong = "\n".join(
+            "— " + text for text in ("Come here.", "Wait there.", "Stay calm.",
+                                     "Look outside.", "Go ahead."))
+        report = validate_segment_quality(
+            strong, [{"type": "NARRATOR", "text": strong}])
+        self.assertEqual("skipped:dash_lines", report["quote_gate"])
 
 
 if __name__ == "__main__":
