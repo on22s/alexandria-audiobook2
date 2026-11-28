@@ -2690,6 +2690,102 @@ class DashDialogueTagTests(unittest.TestCase):
             [line[a:b] for a, b in spoken_spans(line, "dash_lines")],
         )
 
+    def test_ascii_double_hyphen_dash_lines_detect_split_and_map(self):
+        """#2395: ASCII `--` lines use the same dash-dialogue rule as `—`/`–`."""
+        repro = "-- Hola --dijo Ana--. Vamos.\n" * 20
+        self.assertEqual("dash_lines", detect_convention(repro))
+        self.assertEqual(
+            ["Hola", "Vamos."] * 20,
+            [repro[a:b] for a, b in spoken_spans(repro, "dash_lines")],
+        )
+        cases = [
+            ("-- Hola --dijo Ana--. Vamos.",
+             [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")], False),
+            ("--Hola --dijo Ana--. Vamos.",
+             [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")], False),
+            ("  -- Hola --dijo Ana--. Vamos.",
+             [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")], False),
+            ("-- Oui, répondit-il.",
+             [("SPOKEN", "Oui,"), ("NARRATOR", "répondit-il.")], False),
+            ("-- ¿Quién? --preguntó Ana.",
+             [("SPOKEN", "¿Quién?"), ("NARRATOR", "preguntó Ana.")], False),
+            ("-- Sí, --dijo Ana--. Vamos.",
+             [("SPOKEN", "Sí,"), ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")], False),
+            ("-- Non, dit-elle. -- Jamais.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle."), ("SPOKEN", "Jamais.")], False),
+            ("-- I was going to--",
+             [("SPOKEN", "I was going to--")], False),
+            ("-- Wait -- I forgot the keys.",
+             [("SPOKEN", "Wait -- I forgot the keys.")], True),
+            ("-- The train--late again--finally came.",
+             [("SPOKEN", "The train--late again--finally came.")], True),
+            ("--Hola --dijo Ana-- y el tren --tarde otra vez-- llegó.",
+             [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"),
+              ("SPOKEN", "y el tren --tarde otra vez-- llegó.")], True),
+            ("-- Partez! dit Emma. C'est se moquer.",
+             [("SPOKEN", "Partez!"), ("NARRATOR", "dit Emma. C'est se moquer.")], True),
+        ]
+        for line, expected_parts, expected_ambiguous in cases:
+            with self.subTest(line=line):
+                match = dialogue_spans.DASH_LINE.match(line)
+                self.assertIsNotNone(match)
+                parts, ambiguous = dialogue_spans.split_dash_line(
+                    line, match.start(1), match.end(1))
+                self.assertEqual(expected_ambiguous, ambiguous)
+                self.assertEqual(
+                    expected_parts,
+                    [(kind, line[a:b].strip()) for kind, a, b in parts],
+                )
+                self.assertEqual(
+                    [text for kind, text in expected_parts if kind == "SPOKEN"],
+                    [line[a:b] for a, b in spoken_spans(line, "dash_lines")],
+                )
+        # Source map voices the tag as NARRATOR and keeps speech spoken.
+        line = "-- Hola --dijo Ana--. Vamos."
+        source = line + "\n" + "\n".join(f"-- Turn {i}." for i in range(5))
+        entries = [
+            {"speaker": "ANA", "text": "Hola"},
+            {"speaker": "ANA", "text": "dijo Ana"},
+            {"speaker": "ANA", "text": "Vamos."},
+        ]
+        mapped = apply_dialogue_map(entries, source)
+        self.assertEqual("dash_lines", mapped["convention"])
+        self.assertEqual([True, False, True], [row["spoken"] for row in mapped["entries"]])
+        self.assertEqual("NARRATOR", mapped["entries"][1]["speaker"])
+        # Secondary speech in a paired-quote book and interior dash turn ambiguity.
+        mixed = "“Line.”\n" * 5 + "-- Oui, répondit-il."
+        self.assertEqual(["Oui,"],
+                         [mixed[a:b] for a, b in get_other_speech_spans(mixed, "paired_quotes")])
+        interior = "They arrived. -- No, -- Anna said."
+        self.assertEqual(
+            ["No,"],
+            [interior[a:b] for a, b in dialogue_spans.get_interior_dash_ambiguities(
+                interior, "dash_lines")],
+        )
+        # Degenerate lines stay valid.
+        for edge in ("--   ", "-- --dijo Ana.", "--Hola --dijo Ana--."):
+            with self.subTest(edge=edge):
+                spans = spoken_spans(edge, "dash_lines")
+                self.assertIs(True, validate_spoken_spans(spans, edge))
+
+    def test_ascii_double_hyphen_negative_controls_stay_narration(self):
+        """#2395: prose `--`, `word--word`, `---` rules, and `- ` bullets are not dash lines."""
+        for narration in (
+            "The train -- late again -- finally came.",
+            "He paused--then walked away.",
+            "He paused -- then left.",
+            "---\n----\n--- Chapter 2 ---",
+            "- First item\n- Second item\n- Third item\n- Fourth item\n- Fifth item",
+        ):
+            with self.subTest(narration=narration):
+                self.assertEqual([], spoken_spans(narration, "dash_lines"))
+                self.assertIsNone(detect_convention(narration))
+        paired = 'She sighed. "The train -- late again -- finally came." "Yes, he replied."'
+        self.assertEqual(
+            ["The train -- late again -- finally came.", "Yes, he replied."],
+            [paired[a:b] for a, b in spoken_spans(paired, "paired_quotes")],
+        )
+
 class QuoteConventionTableAndRegexTests(unittest.TestCase):
     """Cover every paired, secondary, unclosed and dash/label convention."""
 

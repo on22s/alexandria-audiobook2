@@ -2197,6 +2197,68 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
             [(row["type"], row["text"]) for row in analysis["regions"]],
         )
 
+    def test_ascii_double_hyphen_dash_lines_segment_and_route_via_shared_rule(self):
+        """#2395: pass_quality shares dialogue_spans' ASCII `--` dash rule."""
+        from three_pass_generate import quote_regions_decision
+
+        for chunk, expected in (
+            ("-- Hola --dijo Ana--. Vamos.",
+             [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")]),
+            ("-- Oui, répondit-il.",
+             [("SPOKEN", "Oui,"), ("NARRATOR", "répondit-il.")]),
+            ("-- Non, dit-elle. -- Jamais.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle."), ("SPOKEN", "Jamais.")]),
+            ("He paused.\n  --Hola --dijo Ana--. Vamos.",
+             [("NARRATOR", "He paused."), ("SPOKEN", "Hola"),
+              ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")]),
+            ("The train -- late again -- finally came.\n-- All aboard!",
+             [("NARRATOR", "The train -- late again -- finally came."),
+              ("SPOKEN", "All aboard!")]),
+            ("He paused--then walked away.\n-- Hello.",
+             [("NARRATOR", "He paused--then walked away."), ("SPOKEN", "Hello.")]),
+            ("He paused.\n---\n-- Hello.",
+             [("NARRATOR", "He paused.\n---"), ("SPOKEN", "Hello.")]),
+            ("He paused.\n- Bullet item\n-- Hello.",
+             [("NARRATOR", "He paused.\n- Bullet item"), ("SPOKEN", "Hello.")]),
+        ):
+            with self.subTest(chunk=chunk):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertNotIn("unverified_dash", analysis)
+                self.assertEqual(
+                    expected,
+                    [(row["type"], row["text"]) for row in analysis["regions"]],
+                )
+                regions, resolution = quote_regions_decision("auto", chunk, analysis)
+                self.assertEqual("quote_presegmented", resolution)
+                self.assertEqual(
+                    expected,
+                    [(row["type"], row["text"]) for row in regions],
+                )
+        # Unverified interior `--` routes to the model and checks opening speech.
+        ambiguous_chunk = "He paused.\n-- Wait -- I forgot the keys."
+        analysis = analyze_outer_quote_regions(ambiguous_chunk)
+        self.assertTrue(analysis.get("unverified_dash"))
+        self.assertEqual((None, None), quote_regions_decision("auto", ambiguous_chunk, analysis))
+        wrong = [{"type": "NARRATOR", "text": "He paused. Wait I forgot the keys."}]
+        self.assertFalse(validate_segment_quality(
+            ambiguous_chunk, wrong, quote_analysis=analysis)["passed"])
+        correct = [
+            {"type": "NARRATOR", "text": "He paused."},
+            {"type": "SPOKEN", "text": "Wait"},
+            {"type": "NARRATOR", "text": "I forgot the keys."},
+        ]
+        report = validate_segment_quality(ambiguous_chunk, correct, quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+        # Narration-only chunks with prose `--`, `---`, or `- ` do not become dash dialogue.
+        for plain in (
+            "The train -- late again -- finally came.",
+            "He paused--then walked away.",
+            "---\nChapter Two\n---",
+            "- First item\n- Second item",
+        ):
+            with self.subTest(plain=plain):
+                self.assertEqual([], analyze_outer_quote_regions(plain)["regions"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,6 +30,7 @@ from dialogue_spans import (BLANK_LINE as _BLANK_LINE,
                             PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
                             dash_line_unverified_prefixes as _dash_prefixes,
                             dash_line_unverified_ranges as _dash_ranges,
+                            dash_mark_length as _dash_mark_length,
                             get_guillemet_direction as _get_guillemet_direction,
                             is_inch_mark as _is_inch_mark,
                             is_number_char as _is_number_char,
@@ -773,15 +774,18 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     for index, char in enumerate(text):
         if index < skip_until:
             continue
-        if (dash_is_dialogue and not depth and char in "—–"
+        dash_len = (_dash_mark_length(text, index)
+                    if dash_is_dialogue and not depth else 0)
+        if (dash_len
                 and not text[text.rfind("\n", 0, index) + 1:index].strip(" \t")):
             # Continental line-dash dialogue: split at evidenced tags via the
-            # single shared rule in dialogue_spans (#2329).
+            # single shared rule in dialogue_spans (#2329, #2395).
             flush()
             line_end = text.find("\n", index)
             if line_end == -1:
                 line_end = len(text)
-            parts, ambiguous = _split_dash_line(text, index + 1, line_end)
+            parts, ambiguous = _split_dash_line(
+                text, index + dash_len, line_end)
             if ambiguous:
                 unverified_dash = True
             for part_type, part_start, part_end in parts:

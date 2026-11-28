@@ -42,8 +42,23 @@ PAIRED = [
     ("«", "»"),      # guillemets (French, Russian, Italian, ...)
     ("»", "«"),      # reversed guillemets (Danish)
 ]
-# An em or en dash opening a line, the Continental convention.
-DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
+# An em dash, en dash, or ASCII double hyphen (`--`, not `---` rules) opening
+# a line, the Continental convention (#2329, #2395). Single `-` stays out so
+# list bullets and hyphenated prose never become dialogue.
+_DASH_MARK_PATTERN = r"(?:[—–]|(?<!-)--(?!-))"
+_DASH_SEPS = frozenset(("—", "–", "--"))
+DASH_LINE = re.compile(rf"^[ \t]*{_DASH_MARK_PATTERN}[ \t]*(\S.*)$", re.M)
+
+
+def dash_mark_length(text, index):
+    """-> length of a dialogue dash at `index` (1 for —/–, 2 for `--`), or 0."""
+    if index < len(text) and text[index] in "—–":
+        return 1
+    if (text.startswith("--", index)
+            and (index == 0 or text[index - 1] != "-")
+            and (index + 2 >= len(text) or text[index + 2] != "-")):
+        return 2
+    return 0
 # Closed reporting-verb list (English, Spanish, French — past and present)
 # used to recognise narrator speech tags inside a dash-opened line (#2329).
 # It is one source of truth for the dash rule only: `pass_quality`'s
@@ -237,12 +252,14 @@ _DASH_IMPERATIVE_OBJECT_PREPOSITIONS = frozenset(
 # continuing their command (`— Allons! avoue.`, `— ¡Vamos! contesta.`;
 # #2390 gate 2 G1-c).
 _DASH_IMPERATIVE_INTRODUCERS = (",", "!", "?", "…", "...")
-_DASH_BREAK = re.compile(r"\.{3}|[—–,!?…]")
+_DASH_BREAK = re.compile(rf"\.{{3}}|{_DASH_MARK_PATTERN}|[,!?…]")
 _DASH_TAG_INTRODUCERS = "!?…"
 # A possible turn after narration, with a second dash introducing its tag.
 # Its formatting establishes uncertainty, not speech or a speaker identity.
 INTERIOR_DASH_TURN = re.compile(
-    r"[.!?。！？…][ \t]+[—–][ \t]*(\S[^—–\r\n]*?[,!?！？…])[ \t]+[—–][ \t]+\S")
+    rf"[.!?。！？…][ \t]+{_DASH_MARK_PATTERN}[ \t]*"
+    rf"(\S(?:(?!{_DASH_MARK_PATTERN})[^\r\n])*?[,!?！？…])[ \t]+"
+    rf"{_DASH_MARK_PATTERN}[ \t]+\S")
 # Script form: a speaker label, a colon, then the line.
 LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 
@@ -1110,8 +1127,11 @@ def _dash_tag_clause_end(text, start, limit):
     """
     index = start
     while index < limit:
+        dash_len = dash_mark_length(text, index)
+        if dash_len:
+            return index + dash_len, text[index:index + dash_len]
         char = text[index]
-        if char in ",!?;:—–…":
+        if char in ",!?;:…":
             return index + 1, char
         if char == ".":
             if text.startswith("...", index):
@@ -1408,8 +1428,8 @@ def _split_dash_line_with_break(text, start, end):
             after += 1
         if after >= limit:
             break
-        if (sep in ",!?…" or sep == "...") and text[after] in "—–":
-            # `? —preguntó` / `, —dijo`: the dash introduces the tag.
+        if (sep in ",!?…" or sep == "...") and dash_mark_length(text, after):
+            # `? —preguntó` / `, —dijo` / `, --dijo`: the dash introduces the tag.
             scan = after
             continue
         if not _dash_tag_candidate(text, after, limit, sep):
@@ -1417,7 +1437,7 @@ def _split_dash_line_with_break(text, start, end):
             # ellipsis is speech punctuation unless a lower-case reporting
             # verb follows (#2329 finding 3). A dash with no tag is the
             # interior-dash ambiguity already tracked by #1216.
-            if sep in "—–":
+            if sep in _DASH_SEPS:
                 if first_break is None:
                     first_break = (start, match.start())
                 if split_any:
@@ -1430,7 +1450,7 @@ def _split_dash_line_with_break(text, start, end):
             continue
         if first_break is None:
             first_break = (start, match.start())
-        speech_end = match.start() if sep in "—–" else match.end()
+        speech_end = match.start() if sep in _DASH_SEPS else match.end()
         while speech_end > speech_start and text[speech_end - 1] in " \t":
             speech_end -= 1
         if speech_end <= speech_start or not _dash_tag_evidence(
@@ -1451,10 +1471,10 @@ def _split_dash_line_with_break(text, start, end):
         pending_unverified = False
         parts.append(("SPOKEN", speech_start, speech_end))
         clause_end, delimiter = _dash_tag_clause_end(text, after, limit)
-        if delimiter in "—–":
+        if delimiter in _DASH_SEPS:
             # A closing dash ends the tag and the same character resumes
             # speech (`—Hola —dijo Ana—. Vamos.`).
-            tag_end = clause_end - 1
+            tag_end = clause_end - len(delimiter)
             while tag_end > after and text[tag_end - 1] in " \t":
                 tag_end -= 1
             if tag_end > after:
@@ -1481,9 +1501,10 @@ def _split_dash_line_with_break(text, start, end):
         resume = clause_end
         while resume < limit and text[resume] in " \t":
             resume += 1
-        if resume < limit and text[resume] in "—–":
+        resume_dash = dash_mark_length(text, resume) if resume < limit else 0
+        if resume_dash:
             parts.append(("NARRATOR", after, resume))
-            resume += 1
+            resume += resume_dash
             while resume < limit and text[resume] in ".,;: \t":
                 resume += 1
             speech_start = scan = resume
