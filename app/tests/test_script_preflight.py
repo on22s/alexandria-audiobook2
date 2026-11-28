@@ -2544,8 +2544,11 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         # the "000" can spell a word number ("1 000 000" joins all three
         # groups), while "In 1999 5 minutes later" is a year and a separate
         # number: the "5" is whole and carries the digit copy.
+        # U+001F is horizontal spacing, not a line ending: moving it to the
+        # line-break set would ungroup "1<US>000" and break this case.
         for digits in ("1 000 minutes", "1\u00a0000 minutes",
-                       "1\u2009000 minutes", "1 000 000 minutes"):
+                       "1\u2009000 minutes", "1\u001f000 minutes",
+                       "1 000 000 minutes"):
             with self.subTest(digits=digits):
                 source = '"Zero minutes," she said. "%s," he said.' % digits
                 self.assertEqual(1, len(self._duplicate_findings(

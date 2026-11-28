@@ -47,9 +47,10 @@ _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
 # joining a numeral, though: a digit that opens a line after a line that ended
 # in a number is a new line, not the far half of a number (#2304 gate 3).
 # \n, \r, U+2028 and U+2029 are the project's line endings; \x0b, \x0c, \x85
-# and the three C0 information separators \x1c-\x1e break lines in every
-# reader (and in Python's ``str.splitlines``) although the paragraph iterator
-# treats them as horizontal space, so no numeral joins across any of them.
+# and the three C0 information separators \x1c-\x1e are line endings in
+# Python's ``str.splitlines`` (readers do not all agree) although the
+# paragraph iterator treats them as horizontal space, so no numeral joins
+# across any of them.
 _NUMBER_GAP_LINE_BREAKS = "\n\r\u2028\u2029\x0b\x0c\x85\x1c\x1d\x1e"
 # Range and clock marks join two digit tokens into one numeral ONLY when the
 # mark touches both digits. A SPACED mark is sentence punctuation, not a range
@@ -67,7 +68,7 @@ _NUMERAL_GAP_MARKS = frozenset((
 # rejects. Kept as its own list so narrowing the line-break guard cannot turn
 # a break into a horizontal space. Python's ``str.strip`` removes \x1f as
 # whitespace too, so it is spacing here; leaving it out made a mark beside it
-# look glued (#2304 gate 6 N1).
+# look glued (#2304 gate 6 L1).
 _HORIZONTAL_GAP_SPACES = frozenset(
     " \t\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008"
     "\u2009\u200a\u202f\u205f\u3000\x1f")
@@ -1445,11 +1446,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         type. A digit that starts a line after a line ending in a number opens
         a new line, not the far half of a number, so a gap containing `\\n`,
         `\\r`, U+2028, U+2029, `\\x0b`, `\\x0c`, `\\x85`, `\\x1c`, `\\x1d` or
-        `\\x1e` never joins. A false
-        block stops the user's audiobook while a missed duplicate does not, so
-        a range wrapped across a line break (`5-\\n6`) is credited as two whole
-        numbers and a duplicate of it can pass (documented under Limits). A
-        faithful book with "Chapter 12" above "5 minutes later" stays clean,
+        `\\x1e` never joins. A false block stops the user's audiobook while a
+        missed duplicate does not, so a range wrapped across a line break
+        (`5-\\n6`) is credited as two whole numbers and a duplicate of it can
+        pass (documented under Limits). A faithful book with "Chapter 12"
+        above "5 minutes later" stays clean,
         and a blank line keeps a "- 12 -" page number apart for every break
         type (#2304 gate 3; gate 5 governing rule).
 
