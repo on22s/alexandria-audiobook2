@@ -1,10 +1,19 @@
 """Shared container/OPF parsing for text extraction and publication review."""
+import os
 from pathlib import PurePosixPath, PureWindowsPath
 import re
+import sys
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
-import utils  # inserts the repo root on sys.path for alexandria_alignment users
+# ``alexandria_alignment`` lives at the repository root. Make this module
+# importable on its own (app process, isolated test module, publication review)
+# without requiring ``utils`` to have run first; this is the root insertion
+# utils itself performs.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 from alexandria_alignment import (get_epub_declared_encoding,
                                   is_unusable_epub_codec)
 
