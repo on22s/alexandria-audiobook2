@@ -729,7 +729,7 @@ class SpeakerIdentityEdgeAndAuditTests(unittest.TestCase):
         ws_result = stabilize_speaker_identities(ws_entries, established_speakers=["ALICE"])
         self.assertEqual(ws_entries, ws_result["entries"])
         self.assertEqual([], ws_result["changes"])
-        self.assertNotIn("XXXX", ws_result["speakers"])
+        self.assertEqual(["ALICE"], ws_result["speakers"])
 
         self.assertEqual("", _identity_key(None))
         self.assertEqual("", _identity_key(""))
@@ -862,6 +862,139 @@ class SpeakerIdentityEdgeAndAuditTests(unittest.TestCase):
         self.assertEqual(["RUDEUS"], out["speakers"])
         self.assertEqual(["RUDEUS", "RUDEUS"],
                          [entry["speaker"] for entry in out["entries"]])
+
+    def test_whitespace_and_silent_only_speakers_are_excluded_from_speakers_list(self):
+        # Empty-looking labels (whitespace and/or silent word characters) pass
+        # through untouched on the entries and never leak into result["speakers"].
+        for label in ("   ", "\t\n", "\u00ad", "\u2060", " \u00ad ", "\u00ad \u00ad"):
+            with self.subTest(label=repr(label)):
+                entries = [{"speaker": label, "text": "Hello."}]
+                with_roster = stabilize_speaker_identities(
+                    entries, established_speakers=["ALICE"])
+                self.assertEqual(["ALICE"], with_roster["speakers"])
+                self.assertEqual(entries, with_roster["entries"])
+                self.assertEqual([], with_roster["changes"])
+                self.assertEqual([], with_roster["review"])
+
+                without_roster = stabilize_speaker_identities(entries)
+                self.assertEqual([], without_roster["speakers"])
+                self.assertEqual(entries, without_roster["entries"])
+                self.assertEqual([], without_roster["changes"])
+
+        # Empty-looking roster entries are also skipped.
+        roster_out = stabilize_speaker_identities(
+            [{"speaker": "ALICE", "text": "Hello."}],
+            established_speakers=["   ", "\t\n", "\u00ad", "\u2060", "\u00ad \u00ad", "ALICE"],
+        )
+        self.assertEqual(["ALICE"], roster_out["speakers"])
+
+        # Mixed with real names: order is preserved and no duplicates are added.
+        mixed_entries = [
+            {"speaker": "   ", "text": "1"},
+            {"speaker": "BOB", "text": "2"},
+            {"speaker": "\t\n", "text": "3"},
+            {"speaker": "CHARLIE", "text": "4"},
+            {"speaker": "\u00ad", "text": "5"},
+            {"speaker": "BOB", "text": "6"},
+            {"speaker": "\u2060", "text": "7"},
+            {"speaker": "ALICE", "text": "8"},
+        ]
+        mixed = stabilize_speaker_identities(
+            mixed_entries, established_speakers=["ALICE"])
+        self.assertEqual(["ALICE", "BOB", "CHARLIE"], mixed["speakers"])
+        self.assertEqual(mixed_entries, mixed["entries"])
+        self.assertEqual([], mixed["changes"])
+
+        # Real names with surrounding whitespace keep unchanged behaviour.
+        padded = stabilize_speaker_identities(
+            [{"speaker": "  BOB  ", "text": "hi"},
+             {"speaker": "\tALICE\n", "text": "hey"}],
+            established_speakers=["ALICE"],
+        )
+        self.assertEqual(["ALICE", "BOB"], padded["speakers"])
+        self.assertEqual(
+            [{"speaker": "BOB", "text": "hi"}, {"speaker": "ALICE", "text": "hey"}],
+            padded["entries"],
+        )
+        self.assertEqual(
+            [{"type": "speaker_identity", "entry_number": 1,
+              "before": "  BOB  ", "after": "BOB"},
+             {"type": "speaker_identity", "entry_number": 2,
+              "before": "\tALICE\n", "after": "ALICE"}],
+            padded["changes"],
+        )
+
+        # Caller roster spelling with internal spacing stays byte-identical with no duplicate.
+        spaced_roster = stabilize_speaker_identities(
+            [{"speaker": "ALICE  BOB", "text": "hi"}],
+            established_speakers=["ALICE  BOB"],
+        )
+        self.assertEqual(["ALICE  BOB"], spaced_roster["speakers"])
+        self.assertEqual("ALICE  BOB", spaced_roster["entries"][0]["speaker"])
+
+    def test_empty_looking_entry_is_never_rewritten_beside_a_punctuation_only_label(self):
+        # "-" has `_identity_key` "", the same key an empty-looking label folds
+        # to. These entries must stay untouched in either arrival order and
+        # must never produce a change record (review 2403 rev1, finding 2).
+        for label in ("\u00ad \u00ad", "   ", "\u00ad", ""):
+            for label_first in (True, False):
+                empty = {"speaker": label, "text": "a"}
+                punct = {"speaker": "-", "text": "b"}
+                entries = [empty, punct] if label_first else [punct, empty]
+                with self.subTest(label=repr(label), label_first=label_first):
+                    out = stabilize_speaker_identities(copy.deepcopy(entries))
+                    self.assertEqual(entries, out["entries"])
+                    self.assertEqual([], out["changes"])
+                    self.assertEqual(["-"], out["speakers"])
+
+        # An empty-looking entry skips only itself: entries after it still get
+        # the best-spelling pass (mutation `continue` -> `break` would not).
+        later = stabilize_speaker_identities([
+            {"speaker": "\u00ad \u00ad", "text": "a"},
+            {"speaker": "R UDEUS", "text": "b"},
+            {"speaker": "RUDEUS", "text": "c"},
+        ])
+        self.assertEqual(["RUDEUS", "RUDEUS"],
+                         [entry["speaker"] for entry in later["entries"][1:]])
+
+    def test_consistency_report_skips_empty_looking_labels_without_merging_spellings(self):
+        entries = [{"speaker": "\u00ad \u00ad", "text": "a"},
+                   {"speaker": "ALICE", "text": "b"},
+                   {"speaker": "ALICE  BOB", "text": "c"},
+                   {"speaker": "-", "text": "d"}]
+        out = stabilize_speaker_identities(entries)
+        report = build_speaker_consistency_report(out["entries"], out["review"])
+        self.assertEqual(
+            [{"speaker": "-", "entry_count": 1, "first_entry_numbers": [4]},
+             {"speaker": "ALICE", "entry_count": 1, "first_entry_numbers": [2]},
+             {"speaker": "ALICE BOB", "entry_count": 1, "first_entry_numbers": [3]}],
+            report["speakers"],
+        )
+        # Emptiness is decided by the helper; the usage row keeps the trimmed
+        # spelling, so caller spellings with one and two spaces stay separate.
+        spaced = build_speaker_consistency_report(
+            [{"speaker": "ALICE  BOB"}, {"speaker": "ALICE BOB"}])
+        self.assertEqual(["ALICE  BOB", "ALICE BOB"],
+                         [item["speaker"] for item in spaced["speakers"]])
+
+    def test_audit_script_treats_an_empty_looking_speaker_as_missing(self):
+        from script_preflight import audit_script
+
+        for label in ("   ", "\u00ad", "\u00ad \u00ad"):
+            with self.subTest(label=repr(label)):
+                report = audit_script(
+                    [{"speaker": label, "text": "Hello there.",
+                      "instruct": "Calm."}], "Hello there.")
+                self.assertIn("missing_speaker",
+                              [f["code"] for f in report["findings"]
+                               if f["severity"] == "blocking"])
+
+    def test_merge_allowed_removes_silent_characters_before_collapsing(self):
+        # A silent character next to a space used to leave a stray double space,
+        # so the same group label was refused as a merge (review finding 4c).
+        self.assertTrue(is_speaker_merge_allowed("RAM AND \u00ad REM", "RAM AND REM"))
+        self.assertTrue(is_speaker_merge_allowed("RAM AND REM", "RAM AND \u00ad REM"))
+        self.assertFalse(is_speaker_merge_allowed("RAM AND \u00ad REM", "RAM AND REMO"))
 
 
 class UnicodeScriptTableAndProtectionTests(unittest.TestCase):
