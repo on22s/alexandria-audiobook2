@@ -672,6 +672,11 @@ class SourceTagTests(unittest.TestCase):
         # A blank line still ends the paragraph: no inheritance across it.
         self.assertEqual({}, get_attribution_tag_evidence(
             cont, '“Go,” Nita said.\n\n“No.”', names))
+        # The following-tag read folds its wrap too (NIT 2, #2391 r6): a wrap
+        # inside the earlier bare tag still counts Nita as the paragraph's one
+        # tagged speaker, so the continuation keeps her instead of abstaining.
+        self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+            cont, '“Go,” Nita\nsaid. “No.”', names))
 
     def test_continuation_abstains_before_a_quotation_that_starts_its_line(self):
         # #2391 r6 BLOCKER 1: the user's light novels put one paragraph per line
@@ -717,10 +722,12 @@ class SourceTagTests(unittest.TestCase):
                          get_attribution_tag_evidence(
                              cont, '“Go,” Nita said. “No.”', names))
         # A lone CR is a line break too (dialogue_spans.BLANK_LINE covers it),
-        # so a tag wrapped on a CR is still B's own tag (#2391 r6 NIT 1).
+        # so a tag wrapped on a CR is still B's own tag and B abstains (#2391
+        # r6 NIT 1) instead of inheriting Nita.
         self.assertEqual({},
                          get_attribution_tag_evidence(
-                             cont, '“Go,” Nita said. “No,” Kit\rsaid.', names))
+                             [{'type': 'SPOKEN', 'text': 'No,'}],
+                             '“Go,” Nita said. “No,” Kit\rsaid.', names))
 
     def test_continuation_abstains_after_a_question(self):
         names = {'NITA', 'KIT'}
