@@ -313,7 +313,7 @@ def _weak_dash_continuation_ranges(text):
                 # this line opens a new speech, so what follows may continue it.
                 seen_weak = True
                 continue
-            if seen_weak and body.strip():
+            if seen_weak:
                 ranges.append((start, paragraph_start + line.end()))
         paragraph_start = after
     return ranges
