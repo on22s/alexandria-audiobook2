@@ -30,10 +30,7 @@ from dialogue_spans import (BLANK_LINE as _BLANK_LINE,
                             PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
                             dash_line_unverified_prefixes as _dash_prefixes,
                             dash_line_unverified_ranges as _dash_ranges,
-                            get_dash_mark as _get_dash_mark,
                             get_guillemet_direction as _get_guillemet_direction,
-                            has_established_dash_convention as _dash_established,
-                            is_dash_attribution as _is_dash_attribution,
                             is_inch_mark as _is_inch_mark,
                             is_number_char as _is_number_char,
                             split_dash_line as _split_dash_line)
@@ -711,15 +708,13 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
         closers.add(guillemet_close)
     # A dash-only book uses line dashes for dialogue; a book with any quote
     # marks uses those and treats a stray dash as narration punctuation.
+    # Only the strong `—`/`–` forms are certified here. A chunk holds no
+    # whole-book convention, so the weak ASCII `--` form abstains exactly as
+    # on main: whether `--` is this book's dialogue is settled once for the
+    # whole book (`dialogue_spans.has_established_dash_convention` with the
+    # caller's detected convention) and never from one chunk's shape
+    # (#2447 gate 2 blocker 2 / low 1).
     dash_is_dialogue = not any(mark in text for mark in QUOTE_MARKS)
-    # "The dash convention is established" is ONE predicate in dialogue_spans
-    # (Rule 15): at least two lines of dialogue evidence and dashes outnumber
-    # paired-quote openers (`dash_lines` wins outright in a quote-free chunk).
-    # It gates the weak `--` certification (#2395 review 1 blocker 2) AND the
-    # attribution exclusion (#2395 review 2 low 1), so the two cannot disagree;
-    # a `--` line counts as evidence only when it opens like speech and is not
-    # attribution-shaped (#2447 gate 1 blocker 2).
-    dash_established = _dash_established(text)
     quote_positions = [i for i, c in enumerate(text) if c in _QUOTE_CHARS]
     quote_at = {i: c for i, c in enumerate(text) if c in _QUOTE_CHARS}
 
@@ -784,38 +779,24 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     for index, char in enumerate(text):
         if index < skip_until:
             continue
-        dash_len, dash_strength = ((_get_dash_mark(text, index)
-                                    if dash_is_dialogue and not depth
-                                    else (0, None)))
-        if (dash_len
+        if (dash_is_dialogue and not depth and char in "—–"
                 and not text[text.rfind("\n", 0, index) + 1:index].strip(" \t")):
+            # Continental line-dash dialogue: split at evidenced tags via the
+            # single shared rule in dialogue_spans (#2329).
+            flush()
             line_end = text.find("\n", index)
             if line_end == -1:
                 line_end = len(text)
-            if not ((dash_strength == "weak" and not dash_established)
-                    or (not dash_established
-                        and _is_dash_attribution(
-                            text[index + dash_len:line_end]))):
-                # Continental line-dash dialogue: split at evidenced tags via
-                # the single shared rule in dialogue_spans (#2329, #2395).
-                flush()
-                parts, ambiguous = _split_dash_line(
-                    text, index + dash_len, line_end)
-                if ambiguous:
-                    unverified_dash = True
-                for part_type, part_start, part_end in parts:
-                    part_text = text[part_start:part_end].strip()
-                    if part_text:
-                        regions.append({"type": part_type, "text": part_text})
-                        saw_quote = True
-                skip_until = line_end
-                continue
-            # Where the dash convention is NOT established an attribution/
-            # signature line is narration in both dash forms and a lone `--`
-            # line abstains rather than certifying speech (#2395 review 1
-            # blockers 1-2); inside an established dash chunk a name-only
-            # line stays speech (#2395 review 2 low 1). All fall through to
-            # narration here.
+            parts, ambiguous = _split_dash_line(text, index + 1, line_end)
+            if ambiguous:
+                unverified_dash = True
+            for part_type, part_start, part_end in parts:
+                part_text = text[part_start:part_end].strip()
+                if part_text:
+                    regions.append({"type": part_type, "text": part_text})
+                    saw_quote = True
+            skip_until = line_end
+            continue
         if char == "\n" and text[index:index + 2] == "\n\n" and depth:
             flush()
             current.append(char)
