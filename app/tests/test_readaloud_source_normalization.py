@@ -986,11 +986,16 @@ class SavedScriptNormalizationWriterTests(unittest.TestCase):
             # laundered digest would still authorize the collapse.
             script_path.write_bytes(
                 json.dumps(entries, ensure_ascii=False, indent=4).encode("utf-8"))
+            # Reordered keys make the repair write bytes other than
+            # ``saved_bytes``, so restoring ``saved_bytes`` at the end is a real
+            # rewrite rather than a no-op.
+            repaired = [dict(reversed(list(row.items()))) for row in entries]
             with patch.object(scripts_library, "DATA_DIR", str(root)), \
                  patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)), \
                  self.assertLogs("readalong_export", level="WARNING") as captured:
-                scripts_library._publish_saved_repair(str(script_path), entries)
+                scripts_library._publish_saved_repair(str(script_path), repaired)
             self.assertIn("different saved script", "\n".join(captured.output))
+            self.assertNotEqual(saved_bytes, script_path.read_bytes())
             self.assertEqual(
                 [],
                 readalong_export.get_recorded_source_normalizations(None, str(script_path)))
@@ -1009,12 +1014,92 @@ class SavedScriptNormalizationWriterTests(unittest.TestCase):
                     source_normalizations=readalong_export.get_recorded_source_normalizations(
                         None, str(script_path)),
                 )
-            # Restoring the pre-repair bytes does not bring the records back:
-            # only re-saving from an active generation records them again.
+            # Restoring the exact bytes the records were originally bound to
+            # does not bring them back: only re-saving from an active
+            # generation records them again.
             script_path.write_bytes(saved_bytes)
+            self.assertEqual(saved_bytes, script_path.read_bytes())
             self.assertEqual(
                 [],
                 readalong_export.get_recorded_source_normalizations(None, str(script_path)))
+
+    def test_saved_repair_proceeds_when_the_companion_has_an_oversized_integer(self):
+        # An integer longer than CPython's 4,300-digit conversion limit makes
+        # json.loads raise a plain ValueError, not JSONDecodeError. The read must
+        # treat that companion as unreadable: drop the records, log, and let the
+        # repair proceed as on main instead of escaping as an unhandled error.
+        from routers import scripts_library
+
+        _repeated, _epub, changes, entries = self._read_repro_book()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts_dir = root / "scripts"
+            scripts_dir.mkdir()
+            script_path, saved_bytes = _write_saved_book_with_records(
+                scripts_dir, changes, entries)
+            meta_path = scripts_dir / "book.meta.json"
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            oversized = (json.dumps(meta)[:-1]
+                         + ', "legacy_counter": 1' + "1" * 4400 + "}")
+            meta_path.write_text(oversized, encoding="utf-8")
+            repaired = [dict(reversed(list(row.items()))) for row in entries]
+            with patch.object(scripts_library, "DATA_DIR", str(root)), \
+                 patch.object(scripts_library, "SCRIPTS_DIR", str(scripts_dir)), \
+                 self.assertLogs("readalong_export", level="WARNING") as captured:
+                scripts_library._publish_saved_repair(str(script_path), repaired)
+            self.assertIn("is not valid JSON (ValueError)", "\n".join(captured.output))
+            self.assertEqual(
+                json.dumps(repaired, ensure_ascii=False, indent=2).encode("utf-8"),
+                script_path.read_bytes())
+            self.assertNotEqual(saved_bytes, script_path.read_bytes())
+            # The unreadable companion is untouched, so it keeps failing closed.
+            self.assertEqual(oversized, meta_path.read_text(encoding="utf-8"))
+            with self.assertLogs("readalong_export", level="WARNING") as captured:
+                self.assertEqual(
+                    [],
+                    readalong_export.get_recorded_source_normalizations(
+                        None, str(script_path)))
+            self.assertIn("is not valid JSON (ValueError)", "\n".join(captured.output))
+
+    def test_saved_meta_with_oversized_integer_does_not_block_readaloud_export(self):
+        # The export reads the companion before it builds (readalong_export.py).
+        # An oversized integer used to escape that read as an unhandled
+        # ValueError, failing a book main exports unchanged.
+        body = (
+            "<h1>Chapter One</h1>"
+            "<p>The lantern flickered in the hall.</p>"
+            "<p>Nobody answered from the stairs.</p>"
+        )
+        epub = _make_epub([body])
+        _extracted, normalized, changes = _extract_and_normalize(epub)
+        self.assertEqual([], changes)
+        entries = _script_chunks_from_normalized(normalized)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts_dir = root / "scripts"
+            scripts_dir.mkdir()
+            script_path, saved_bytes = _write_saved_book_with_records(
+                scripts_dir, [], entries)
+            (scripts_dir / "book.meta.json").write_text(
+                '{"book_id": "book-book", "legacy_counter": 1' + "1" * 4400 + "}",
+                encoding="utf-8")
+            with self.assertLogs("readalong_export", level="WARNING") as captured:
+                source_normalizations = readalong_export.get_recorded_source_normalizations(
+                    None, str(script_path))
+            self.assertEqual([], source_normalizations)
+            self.assertIn("is not valid JSON (ValueError)", "\n".join(captured.output))
+            # Same as main: no readable records, and the ordinary book builds.
+            entries_from_audio, _aligned = _make_entries_from_texts(
+                [row["text"] for row in entries])
+            built, _report = build_epub_readaloud(
+                retained_epub_bytes=epub,
+                audio_bytes=b"\xff\xfbmp3",
+                audio_filename="audiobook.mp3",
+                script_entries=entries_from_audio,
+                source_normalizations=source_normalizations,
+            )
+            validate_epub_readaloud(built)
+            self.assertEqual(saved_bytes, script_path.read_bytes())
 
     def test_speaker_repair_refreshes_the_digest(self):
         from routers import scripts_library

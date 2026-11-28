@@ -1501,7 +1501,10 @@ def _read_bounded_json_document(path, cancel_check):
     """-> (document, error). ``error`` is None for an absent candidate.
 
     Read failures are reported by the caller (Rule 8) instead of being shaped
-    like "this book recorded no normalizations".
+    like "this book recorded no normalizations". A parse failure here covers
+    every way ``json.loads`` can reject the bytes: invalid UTF-8, invalid JSON,
+    recursion beyond the decoder's limit, and a plain ``ValueError`` such as
+    CPython's integer-string conversion limit for an oversized number.
     """
     from project_scope_files import capture_scope_file
 
@@ -1516,7 +1519,10 @@ def _read_bounded_json_document(path, cancel_check):
         return None, None
     try:
         doc = json.loads(raw)
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+    except (ValueError, RecursionError) as error:
+        # UnicodeDecodeError and json.JSONDecodeError are ValueErrors, and the
+        # integer-string conversion limit raises a plain ValueError, so every
+        # decoder rejection is reported as unreadable rather than escaping.
         return None, f"is not valid JSON ({error.__class__.__name__})"
     if not isinstance(doc, dict):
         return None, "is not a JSON object"
@@ -1711,9 +1717,11 @@ def get_refreshed_saved_script_metadata(script_path, script_bytes, *, cancel_che
     the script bytes still on disk) and rebinds them to ``script_bytes`` through
     the one producer above (Rule 15). A companion with neither normalization
     field nor authorized records is left byte-identical. Returns None when the
-    book has no ``.meta.json``; a companion that cannot be parsed is left
-    unchanged and reported in the log, so the rewrite still proceeds and the
-    stale companion keeps failing closed at read time.
+    book has no ``.meta.json``; a companion that is unreadable, is not a JSON
+    object, or cannot be parsed — invalid UTF-8, invalid JSON, recursion beyond
+    the decoder limit, or a plain ``ValueError`` such as an oversized integer —
+    is left unchanged and reported in the log, so the rewrite still proceeds and
+    the stale companion keeps failing closed at read time.
     """
     meta_path = os.path.splitext(script_path)[0] + ".meta.json"
     doc, error = _read_bounded_json_document(meta_path, cancel_check)
