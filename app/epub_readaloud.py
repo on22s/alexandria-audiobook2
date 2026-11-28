@@ -53,7 +53,8 @@ from alexandria_alignment import (
     html_hidden_handling_applies,
     is_html_hidden_attrs,
 )
-from epub_package import (EpubXmlEncodingError, get_epub_package,
+from epub_package import (EpubXmlEncodingError, get_epub_declaration_refusal,
+                         get_epub_encoding_refusal, get_epub_package,
                          is_navigation_document, parse_epub_xml,
                          split_epub_href)
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
@@ -1104,7 +1105,9 @@ def _svg_has_text(stream, cancel_check=None):
     ``<text>`` element (including nested ``tspan``/CDATA, which
     surface as text data) with non-whitespace content returns
     True; CDATA and entity text are delivered as data by the
-    parser. Malformed XML raises ET.ParseError to the caller.
+    parser. Malformed XML raises ET.ParseError to the caller; a declaration
+    Expat cannot honour raises ``EpubXmlEncodingError`` (the shared refusal),
+    which the SVG spine probe skips like any other malformed SVG.
     The target retains no tree or text. Expat may still buffer a
     single large XML token; chunked input is not a constant-memory
     guarantee for arbitrary attributes or markup.
@@ -1144,17 +1147,34 @@ def _svg_has_text(stream, cancel_check=None):
     target = _Target()
     # streaming target, no tree retained.
     parser = ET.XMLParser(target=target)  # nosec B314
+    # Classify the declaration from the first stream chunk with the same
+    # shared decision the tree parser uses: Expat would hand punycode/idna/
+    # undefined to Python's codec and raise raw UnicodeError text.
+    chunk = stream.read(64 * 1024)
+    if chunk:
+        refusal = get_epub_declaration_refusal(chunk)
+        if refusal is not None:
+            raise refusal
     # Feed the FULL document before close: an early-found text
     # element must not turn close() into an incomplete-document
     # ParseError (which callers treat as malformed/tolerated).
-    while True:
-        if cancel_check is not None and cancel_check():
-            raise ValueError("EPUB read-aloud cancelled.")
-        chunk = stream.read(64 * 1024)
-        if not chunk:
-            break
-        parser.feed(chunk)
-    parser.close()
+    try:
+        while True:
+            if cancel_check is not None and cancel_check():
+                raise ValueError("EPUB read-aloud cancelled.")
+            if not chunk:
+                break
+            parser.feed(chunk)
+            chunk = stream.read(64 * 1024)
+        parser.close()
+    except (LookupError, ValueError) as error:
+        # An Expat refusal class that remains (an unknown name or a codec it
+        # cannot stream) is the same malformed input as at the tree sites, so
+        # callers can skip it (Rule 15).
+        refusal = get_epub_encoding_refusal(error)
+        if refusal is not None:
+            raise refusal from error
+        raise
     return target.found
 
 
@@ -2317,7 +2337,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                         if _svg_has_text(_stream, cancel_check=cancel_check):
                             raise ValueError(
                                 "SVG spine documents with text are unsupported; failing closed.")
-                except (KeyError, ET.ParseError):
+                except (KeyError, ET.ParseError, EpubXmlEncodingError):
                     continue
             continue
         if mtype != XHTML_MEDIA_TYPE and 'html' not in mtype:

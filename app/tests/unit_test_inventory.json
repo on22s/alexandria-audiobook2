@@ -6171,6 +6171,7 @@
   , "test_epub_package": [
     "tests.test_epub_package.EpubPackageTests.test_a_missing_container_is_not_reported_as_an_encoding_problem"
     , "tests.test_epub_package.EpubPackageTests.test_a_multibyte_declared_encoding_is_a_value_error"
+    , "tests.test_epub_package.EpubPackageTests.test_a_utf16_document_with_a_python_only_declaration_is_refused"
     , "tests.test_epub_package.EpubPackageTests.test_an_unknown_declared_encoding_is_a_value_error"
     , "tests.test_epub_package.EpubPackageTests.test_missing_rootfile_fails_in_both_modes"
     , "tests.test_epub_package.EpubPackageTests.test_only_known_sigil_fragment_is_repaired"
@@ -6180,6 +6181,7 @@
     , "tests.test_epub_package.EpubPackageTests.test_review_refuses_duplicate_selected_member_instead_of_guessing"
     , "tests.test_epub_package.EpubPackageTests.test_root_alias_member_is_refused_before_parsing_in_both_modes"
     , "tests.test_epub_package.EpubPackageTests.test_text_extraction_first_root_is_preserved_but_review_refuses_ambiguity"
+    , "tests.test_epub_package.EpubPackageTests.test_unusable_python_codec_declarations_are_value_errors"
   ]
   , "test_epub_publication": [
     "tests.test_epub_publication.EpubPublicationTests.test_an_unparsable_cover_href_is_the_documented_unsafe_refusal"
@@ -12436,6 +12438,7 @@
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_multi_leading_punctuation_preserved"
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_text_first_large_svg_refused"
     , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_textless_svg_accepted_and_cancel_during_scan_refused"
+    , "tests.test_qwen_review_v2_repairs.SvgFirstTests.test_unusable_svg_declaration_is_a_tolerated_skip"
     , "tests.test_qwen_review_v2_repairs.TextlessTailTests.test_clone_atom_keeps_id_and_xml_id_pair"
     , "tests.test_qwen_review_v2_repairs.TextlessTailTests.test_descendant_tail_is_not_textless"
     , "tests.test_qwen_review_v2_repairs.TextlessTailTests.test_sentence_rows_preserve_nested_tail_once"

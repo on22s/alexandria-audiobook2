@@ -81,6 +81,37 @@ class EpubPackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'unknown encoding'):
                     get_epub_package(archive)
 
+    def test_unusable_python_codec_declarations_are_value_errors(self):
+        # #2370/#2375: Expat hands ``punycode``/``idna``/``undefined`` to
+        # Python's codec, which raises UnicodeError (not LookupError or the
+        # multi-byte ValueError). The shared unusable-codec decision refuses
+        # the declaration before that raw codec text can escape.
+        for codec in ('punycode', 'idna', 'undefined'):
+            declaration = f'<?xml version="1.0" encoding="{codec}"?>'
+            container = (declaration +
+                         '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                         '<rootfiles><rootfile full-path="book.opf"/></rootfiles></container>')
+            with self.subTest(site='container', codec=codec), \
+                    self.archive(container=container) as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+            with self.subTest(site='opf', codec=codec), \
+                    self.archive(declaration + '<package/>') as archive:
+                with self.assertRaisesRegex(ValueError, 'unknown encoding'):
+                    get_epub_package(archive)
+
+    def test_a_utf16_document_with_a_python_only_declaration_is_refused(self):
+        # The declaration bytes are UTF-16, so only a prolog decoded with the
+        # BOM/signature encoding can name the codec; the same shared decision
+        # still refuses it before Expat hands it to Python (Rule 15).
+        from epub_package import EpubXmlEncodingError, parse_epub_xml
+        for codec in ('punycode', 'idna', 'undefined'):
+            raw = (f'<?xml version="1.0" encoding="{codec}"?>'
+                   '<package/>').encode('utf-16')
+            with self.subTest(codec=codec), \
+                    self.assertRaises(EpubXmlEncodingError):
+                parse_epub_xml(raw)
+
     def test_a_missing_container_is_not_reported_as_an_encoding_problem(self):
         # #2375: read_member's KeyError is a LookupError too, so the encoding
         # handler must not absorb a missing META-INF/container.xml.

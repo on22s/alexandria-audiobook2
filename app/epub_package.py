@@ -4,6 +4,10 @@ import re
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
+import utils  # inserts the repo root on sys.path for alexandria_alignment users
+from alexandria_alignment import (get_epub_declared_encoding,
+                                  is_unusable_epub_codec)
+
 # EPUB 3 calls manifest `properties` a space-separated list; XML separates the
 # tokens with space, tab, CR or LF. str.split() would also split on NBSP and
 # other Unicode spaces, which that grammar does not treat as separators. Form
@@ -14,10 +18,14 @@ _XML_WHITESPACE = re.compile(r'[ \t\n\f\r]+')
 # two ways on CPython 3.10: LookupError for a codec Expat does not know, and
 # ValueError('multi-byte encodings are not supported') for one it cannot stream
 # (shift_jis, utf-16-le/be, utf-32 declarations; a BOM-carrying utf-16 document
-# is fine). Both mean the same thing - the declaration cannot be honoured - and
-# every EPUB reader here treats such a document as malformed. The ValueError is
-# matched by its exact message; ValueError is also the channel for unrelated
-# failures, and an unfixed declaration class must not be mistaken for one.
+# is fine). A third shape - the declarations Expat hands to Python's codec
+# (``punycode``, ``idna``, ``undefined``) - raises UnicodeError instead; it is
+# refused before parsing by the one unusable-codec decision
+# (:func:`alexandria_alignment.is_unusable_epub_codec`), not caught here. All
+# mean the same thing - the declaration cannot be honoured - and every EPUB
+# reader here treats such a document as malformed. The ValueError is matched by
+# its exact message; ValueError is also the channel for unrelated failures, and
+# an unfixed declaration class must not be mistaken for one.
 _EXPAT_MULTIBYTE_REFUSAL = 'multi-byte encodings are not supported'
 
 
@@ -26,27 +34,68 @@ class EpubXmlEncodingError(ValueError):
 
 
 def is_epub_encoding_refusal(error):
-    """Return whether ``error`` is Expat refusing an XML encoding declaration."""
-    return isinstance(error, LookupError) or (
-        isinstance(error, ValueError)
-        and str(error) == _EXPAT_MULTIBYTE_REFUSAL)
+    """Return whether ``error`` is Expat refusing an XML encoding declaration.
+
+    The declarations Expat hands to Python (``punycode``, ``idna``,
+    ``undefined``) are classified before parsing by the one codec decision
+    (:func:`alexandria_alignment.is_unusable_epub_codec`), so a raw
+    ``UnicodeError`` is not a refusal channel here: it would mean the shared
+    decision missed a declaration, which the tests must catch instead.
+    """
+    return (isinstance(error, LookupError)
+            or (isinstance(error, ValueError)
+                and str(error) == _EXPAT_MULTIBYTE_REFUSAL))
+
+
+def get_epub_encoding_refusal(error):
+    """Return the :class:`EpubXmlEncodingError` for ``error``, or ``None``.
+
+    One translation shared by the tree parser and the streaming SVG probe
+    (Rule 15), so both map an encoding refusal to the same documented outcome.
+    """
+    if is_epub_encoding_refusal(error):
+        return EpubXmlEncodingError(str(error))
+    return None
+
+
+def get_epub_declaration_refusal(raw):
+    """Return the :class:`EpubXmlEncodingError` for an unusable declaration.
+
+    One pre-parse classification shared by the tree parser and the streaming
+    SVG probe (Rule 15): both ask :func:`alexandria_alignment.is_unusable_epub_codec`
+    about the declaration bytes Expat itself reads. ``None`` means the
+    declaration is usable or absent.
+    """
+    declared, present = get_epub_declared_encoding(raw)
+    if present and declared is not None and is_unusable_epub_codec(declared):
+        return EpubXmlEncodingError(
+            f'XML declaration names an unusable encoding: {declared}')
+    return None
 
 
 def parse_epub_xml(raw):
     """Parse bounded EPUB XML with the one encoding-refusal decision (Rule 15).
 
-    An encoding declaration Expat refuses is malformed input, not an
-    unexpected exception: both of its failure types become
-    :class:`EpubXmlEncodingError`, so every caller maps it to the same
-    documented refusal or fallback per reader (#2370, #2375). ``raw`` is read
-    by the caller, so the member read stays size-bounded.
+    The declaration's codec name is classified by
+    :func:`alexandria_alignment.is_unusable_epub_codec` - the same rule
+    :func:`alexandria_alignment.decode_epub_markup` applies to a chapter - so a
+    declaration Expat would hand to Python (``punycode``, ``idna``,
+    ``undefined``) is refused before it can raise raw codec text. The two
+    Expat refusal classes that remain become :class:`EpubXmlEncodingError`, so
+    every caller maps it to the same documented refusal or fallback per reader
+    (#2370, #2375). ``raw`` is read by the caller, so the member read stays
+    size-bounded.
     """
+    refusal = get_epub_declaration_refusal(raw)
+    if refusal is not None:
+        raise refusal
     try:
         # reviewed: callers bound the member read; expat is the only parser
         return ET.fromstring(raw)  # nosec B314
     except (LookupError, ValueError) as error:
-        if is_epub_encoding_refusal(error):
-            raise EpubXmlEncodingError(str(error)) from error
+        refusal = get_epub_encoding_refusal(error)
+        if refusal is not None:
+            raise refusal from error
         raise
 
 

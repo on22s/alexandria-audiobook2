@@ -284,6 +284,63 @@ _UTF16_32_CODECS = frozenset({
 })
 
 
+def is_unusable_epub_codec(name):
+    """Return whether ``name`` is a declaration this pipeline cannot use.
+
+    One decision for markup decoding and for Expat (Rule 15):
+    :func:`_decode_head_encoding` asks it about a chapter's declaration and
+    ``epub_package.parse_epub_xml`` asks it about the same declaration before
+    parsing a nav, NCX, OPF or container document. True for a name that is not
+    a codec, for the binary transforms (``base64``, ``uu``, ``zlib``, ...), and
+    for the Python-only text transforms (``unicode_escape``,
+    ``raw_unicode_escape``, ``idna``, ``punycode``, ``undefined``): the last
+    three are the declarations Expat hands to Python and that then raise a raw
+    ``UnicodeError`` instead of an Expat refusal (#2368, #2370, #2375).
+    """
+    try:
+        codec = codecs.lookup(name)
+    except (LookupError, ValueError, TypeError):
+        return True
+    # ``_is_text_encoding`` is the flag CPython's own TextIOWrapper consults;
+    # the binary transforms (uu, base64, hex, zlib, ...) are not charsets.
+    return (not getattr(codec, '_is_text_encoding', True)
+            or codec.name in _PYTHON_ONLY_CODECS)
+
+
+def get_epub_declared_encoding(raw):
+    """Return ``(name, present)`` for an EPUB XML declaration's encoding.
+
+    ``present`` is True when the document carries an encoding declaration.
+    ``name`` is then the declaration text, or None when that text is not an
+    ASCII name. The prolog is decoded with the encoding a BOM or UTF-16 byte
+    signature selects (``<?xml`` is ``<\0`` or ``\0<``), so a declaration Expat
+    would hand to Python is classified from the same bytes Expat reads; a
+    UTF-8 BOM is skipped.
+    """
+    if not isinstance(raw, (bytes, bytearray)):
+        return None, False
+    raw = bytes(raw)
+    if raw.startswith(b'\xef\xbb\xbf'):
+        head = raw[3:512].decode('latin-1')
+    elif raw.startswith((b'\xff\xfe', b'\xfe\xff')):
+        head = raw[:512].decode('utf-16', errors='replace')
+    elif raw.startswith(b'<\x00'):
+        head = raw[:512].decode('utf-16-le', errors='replace')
+    elif raw.startswith(b'\x00<'):
+        head = raw[:512].decode('utf-16-be', errors='replace')
+    else:
+        head = raw[:256].decode('latin-1')
+    match = re.match(r'\s*<\?xml\b[^>]*\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', head)
+    if match is None:
+        return None, False
+    name = match.group(1)
+    if not name.isascii():
+        # A non-ASCII name is not a valid EncName; Expat reports it as malformed
+        # XML, which every reader already handles. It is still a declaration.
+        return None, True
+    return name, True
+
+
 def _declared_multibyte_encoding_fits(raw: bytes, encoding: str) -> bool:
     """Return whether a declared UTF-16/UTF-32 codec legitimately reads ``raw``.
 
@@ -320,21 +377,20 @@ def _decode_head_encoding(raw: bytes) -> tuple[str, bool]:
         return 'utf-16-le', True
     if raw.startswith(b'\0<'):
         return 'utf-16-be', True
-    match = re.match(br'\s*<\?xml\b[^>]*\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', raw[:256])
-    if not match:
+    if raw.startswith(b'\xef\xbb\xbf'):
+        # A leading UTF-8 BOM keeps the existing BOM-first text decode
+        # (``utf-8-sig``); the declaration is not consulted here, exactly as
+        # before (#2368). ``parse_epub_xml`` still reads past the BOM.
         return 'utf-8-sig', True
-    try:
-        encoding = match.group(1).decode('ascii')
-        codec = codecs.lookup(encoding)
-    except (ValueError, LookupError):
-        # A NUL name raises ValueError, an unknown or binary-transform name
-        # (base64, hex) raises LookupError, and a non-ASCII name raises
-        # UnicodeDecodeError, which is a ValueError.
+    encoding, declared = get_epub_declared_encoding(raw)
+    if not declared:
+        return 'utf-8-sig', True
+    # A NUL name, an unknown or binary-transform name (base64, hex) and a
+    # Python-only transform are all the same unusable declaration
+    # (:func:`is_unusable_epub_codec`, shared with ``parse_epub_xml``).
+    if encoding is None or is_unusable_epub_codec(encoding):
         return 'utf-8-sig', False
-    # ``_is_text_encoding`` is the flag CPython's own TextIOWrapper consults;
-    # the binary transforms (uu, base64, hex, zlib, ...) are not charsets.
-    if not getattr(codec, '_is_text_encoding', True) or codec.name in _PYTHON_ONLY_CODECS:
-        return 'utf-8-sig', False
+    codec = codecs.lookup(encoding)
     if (codec.name in _UTF16_32_CODECS
             and not _declared_multibyte_encoding_fits(raw, encoding)):
         return 'utf-8-sig', False

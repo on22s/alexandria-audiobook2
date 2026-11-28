@@ -220,6 +220,15 @@ _BOGUS_DECLARATION = b'<?xml version="1.0" encoding="bogus"?>'
 _MULTIBYTE_DECLARATIONS = tuple(
     f'<?xml version="1.0" encoding="{codec}"?>'.encode('ascii')
     for codec in ('shift_jis', 'utf-16-le'))
+# Expat hands these declarations to Python's codec, which raises UnicodeError
+# instead of an Expat refusal; the shared unusable-codec decision maps them to
+# the same malformed-input contracts (#2370/#2375).
+_PYTHON_CODEC_DECLARATIONS = tuple(
+    f'<?xml version="1.0" encoding="{codec}"?>'.encode('ascii')
+    for codec in ('punycode', 'idna', 'undefined'))
+_UNUSABLE_DECLARATIONS = ((_BOGUS_DECLARATION,)
+                          + _MULTIBYTE_DECLARATIONS
+                          + _PYTHON_CODEC_DECLARATIONS)
 _NCX = (b'<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
         b'<navMap><navPoint id="n1"><navLabel><text>Chapter One</text></navLabel>'
         b'<content src="ch1.xhtml"/></navPoint></navMap></ncx>')
@@ -274,7 +283,7 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
     def test_multibyte_navigation_declarations_are_skipped(self):
         # E2: expat's second refusal is ValueError, not LookupError; it must
         # reach the same malformed-navigation fallback, not abort the reader.
-        for declaration in _MULTIBYTE_DECLARATIONS:
+        for declaration in _MULTIBYTE_DECLARATIONS + _PYTHON_CODEC_DECLARATIONS:
             with self.subTest(member='nav', declaration=declaration):
                 raw = _replace_declaration(_make_source_epub(), 'OEBPS/nav.xhtml',
                                            declaration)
@@ -289,7 +298,7 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
                 self.assertEqual([], get_ncx_points(raw, manifest, 'OEBPS/content.opf'))
 
     def test_unreadable_spine_document_declarations_are_malformed(self):
-        for declaration in (_BOGUS_DECLARATION,) + _MULTIBYTE_DECLARATIONS:
+        for declaration in _UNUSABLE_DECLARATIONS:
             with self.subTest(declaration=declaration):
                 raw = _replace_declaration(_make_source_epub(), 'OEBPS/ch1.xhtml',
                                            declaration)
@@ -301,7 +310,7 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
         built, _report = build_epub_readaloud(
             retained_epub_bytes=_make_source_epub(), audio_bytes=b'\xff\xfbx',
             audio_filename='audiobook.mp3', script_entries=_script_entries())
-        for declaration in (_BOGUS_DECLARATION,) + _MULTIBYTE_DECLARATIONS:
+        for declaration in _UNUSABLE_DECLARATIONS:
             with self.subTest(declaration=declaration):
                 raw = _replace_declaration(built, 'OEBPS/ch1.xhtml', declaration)
                 with self.assertRaisesRegex(ValueError, 'Built EPUB XHTML is malformed'):
@@ -311,7 +320,7 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
         built, _report = build_epub_readaloud(
             retained_epub_bytes=_make_source_epub(), audio_bytes=b'\xff\xfbx',
             audio_filename='audiobook.mp3', script_entries=_script_entries())
-        for declaration in (_BOGUS_DECLARATION,) + _MULTIBYTE_DECLARATIONS:
+        for declaration in _UNUSABLE_DECLARATIONS:
             with self.subTest(declaration=declaration):
                 raw = _replace_declaration(built, 'OEBPS/ch1.smil', declaration)
                 with self.assertRaisesRegex(ValueError, 'Built EPUB SMIL is malformed'):
@@ -324,8 +333,7 @@ class UnknownDeclaredEncodingReaderTests(unittest.TestCase):
         source = _make_source_epub()
         with zipfile.ZipFile(io.BytesIO(source)) as archive:
             opf_path, package = er.get_epub_package(archive)
-        for declaration in (_BOGUS_DECLARATION,
-                            b'<?xml version="1.0" encoding="shift_jis"?>'):
+        for declaration in _UNUSABLE_DECLARATIONS:
             with self.subTest(declaration=declaration):
                 raw = _replace_declaration(
                     source, 'META-INF/container.xml', declaration)

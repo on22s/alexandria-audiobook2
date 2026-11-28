@@ -208,6 +208,12 @@ class EpubNavigationDocumentTests(unittest.TestCase):
             'shift_jis': '<?xml version="1.0" encoding="shift_jis"?>',
             'utf-16-le': '<?xml version="1.0" encoding="utf-16-le"?>',
             'utf-32-be': '<?xml version="1.0" encoding="utf-32-be"?>',
+            # Expat hands these to Python's codec, which raises UnicodeError
+            # rather than an Expat refusal; the shared unusable-codec decision
+            # must still record them as malformed navigation (#2370).
+            'punycode': '<?xml version="1.0" encoding="punycode"?>',
+            'idna': '<?xml version="1.0" encoding="idna"?>',
+            'undefined': '<?xml version="1.0" encoding="undefined"?>',
         }
         for name, bogus in declarations.items():
             with self.subTest(codec=name):

@@ -2185,6 +2185,21 @@ class SvgFirstTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "SVG"):
                     self._build(self._source_with_svg(svg))
 
+    def test_unusable_svg_declaration_is_a_tolerated_skip(self):
+        # Expat hands punycode/idna/undefined to Python's codec, which raises
+        # UnicodeError. The streaming probe must raise the shared refusal and
+        # the SVG spine site must skip it (documented malformed-SVG tolerance),
+        # not abort the export.
+        import epub_readaloud as er
+        for codec in ('punycode', 'idna', 'undefined'):
+            with self.subTest(codec=codec):
+                svg = (f'<?xml version="1.0" encoding="{codec}"?>'
+                       '<svg xmlns="http://www.w3.org/2000/svg"><text>spoken</text></svg>')
+                with self.assertRaises(er.EpubXmlEncodingError):
+                    er._svg_has_text(io.BytesIO(svg.encode('ascii')))
+                built, _report = self._build(self._source_with_svg(svg))
+                er.validate_epub_readaloud(built)
+
     def test_archive_budget_refused_before_svg_scan(self):
         import archive_utils
         import epub_readaloud as er
