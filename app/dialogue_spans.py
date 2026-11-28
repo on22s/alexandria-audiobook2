@@ -42,8 +42,496 @@ PAIRED = [
     ("«", "»"),      # guillemets (French, Russian, Italian, ...)
     ("»", "«"),      # reversed guillemets (Danish)
 ]
-# An em or en dash opening a line, the Continental convention.
-DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
+# ONE table defines every dialogue dash: (text, length, strength). The regex,
+# the separator set, the length/strength lookups and the certification rule all
+# derive from it, so a fourth dash form cannot be recognised by one and
+# mis-measured by another (Rule 15, #2395 review 1 nit 1 / low 4). `strong`
+# certifies a line-dash convention on its own, in every context, exactly as on
+# main. `weak` (`--`) certifies only where the caller passes the whole book's
+# detected `dash_lines` convention: a chunk's own shape cannot tell dialogue
+# from a ToC row (#2447 gate 2 blocker 2). Single `-` stays out so list
+# bullets and hyphenated prose never become dialogue.
+DASH_MARKS = (
+    ("—", 1, "strong"),   # em dash
+    ("–", 1, "strong"),   # en dash
+    ("--", 2, "weak"),    # ASCII double hyphen (`---` rules excluded below)
+)
+
+
+def _dash_mark_pattern(mark):
+    """-> regex source for one table mark.
+
+    A hyphen-run mark gets boundary lookarounds so `--` never matches inside a
+    longer rule (`---`, `----`). Every other mark is matched literally.
+    """
+    escaped = re.escape(mark)
+    return rf"(?<!-){escaped}(?!-)" if set(mark) == {"-"} else escaped
+
+
+_DASH_MARK_PATTERN = "(?:" + "|".join(
+    _dash_mark_pattern(mark) for mark, _length, _strength in DASH_MARKS) + ")"
+_DASH_SEPS = frozenset(mark for mark, _length, _strength in DASH_MARKS)
+# Longest first, so a later `-` entry cannot shadow `--`.
+_DASH_BY_LENGTH = tuple(sorted(DASH_MARKS, key=lambda row: row[1], reverse=True))
+DASH_LINE = re.compile(rf"^[ \t]*{_DASH_MARK_PATTERN}[ \t]*(\S.*)$", re.M)
+
+# An epigraph attribution or signature line opens with the same dash as
+# dialogue (`--GERTRUDE STEIN _in conversation_`, `--_Ecclesiastes_`). A short
+# sequence of capitalised name words (initials and `de`/`van`/`of`-style
+# particles allowed), with no sentence-final punctuation and no lowercase word
+# other than a particle, has the SHAPE of an attribution (#2395 review 1
+# blocker 1, Rule 15). Lowercase words are refused, which subsumes the "no
+# lowercase verb" condition: only particles may be lowercase. The shape is
+# consulted for the weak `--` form only, by the ONE per-line predicate that
+# both whole-book detection and labelling use (`_weak_dash_line_is_dialogue`).
+# `—`/`–` lines never consult it, so they keep main's label in every context:
+# `— Mamo` in a quote-dense book and the `—John Smith` signature pair are
+# main's `other_convention`/SPOKEN verdicts respectively (#2447 gate 2
+# blocker 1).
+_DASH_ATTRIBUTION_PARTICLES = frozenset(
+    ("de", "van", "von", "der", "den", "da", "di", "du", "la", "le", "del",
+     "della", "dos", "das", "of", "bin", "ibn", "al", "el", "y", "e"))
+_DASH_ITALIC_NOTE = re.compile(r"[_*][^_*\r\n]+[_*]")
+_DASH_SENTENCE_END = ".!?…。！？"
+_DASH_ATTRIBUTION_MAX_WORDS = 5
+
+
+def is_dash_attribution(line):
+    """-> True when a dash-opened line's body has the shape of an attribution.
+
+    The body is the text after the dash and its padding. A fully italic body
+    (`_Ecclesiastes_`) keeps its word for the name check; an italic editorial
+    annotation after the name (`GERTRUDE STEIN _in conversation_`) is
+    decoration. Pure shape read; only weak `--` whole-book detection consults
+    it (#2447 gate 2 blocker 2), so a name-only `—` line stays speech
+    (`—Mamá`), as on main.
+    """
+    body = _DASH_ITALIC_NOTE.sub(" ", line or "").strip()
+    if not body:
+        raw = (line or "").strip()
+        if len(raw) >= 2 and raw[0] in "_*" and raw[-1] == raw[0]:
+            body = raw[1:-1].strip()
+    if not body or body[-1] in _DASH_SENTENCE_END:
+        return False
+    words = body.split()
+    if not 1 <= len(words) <= _DASH_ATTRIBUTION_MAX_WORDS:
+        return False
+    named = False
+    for word in words:
+        if word in _DASH_ATTRIBUTION_PARTICLES:
+            continue
+        if not word[0].isupper():
+            return False
+        named = True
+    return named
+
+
+def _starts_like_speech(body):
+    """-> True when a dash line's body opens like dialogue, not a continuation.
+
+    A `--` line is weak evidence, so it counts toward whole-book detection only
+    when it reads as speech: an uppercase or caseless letter, a digit, or
+    opening punctuation (`¿`, `¡`, `«`, `"`). A lower-case hard-wrap
+    continuation (`--and wept.`) never does (#2447 gate 1 blocker 2).
+    """
+    return bool(body) and not body[0].islower()
+
+
+# Whole-book detection cannot certify a chunk, so it asks whether `--` lines
+# are this book's dialogue at all; labelling asks the same per-line question
+# once the book's weak form is established. A ToC, list or diary row has the
+# same "capitalised and punctuated" shape as speech, so those are never
+# `--` evidence or `--` dialogue (#2447 gate 2 blocker 2). Kept to a handful
+# of shapes, which is enough for the gate repros: a heading word, a
+# day-and-month row, or a one-or-two word item. Attribution is the separate
+# `_weak_dash_is_attribution` question (`--J. B. Smith, Esq.`).
+_DASH_HEADING_SHAPE = re.compile(
+    r"^(?:contents|table of contents|chapter|part|book|section|act|scene|"
+    r"interlude|appendix|preface|foreword|prologue|epilogue|index)\b",
+    re.IGNORECASE)
+_DASH_DIARY_SHAPE = re.compile(r"^\d{1,2}\s+[^\W\d_]+\.\s")
+_DASH_SHORT_ITEM_WORDS = 2
+# The gate's hard-wrap repro starts directly under a line that continues the
+# sentence. Dialogue normally starts a paragraph or follows a finished line.
+# This is the establishment floor, not the detection floor: `detect_convention`
+# still needs `MIN_CONVENTION_PAIRS` (5) dash lines for ANY convention, so a
+# three- or four-line fragment is evidence but not yet a book. The effective
+# detection floor for a weak `--` book is therefore 5 (#2447 r5 low 4).
+_DASH_WEAK_FLOOR = 3
+# Prose opened with `--` (a block quote, a footnote) opens like speech too.
+# At least one third of the counted lines must carry a dialogue anchor: `?`/`!`
+# or one of the reporting verbs in the table below (Rule 15, no second list).
+# Six verse lines or six `--1. See ...` notes carry neither, so they cannot
+# establish `--` dialogue (#2447 r5 low 2).
+_DASH_ANCHOR_DIVISOR = 3
+# Paired-quote spans veto the weak `--` form only when they are AT LEAST AS
+# MANY as the counted speech-like weak lines. A real `--` novel quotes a title
+# or a letter now and then, so an absolute three-span veto left every real
+# `--` book measured (5/5) detecting nothing (#2447 gate 3 low 1). The ratio
+# still refuses a paired-quote book whose `--` asides are fewer than its quote
+# spans (#2447 r5 low 3). `—`/`–` never consult it: they certify by strength
+# as on main.
+_DASH_PAIRED_VETO_RATIO = 1
+
+
+def _weak_dash_is_attribution(body):
+    """-> True when a weak `--` body has the shape of an attribution.
+
+    ONE attribution question for detection and labelling (Rule 15, #2447 r1 /
+    gate 3 blocker 1). A signature row ends with a full stop, which
+    `is_dash_attribution` refuses by design (`--Author Name.` is spoken for
+    the strong form), so the stop is removed and the same name-shape question
+    asked. Removing this question lets a punctuated signature row become
+    `--` evidence (#2447 gate 3 nit 1).
+    """
+    stripped = (body or "").strip()
+    return (is_dash_attribution(stripped)
+            or is_dash_attribution(stripped.rstrip(".,;:!")))
+
+
+def _weak_dash_is_structural(body):
+    """-> True when a weak `--` body is a ToC/list/diary row.
+
+    Shape read for detection and labelling alike (Rule 15): these shapes have
+    the same capitalised, punctuated look as speech but are never `--`
+    dialogue. Attribution (`_weak_dash_is_attribution`) is a separate
+    question.
+    """
+    stripped = body.strip()
+    if not stripped:
+        return True
+    if (_DASH_HEADING_SHAPE.match(stripped)
+            or _DASH_DIARY_SHAPE.match(stripped)):
+        return True
+    words = stripped.split()
+    if (stripped[-1] in ".;" and len(words) <= _DASH_SHORT_ITEM_WORDS
+            and all(word[0].isupper() or word[0].isdigit() for word in words)):
+        return True
+    return False
+
+
+def _weak_dash_is_hard_wrap(text, start):
+    """-> True when a weak `--` line continues the previous line's sentence.
+
+    `--I knew it was over.` under `... and then` is a wrapped narration line,
+    not a speech line (#2447 gate 2 blocker 2). A blank line, the top of the
+    text, or a previous dash line means a real line; a previous line that ends
+    with sentence punctuation is finished. The dash forms come from the one
+    table, so a fourth form cannot be missed here (Rule 15, #2447 gate 3 nit 2).
+    """
+    line_start = text.rfind("\n", 0, start) + 1
+    previous = text[:max(0, line_start - 1)].rsplit("\n", 1)[-1].rstrip(" \t")
+    if not previous:
+        return False
+    if _line_dash_mark(previous)[0]:
+        return False
+    return previous[-1] not in ".!?…:;"
+
+
+def _weak_dash_line_is_dialogue(text, match):
+    """-> True when this weak `--` line passes every per-line dialogue filter.
+
+    ONE predicate for detection and labelling (Rule 15, #2447 gate 3 blocker 1).
+    An attribution-shaped body, a body that does not open like speech, a
+    ToC/list/diary/signature row and a hard-wrapped continuation are never
+    `--` dialogue: the same lines that cannot establish the convention in a
+    whole book must not be labelled SPOKEN when the caller supplies one.
+    `—`/`–` lines never consult it, exactly as on main.
+    """
+    body = match.group(1)
+    return (not _weak_dash_is_attribution(body)
+            and _starts_like_speech(body)
+            and not _weak_dash_is_structural(body)
+            and not _weak_dash_is_hard_wrap(text, match.start()))
+
+
+def _weak_dash_evidence(text):
+    """-> weak `--` lines that can establish `--` dialogue in a WHOLE book.
+
+    A line opens like speech, is not attribution-shaped, is not a ToC/list/
+    diary row and is not a hard-wrapped continuation — the same predicate that
+    gates labelling (`_weak_dash_line_is_dialogue`). Chunk certification never
+    uses this: it needs the caller's book-level `dash_lines` convention
+    instead (`_weak_dash_dialogue_established`).
+    """
+    for match in DASH_LINE.finditer(text):
+        if _line_dash_mark(match.group(0))[1] != "weak":
+            continue
+        if not _weak_dash_line_is_dialogue(text, match):
+            continue
+        yield match
+
+
+def _weak_dash_refused_ranges(text):
+    """-> body ranges of weak `--` lines the shared predicate refuses.
+
+    In a book whose weak `--` form IS its dialogue, a line that fails the
+    per-line predicate is dialogue-ambiguous, not narration: the model's
+    speaker is kept and the row is routed (#2447 r8 BLOCKER 1). The predicate
+    is the same one detection and labelling use, so a line can never be
+    refused here by one answer and certified there by another (Rule 15).
+    """
+    ranges = []
+    for match in DASH_LINE.finditer(text):
+        if _line_dash_mark(match.group(0))[1] != "weak":
+            continue
+        if not _weak_dash_line_is_dialogue(text, match):
+            ranges.append((match.start(1), match.end(1)))
+    return ranges
+
+
+# In a book whose whole-book convention is the weak `--` form, ANY hyphen run
+# of two or more opens the line's speech unless it joins two word characters
+# (`word--word`) that are not a reporting-verb tag. This is the ONE rule
+# (#2447 r11 BLOCKER 1) and it covers every printed opener the earlier rounds
+# found: a line-start `--`, a printed `[25]` or `25.` prefix, `(--`, a tight
+# `.--` / `?--` / `!--` after a finished sentence, `dijo:--Yo`, a `--- ` typo,
+# and an interior `?--preguntó X--.` or `días--dijo X--` tag line whose
+# opening dash the edition dropped. There is deliberately no spacing guard:
+# the tight form is also how these books open speech after narration, and the
+# guard certified such speech NARRATOR where main keeps the model's speaker.
+# Routing is the safe direction.
+_WEAK_DASH_RUN = re.compile(r"-{2,}")
+
+
+def _weak_dash_run_joins_words(text, start, stop):
+    """-> True when the hyphen run at [start, stop) is a narration join.
+
+    A word character on BOTH sides is the interruption form (`crecía--y`,
+    `word--word`), which is narration and never opens speech. One side alone
+    is a printed opener (`25.--No`, `?--preguntó`, `(--¡Animal!`).
+
+    A reporting verb on the right is the exception: `Hace días--dijo
+    Golfín--que…` is a speech tag that abuts the preceding word, not a
+    compound, so it opens speech like any other interior tag (#2447 r11
+    BLOCKER 1, the gate's no-opener class). The verb vocabulary is the one
+    dash table below, not a second list (Rule 15).
+    """
+    if not (start > 0 and stop < len(text)):
+        return False
+    left_word = text[start - 1].isalnum() or text[start - 1] == "_"
+    right_word = text[stop].isalnum() or text[stop] == "_"
+    if not (left_word and right_word):
+        return False
+    return not _DASH_VERB.match(text, stop)
+
+
+def _get_weak_dash_speech_body_start(text, start, end):
+    """-> offset of the speech a weak `--` opens on this line, or None.
+
+    The ONE opener question (Rule 15, #2447 r11 BLOCKER 1): any hyphen run of
+    two or more on the line opens speech unless a word character sits on BOTH
+    sides of it (`word--word`). A reporting verb on the right is a tag, not a
+    join (`Hace días--dijo Golfín--que…`), so it opens like the other interior
+    tags. The dash's own strength and the text before it are not consulted, so
+    `.--`, `?--`, `!--`, `(--`, `25.--No`, `25.-- No`, `dijo:--Yo` and the
+    `--- ` typo are the same opener. `start` is the first non-space character
+    of the line and `end` its end offset.
+
+    The body offset returned is where the speech itself begins (after the
+    dash and its padding). The caller routes the WHOLE line and every later
+    line of the paragraph through it, so a speech whose tag sits after a
+    dropped opening dash (`¿En dónde…?--preguntó X--.`) is routed too
+    (#2447 r9, r10, r11).
+    """
+    for run in _WEAK_DASH_RUN.finditer(text, start, end):
+        if _weak_dash_run_joins_words(text, run.start(), run.end()):
+            continue
+        body = run.end()
+        while body < end and text[body] in " \t":
+            body += 1
+        if body < end:
+            return body
+    return None
+
+
+def _weak_dash_continuation_ranges(text):
+    """-> body ranges of lines that carry or continue weak `--` speech.
+
+    Gutenberg plain text is hard-wrapped, and `DASH_LINE` captures only a
+    physical line that STARTS with `--`. A speech can also open after a colon
+    or a finished sentence inside a line, or behind a printed line number, and
+    every later line of that speech is outside every span. `mark_entries`
+    certified those lines narration and `apply_source_narration` overwrote the
+    model's speaker with NARRATOR. Main has no `--` convention on such a book
+    and keeps the model's speaker, so this is a confident wrong label (#2447
+    r9 BLOCKER 1, r10 BLOCKER 1).
+
+    In a book whose weak `--` form is its dialogue, every line that opens or
+    continues a speech before the paragraph break that ends it is routed
+    instead (dialogue ambiguity, model speaker kept), never narration.
+    Paragraphs are read with the shared `_paragraph_breaks` reading, so this
+    cannot disagree with the rest of the module about where a paragraph ends
+    (Rule 15). Openers are the one shared `_get_weak_dash_speech_body_start`
+    question, so a `word--word` interruption never starts a route. The caller
+    asks only when `_weak_dash_dialogue_established` returned True, which
+    refuses a book with any strong `—`/`–` line (`has_strong_dash_line`), so
+    every dash line inside this reading is the weak form and an em/en-dash
+    book keeps main's behaviour.
+    """
+    ranges = []
+    paragraph_start = 0
+    for at, after in _paragraph_breaks(text) + [(len(text), len(text))]:
+        seen_weak = False
+        for line in re.finditer(r"[^\r\n]+", text[paragraph_start:at]):
+            raw = line.group(0)
+            start = paragraph_start + line.start() + len(raw) - len(raw.lstrip(" \t"))
+            end = paragraph_start + line.end()
+            if get_dash_mark(text, start)[0]:
+                # Weak form only (the caller's book answer guarantees it):
+                # this line opens a new speech, so what follows may continue it.
+                seen_weak = True
+                continue
+            if seen_weak:
+                # Already inside a speech: the whole line is its continuation.
+                ranges.append((start, end))
+                continue
+            if _get_weak_dash_speech_body_start(text, start, end) is not None:
+                # The line carries a weak `--` opener anywhere in it. The WHOLE
+                # line is routed, not only the text after the dash, so a speech
+                # whose tag follows a dropped opening dash keeps the model's
+                # speaker (#2447 r11 BLOCKER 1).
+                seen_weak = True
+                ranges.append((start, end))
+        paragraph_start = after
+    return ranges
+
+
+def _weak_dash_is_anchored(body):
+    """-> True when a weak `--` body carries a dialogue anchor.
+
+    A block quote or footnote row opens with the same capitalised and
+    punctuated shape as speech, so shape alone cannot make it dialogue. A
+    `?`/`!` or a reporting verb is the evidence that a line is spoken. The
+    verb vocabulary is the single dash table below (`_DASH_VERB`), not a
+    second list (Rule 15).
+    """
+    return "?" in body or "!" in body or bool(_DASH_VERB.search(body))
+
+
+def _weak_dash_dialogue_established(text):
+    """-> True when `text` is a WHOLE book that runs `--` dialogue.
+
+    ONE whole-book question and ONE name for it (Rule 15, #2447 gate 4 nit 2):
+    at least `_DASH_WEAK_FLOOR` weak lines open like speech and pass every
+    per-line filter, paired-quote spans are fewer than those lines (the ratio
+    veto), and a third of the lines carry a dialogue anchor (`?`/`!` or a
+    reporting verb from `_DASH_VERB`). Called with a chunk it answers about the
+    chunk, so the whole-book callers pass their result down through
+    `weak_dash=` (`mark_entries`, `split_into_chunk_records`) instead of
+    asking again per chunk.
+
+    A book with even one strong `—`/`–` line is an em/en-dash book, and those
+    keep main's `--` behaviour: main never read `--` as dialogue in any
+    context, so three anchored `--` lines in an em book stay narration
+    (#2447 gate 4 nit 1).
+
+    `detect_convention` additionally requires `MIN_CONVENTION_PAIRS` (5)
+    dash lines, so the EFFECTIVE detection floor for a weak `--` book is 5:
+    three or four lines are established evidence but still too short to be a
+    book (#2447 r5 low 4).
+
+    `—`/`–` never enter this predicate: they certify on strength, exactly as
+    on main, in every context.
+    """
+    if has_strong_dash_line(text):
+        return False
+    evidence = list(_weak_dash_evidence(text))
+    if len(evidence) < _DASH_WEAK_FLOOR:
+        return False
+    if (len(_paired_spans(text)) * _DASH_PAIRED_VETO_RATIO
+            >= len(evidence)):
+        return False
+    anchored = sum(1 for match in evidence
+                   if _weak_dash_is_anchored(match.group(1)))
+    return anchored * _DASH_ANCHOR_DIVISOR >= len(evidence)
+
+
+def iter_dash_lines(text, convention=None, weak_dash=None):
+    """-> dash lines this context may treat as dialogue.
+
+    `—`/`–` always yield, exactly as on main in every context: the attribution
+    exclusion is `--`-only (#2447 gate 2 blocker 1). A weak `--` line yields
+    only when the caller passes the book's `dash_lines` convention AND the
+    weak form is the book's dialogue, and even then only when the line passes
+    the shared per-line predicate (`_weak_dash_line_is_dialogue`). A chunk
+    cannot see its book, so `weak_dash` carries the whole-book answer from
+    `mark_entries` / `split_into_chunk_records`; with it unset the question is
+    asked of `text` itself (#2447 gate 3 blocker 1).
+    """
+    if weak_dash is None:
+        weak_dash = _weak_dash_dialogue_established(text)
+    weak_certified = convention == "dash_lines" and weak_dash
+    for match in DASH_LINE.finditer(text):
+        strength = _line_dash_mark(match.group(0))[1]
+        if strength == "weak" and not (
+                weak_certified
+                and _weak_dash_line_is_dialogue(text, match)):
+            continue
+        yield match
+
+
+def count_dash_lines(text):
+    """-> dash dialogue lines in a WHOLE book, for `detect_convention`.
+
+    Strong `—`/`–` lines all count, exactly as on main, so em/en-dash books
+    keep main's detection. Weak `--` evidence counts only when
+    `_weak_dash_dialogue_established` says the book runs `--` dialogue (floor
+    + per-line filters + ratio veto + anchor), so a ToC/list/signature/
+    hard-wrap book can never become `dash_lines` on those shapes alone (#2447
+    gate 2 blocker 2). Not a certification rule: `iter_dash_lines` asks the
+    caller's convention instead.
+    """
+    strong = 0
+    for match in DASH_LINE.finditer(text):
+        if _line_dash_mark(match.group(0))[1] != "weak":
+            strong += 1
+    if not _weak_dash_dialogue_established(text):
+        return strong
+    return strong + sum(1 for _match in _weak_dash_evidence(text))
+
+
+def has_strong_dash_line(text):
+    """-> True when `text` has at least one strong (`—`/`–`) dash line.
+
+    Whole-book detection counts both strengths, so this asks the different
+    question an unchecked chunk asks: can `pass_quality` certify a dash line
+    here at all? Only the strong forms, exactly as on main (#2447 r5 nit 3).
+    Drawn from the one dash table, so a new strong form is covered once.
+    """
+    for match in DASH_LINE.finditer(text):
+        if _line_dash_mark(match.group(0))[1] == "strong":
+            return True
+    return False
+
+
+def _line_dash_mark(line):
+    """-> (length, strength) of the dialogue dash opening `line`, or (0, None).
+
+    The line-start lookup every consumer shares, so `DASH_LINE` and the
+    table's strength read cannot disagree about where a line's dash begins
+    (Rule 15, #2447 gate 3 nit 2).
+    """
+    return get_dash_mark(line, len(line) - len(line.lstrip(" \t")))
+
+
+def get_dash_mark(text, index):
+    """-> (length, strength) of a dialogue dash at `index`, or (0, None)."""
+    for mark, length, strength in _DASH_BY_LENGTH:
+        if not text.startswith(mark, index):
+            continue
+        if set(mark) == {"-"}:
+            if index > 0 and text[index - 1] == "-":
+                continue
+            if index + length < len(text) and text[index + length] == "-":
+                continue
+        return length, strength
+    return 0, None
+
+
+def get_dash_mark_length(text, index):
+    """-> length of a dialogue dash at `index` (1 for —/–, 2 for `--`), or 0."""
+    return get_dash_mark(text, index)[0]
 # Closed reporting-verb list (English, Spanish, French — past and present)
 # used to recognise narrator speech tags inside a dash-opened line (#2329).
 # It is one source of truth for the dash rule only: `pass_quality`'s
@@ -237,14 +725,29 @@ _DASH_IMPERATIVE_OBJECT_PREPOSITIONS = frozenset(
 # continuing their command (`— Allons! avoue.`, `— ¡Vamos! contesta.`;
 # #2390 gate 2 G1-c).
 _DASH_IMPERATIVE_INTRODUCERS = (",", "!", "?", "…", "...")
-_DASH_BREAK = re.compile(r"\.{3}|[—–,!?…]")
+_DASH_BREAK = re.compile(rf"\.{{3}}|{_DASH_MARK_PATTERN}|[,!?…]")
 _DASH_TAG_INTRODUCERS = "!?…"
 # A possible turn after narration, with a second dash introducing its tag.
 # Its formatting establishes uncertainty, not speech or a speaker identity.
 INTERIOR_DASH_TURN = re.compile(
-    r"[.!?。！？…][ \t]+[—–][ \t]*(\S[^—–\r\n]*?[,!?！？…])[ \t]+[—–][ \t]+\S")
+    rf"[.!?。！？…][ \t]+{_DASH_MARK_PATTERN}[ \t]*"
+    rf"(\S(?:(?!{_DASH_MARK_PATTERN})[^\r\n])*?[,!?！？…])[ \t]+"
+    rf"{_DASH_MARK_PATTERN}[ \t]+\S")
 # Script form: a speaker label, a colon, then the line.
 LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
+
+
+def _label_line_ranges(text):
+    """-> body ranges of printed `NAME: …` label lines.
+
+    Main reads a book carrying these labels as `label_lines` and voices them.
+    In a book whose `--` form is its dialogue, head's `dash_lines` does not
+    voice them, so they are routed and keep the model's speaker instead of
+    becoming a confident NARRATOR (#2447 r8 BLOCKER 2). A pure read of
+    `LABEL_LINE`, which `spoken_spans` uses for the same rows.
+    """
+    return [(match.start(2), match.end(2))
+            for match in LABEL_LINE.finditer(text)]
 
 
 # Speech marked in a way the book does not mainly use. A line found inside one
@@ -252,19 +755,31 @@ LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 # a “double”-quote book, a dash-opened line, «guillemets», or an opening mark
 # the author never closed. `’` is also the apostrophe, so a ‘…’ pair closes
 # only at a `’` that no letter follows ("‘I don’t know,’ she said").
-OTHER_PAIRED = [
-    re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"),
-    re.compile(r"«([^«»]+)»"),
-    re.compile(r"‹([^‹›\n]+)›"),
+# One self-describing `(pattern, opener, closer, kind)` table: no caller has to
+# inspect regex source to know what a pattern is (#2395 review 1 nit 2).
+# Double-guillemet directions (`«…»`, `»…«`) derive from `PAIRED` (one table,
+# Rule 15); `_other_speech_spans` refuses a match whose delimiter already opens
+# or closes a primary pair unless its body is a short note (#2399), and picks
+# one direction for `‹…›`/`›…‹`.
+_DOUBLE_GUILLEMET_PAIRS = tuple(
+    (opener, closer) for opener, closer in PAIRED if opener in ("«", "»"))
+_SINGLE_GUILLEMET_PAIRS = (("‹", "›"), ("›", "‹"))
+_OTHER_PAIRED_SPECS = (
+    (re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"), "‘", "’", "single_curly"),
+    *((re.compile(rf"{opener}([^{opener}{closer}]+){closer}"), opener, closer,
+       "double_guillemet") for opener, closer in _DOUBLE_GUILLEMET_PAIRS),
+    *((re.compile(rf"{opener}([^{opener}{closer}\n]+){closer}"), opener, closer,
+       "single_guillemet") for opener, closer in _SINGLE_GUILLEMET_PAIRS),
     # Low-high single marks (‚…‘). The opener is never an apostrophe, so it
     # anchors the pair on its own; the closer is the next ‘ after it.
-    re.compile(r"‚([^‚‘\n]+)‘"),
+    (re.compile(r"‚([^‚‘\n]+)‘"), "‚", "‘", "low_high_single"),
     # German low-high is secondary speech in an otherwise non-German book; it
     # is included in PAIRED only when dense enough to be that book's convention.
     # get_other_speech_spans skips pairs already found by _paired_spans.
-    re.compile(r"„([^„“\n]+)“"),
-    re.compile(r"„([^„”\n]+)”"),
-]
+    (re.compile(r"„([^„“\n]+)“"), "„", "“", "german_low_high"),
+    (re.compile(r"„([^„”\n]+)”"), "„", "”", "polish_low_high"),
+)
+OTHER_PAIRED = [pattern for pattern, _opener, _closer, _kind in _OTHER_PAIRED_SPECS]
 # A mark here can ALSO close a different pair - `“` closes `„…“` - so a caller
 # must skip an occurrence that closes a real pair. get_other_speech_spans does.
 UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』", "„": "“"}
@@ -467,6 +982,23 @@ def _count_guillemet_shapes(text, opener, closer):
     return len(opened) + len(closed)
 
 
+def _chevron_direction(text, forward_open, forward_close):
+    """-> (opener, closer) for one chevron pair in `text`, or (None, None)."""
+    first_open = text.find(forward_open)
+    first_close = text.find(forward_close)
+    if first_open == -1 and first_close == -1:
+        return None, None
+    forward = _count_guillemet_shapes(text, forward_open, forward_close)
+    reverse = _count_guillemet_shapes(text, forward_close, forward_open)
+    if forward == reverse:
+        forward_first = first_open != -1 and (
+            first_close == -1 or first_open < first_close)
+        return ((forward_open, forward_close) if forward_first
+                else (forward_close, forward_open))
+    return ((forward_open, forward_close) if forward > reverse
+            else (forward_close, forward_open))
+
+
 def get_guillemet_direction(text):
     """-> (opener, closer) for the text's guillemets, or (None, None).
 
@@ -481,16 +1013,7 @@ def get_guillemet_direction(text):
     old behaviour where the shapes say nothing (`« Bonjour »` padded on both
     sides mid-line). Pure read; the one place both modules ask this question.
     """
-    first_open, first_close = text.find("«"), text.find("»")
-    if first_open == -1 and first_close == -1:
-        return None, None
-    forward = _count_guillemet_shapes(text, "«", "»")
-    reverse = _count_guillemet_shapes(text, "»", "«")
-    if forward == reverse:
-        forward_first = first_open != -1 and (
-            first_close == -1 or first_open < first_close)
-        return ("«", "»") if forward_first else ("»", "«")
-    return ("«", "»") if forward > reverse else ("»", "«")
+    return _chevron_direction(text, "«", "»")
 
 
 def _is_opener_shaped(text, position):
@@ -530,6 +1053,18 @@ def _is_glued_opener_shaped(text, position):
     if after.isalpha():
         return not before.isalnum()
     return after in ".…'"
+
+
+def _is_closer_shaped(text, position):
+    """Does `position` sit after text and before a word boundary?
+
+    A self-paired mark (`"`, `＂`) cannot say whether it opens or closes;
+    text before it and a word boundary after it mark a closer. Shared by
+    both self-paired inside-speech branches in `is_inch_mark` (#2398).
+    """
+    following = position + 1
+    return (position > 0 and not text[position - 1].isspace()
+            and (following >= len(text) or not text[following].isalnum()))
 
 
 def _skip_spaces(text, index):
@@ -827,14 +1362,14 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
     if inside_speech and opener is not None and opener != mark:
         paragraph_end = _paragraph_end(text, position)
         closers = _closer_marks(opener)
-        next_opener = _next_mark(text, opener, position + 1, paragraph_end)
         if opener in closers:
-            # A self-paired opener (＂…＂) cannot tell its own marks apart, so
-            # any later one may be the closer.
+            # A self-paired opener (`"`, `＂`) cannot tell its own marks apart,
+            # so any later plain one may be the closer.
             bound = paragraph_end
         else:
             # A closer after the next opener of this speech belongs to that
             # speech, so only marks before it can close this one.
+            next_opener = _next_mark(text, opener, position + 1, paragraph_end)
             bound = paragraph_end if next_opener == -1 else next_opener
         next_closer = _next_plain_mark(
             text, closers, position + 1, bound)
@@ -857,7 +1392,11 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
             # `“12””`: the second same mark is the real closer and this one is
             # its decoration, as main reads it.
             return False
-        return next_opener == -1 or next_closer < next_opener
+        if opener in closers:
+            # A self-paired opener has no distinct closer character; judge the
+            # later mark by shape, just like the same-mark branch below (#2398).
+            return _is_closer_shaped(text, next_closer)
+        return True
     if position + 1 >= len(text) or text[position + 1] in "\r\n":
         if inside_speech:
             return False
@@ -887,9 +1426,7 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
     # it decides nothing here and this mark closes as always.
     if _is_glued_opener_shaped(text, next_position):
         return False
-    following = next_position + 1
-    return (not text[next_position - 1].isspace()
-            and (following >= len(text) or not text[following].isalnum()))
+    return _is_closer_shaped(text, next_position)
 
 
 def _paired_spans(text):
@@ -1074,7 +1611,7 @@ def detect_convention(text):
     """
     counts = {
         "paired_quotes": len(_paired_spans(text)),
-        "dash_lines": len(DASH_LINE.findall(text)),
+        "dash_lines": count_dash_lines(text),
         "label_lines": len(LABEL_LINE.findall(text)),
     }
     best = max(counts, key=counts.get)
@@ -1110,8 +1647,11 @@ def _dash_tag_clause_end(text, start, limit):
     """
     index = start
     while index < limit:
+        dash_len = get_dash_mark_length(text, index)
+        if dash_len:
+            return index + dash_len, text[index:index + dash_len]
         char = text[index]
-        if char in ",!?;:—–…":
+        if char in ",!?;:…":
             return index + 1, char
         if char == ".":
             if text.startswith("...", index):
@@ -1408,8 +1948,8 @@ def _split_dash_line_with_break(text, start, end):
             after += 1
         if after >= limit:
             break
-        if (sep in ",!?…" or sep == "...") and text[after] in "—–":
-            # `? —preguntó` / `, —dijo`: the dash introduces the tag.
+        if (sep in ",!?…" or sep == "...") and get_dash_mark_length(text, after):
+            # `? —preguntó` / `, —dijo` / `, --dijo`: the dash introduces the tag.
             scan = after
             continue
         if not _dash_tag_candidate(text, after, limit, sep):
@@ -1417,7 +1957,7 @@ def _split_dash_line_with_break(text, start, end):
             # ellipsis is speech punctuation unless a lower-case reporting
             # verb follows (#2329 finding 3). A dash with no tag is the
             # interior-dash ambiguity already tracked by #1216.
-            if sep in "—–":
+            if sep in _DASH_SEPS:
                 if first_break is None:
                     first_break = (start, match.start())
                 if split_any:
@@ -1430,7 +1970,7 @@ def _split_dash_line_with_break(text, start, end):
             continue
         if first_break is None:
             first_break = (start, match.start())
-        speech_end = match.start() if sep in "—–" else match.end()
+        speech_end = match.start() if sep in _DASH_SEPS else match.end()
         while speech_end > speech_start and text[speech_end - 1] in " \t":
             speech_end -= 1
         if speech_end <= speech_start or not _dash_tag_evidence(
@@ -1451,10 +1991,10 @@ def _split_dash_line_with_break(text, start, end):
         pending_unverified = False
         parts.append(("SPOKEN", speech_start, speech_end))
         clause_end, delimiter = _dash_tag_clause_end(text, after, limit)
-        if delimiter in "—–":
+        if delimiter in _DASH_SEPS:
             # A closing dash ends the tag and the same character resumes
             # speech (`—Hola —dijo Ana—. Vamos.`).
-            tag_end = clause_end - 1
+            tag_end = clause_end - len(delimiter)
             while tag_end > after and text[tag_end - 1] in " \t":
                 tag_end -= 1
             if tag_end > after:
@@ -1481,9 +2021,10 @@ def _split_dash_line_with_break(text, start, end):
         resume = clause_end
         while resume < limit and text[resume] in " \t":
             resume += 1
-        if resume < limit and text[resume] in "—–":
+        resume_dash = get_dash_mark_length(text, resume) if resume < limit else 0
+        if resume_dash:
             parts.append(("NARRATOR", after, resume))
-            resume += 1
+            resume += resume_dash
             while resume < limit and text[resume] in ".,;: \t":
                 resume += 1
             speech_start = scan = resume
@@ -1518,14 +2059,17 @@ def split_dash_line(text, start, end):
     return parts, ambiguous
 
 
-def dash_line_unverified_prefixes(text):
+def dash_line_unverified_prefixes(text, convention=None, weak_dash=None):
     """-> opening speech before the first interior break for ambiguous lines.
 
     The quote gate cannot vouch for the rest of an unverified dash line, but
     the opening speech is unambiguous: it must be SPOKEN (#2329 finding 5).
+    `convention` / `weak_dash` are the book's answers, exactly as for
+    `iter_dash_lines`: a whole-book caller passes them so a weak `--` line is
+    scanned under the same per-line predicate as labelling (Rule 15).
     """
     prefixes = []
-    for match in DASH_LINE.finditer(text):
+    for match in iter_dash_lines(text, convention, weak_dash):
         _parts, ambiguous, first_break, _ranges = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if ambiguous and first_break is not None and first_break[0] < first_break[1]:
@@ -1533,7 +2077,7 @@ def dash_line_unverified_prefixes(text):
     return prefixes
 
 
-def dash_line_unverified_tails(text):
+def dash_line_unverified_tails(text, convention=None, weak_dash=None):
     """-> ranges after an unverified break on ambiguous dash lines.
 
     A period-like tag ends the tag clause, but the text after it may be the
@@ -1542,9 +2086,15 @@ def dash_line_unverified_tails(text):
     ranges become `dialogue_ambiguity`, exactly like
     `get_interior_dash_ambiguities`, and `apply_source_narration` leaves the
     model's label alone (#2390 review 1).
+
+    `convention` / `weak_dash` are the book's answers, exactly as for
+    `iter_dash_lines`. `mark_entries` passes them, so a weak `--` line in a
+    book that runs `--` dialogue is scanned at all and its ambiguous tail is
+    routed instead of becoming a confident NARRATOR claim (Rule 15, #2447
+    r7 BLOCKER 1).
     """
     ranges = []
-    for match in DASH_LINE.finditer(text):
+    for match in iter_dash_lines(text, convention, weak_dash):
         _parts, ambiguous, _break, tails = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if ambiguous:
@@ -1552,16 +2102,20 @@ def dash_line_unverified_tails(text):
     return ranges
 
 
-def dash_line_unverified_ranges(text):
+def dash_line_unverified_ranges(text, convention=None, weak_dash=None):
     """-> ranges on ambiguous dash lines whose speaker is not vouched for.
 
     The quote gate checks one line at a time (#2390 review 3 finding 3): every
     ambiguous line contributes the text from its first unverified break to the
     line end, including a whole-line break where no tag split the line at all.
     Confident lines elsewhere in the chunk keep full region validation.
+
+    `convention` / `weak_dash` are the book's answers, exactly as for
+    `iter_dash_lines` (Rule 15). A chunk-level caller leaves them unset and
+    gets main's strong-dash-only scan.
     """
     ranges = []
-    for match in DASH_LINE.finditer(text):
+    for match in iter_dash_lines(text, convention, weak_dash):
         _parts, ambiguous, first_break, tails = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if not ambiguous:
@@ -1573,17 +2127,22 @@ def dash_line_unverified_ranges(text):
     return ranges
 
 
-def _dash_line_spans(text):
+def _dash_line_spans(text, convention=None, weak_dash=None):
     return [
         (start, end)
-        for match in DASH_LINE.finditer(text)
+        for match in iter_dash_lines(text, convention, weak_dash)
         for kind, start, end in split_dash_line(text, match.start(1), match.end(1))[0]
         if kind == "SPOKEN"
     ]
 
 
-def spoken_spans(text, convention=None):
-    """-> sorted, non-overlapping (start, end) offsets of spoken text."""
+def spoken_spans(text, convention=None, weak_dash=None):
+    """-> sorted, non-overlapping (start, end) offsets of spoken text.
+
+    `weak_dash` is the whole-book `--` decision for a chunk that cannot see
+    its book (`mark_entries`, `split_into_chunk_records` pass it); when unset,
+    `iter_dash_lines` asks `text` itself.
+    """
     if convention is None:
         convention = detect_convention(text)
     if convention is None:
@@ -1591,7 +2150,7 @@ def spoken_spans(text, convention=None):
     if convention == "paired_quotes":
         spans = _paired_spans(text)
     elif convention == "dash_lines":
-        spans = _dash_line_spans(text)
+        spans = _dash_line_spans(text, convention, weak_dash)
     elif convention == "label_lines":
         spans = [(m.start(2), m.end(2)) for m in LABEL_LINE.finditer(text)]
     else:
@@ -1644,14 +2203,48 @@ def _unclosed_opener_spans(text, pairs):
     return spans
 
 
-def _other_speech_spans(text, convention):
+# The #2399 note shape has its OWN constants (#2447 gate 1 nit 2), not the
+# dash-attribution ones: the two questions ("is this a signature line?" and
+# "is this an inner note?") happen to share a shape today, but a dash tweak
+# must not silently change which chevron bodies surface as notes.
+_NOTE_SENTENCE_END = ".!?…。！？"
+_NOTE_PARTICLES = frozenset(
+    ("de", "van", "von", "der", "den", "da", "di", "du", "la", "le", "del",
+     "della", "dos", "das", "of", "bin", "ibn", "al", "el", "y", "e"))
+_NOTE_MAX_WORDS = 5
+
+
+def _is_note_fragment(content):
+    """-> True when a chevron pair's body reads as an inner note, not a sentence.
+
+    A note consumed by the primary-delimiter guard (`«odd»`, `«Hallo»`,
+    `«The Times»`) is a single word or a short title-shaped phrase, with no
+    sentence-final punctuation. Narration that merely lies between two
+    reversed speeches (`He walked over.`, `Two words`) has a sentence shape
+    or a lowercase non-title word and stays unflagged (#2399). A one-word
+    body must contain a letter: `«42»` is not a note (#2447 gate 1 nit 1).
+    """
+    body = content.strip()
+    if not body or body[-1] in _NOTE_SENTENCE_END:
+        return False
+    words = body.split()
+    if not 1 <= len(words) <= _NOTE_MAX_WORDS:
+        return False
+    if len(words) == 1:
+        return any(char.isalpha() for char in body)
+    return all(word in _NOTE_PARTICLES or word[0].isupper()
+               for word in words)
+
+
+def _other_speech_spans(text, convention, weak_dash=None):
     """-> (spans, no_body_opener_spans) for speech marked another way.
 
     `spans` is what get_other_speech_spans returns. `no_body_opener_spans` are
     the unclosed opener ranges with no paragraph body: not speech, so not
     returned, but mark_entries still tests a line against them so a line that
     straddles such a mark keeps main's verdict ("other convention", not
-    narration).
+    narration). `weak_dash` is the whole-book `--` decision, as in
+    `spoken_spans`.
     """
     if convention is None:
         return [], []
@@ -1668,11 +2261,31 @@ def _other_speech_spans(text, convention):
         index = bisect_right(starts, start) - 1
         return index >= 0 and merged[index][1] >= end
 
-    spans = [(m.start(1), m.end(1)) for pattern in OTHER_PAIRED for m in pattern.finditer(text)
-             if BLANK_LINE.search(text, m.start(1), m.end(1)) is None
-             and not inside_primary(m.start(1), m.end(1))]
+    # A delimiter that already opens or closes a primary pair cannot also
+    # delimit opposite-direction secondary speech across intervening narration
+    # (e.g. `»First.« narration »Second.«`, #2399). A SHORT note consumed by
+    # the same ambiguity still surfaces as on main (`»... «odd» ... »`, and
+    # German `»Er sagte: «Hallo» und ging.«`), because its body is a note
+    # fragment rather than a sentence (#2395 review 1 low 1).
+    primary_delimiters = {offset for begin, stop in pairs
+                          for offset in (begin - 1, stop)}
+    single_guillemet_opener = _chevron_direction(text, "‹", "›")[0]
+    spans = []
+    for pattern, opener, closer, kind in _OTHER_PAIRED_SPECS:
+        if kind == "single_guillemet" and opener != single_guillemet_opener:
+            continue
+        for match in pattern.finditer(text):
+            start, end = match.start(1), match.end(1)
+            if kind == "double_guillemet" and (
+                    match.start() in primary_delimiters
+                    or match.end() - 1 in primary_delimiters
+            ) and not _is_note_fragment(text[start:end]):
+                continue
+            if (BLANK_LINE.search(text, start, end) is None
+                    and not inside_primary(start, end)):
+                spans.append((start, end))
     if convention != "dash_lines":
-        spans += _dash_line_spans(text)
+        spans += _dash_line_spans(text, convention, weak_dash)
     if convention != "paired_quotes":
         spans += pairs
         return spans, []
@@ -1843,11 +2456,29 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
     claim from `spoken: false`.
     """
     convention = detect_convention(source_text) if convention is None else convention
-    spans = spoken_spans(source_text, convention)
+    # The weak `--` question is asked once on the whole book and carried down:
+    # a chunk cannot see the book, and an em-dash book's convention name is
+    # `dash_lines` too (#2447 gate 3 blocker 1).
+    weak_dash = (convention == "dash_lines"
+                 and _weak_dash_dialogue_established(source_text))
+    spans = spoken_spans(source_text, convention, weak_dash)
     ambiguities = get_interior_dash_ambiguities(source_text, convention)
-    unverified_tails = (dash_line_unverified_tails(source_text)
+    unverified_tails = (dash_line_unverified_tails(
+                            source_text, convention, weak_dash)
                         if convention == "dash_lines" else [])
-    other_speech, no_body_openers = _other_speech_spans(source_text, convention)
+    other_speech, no_body_openers = _other_speech_spans(
+        source_text, convention, weak_dash)
+    # In a book that runs `--` dialogue, a `--` line the shared predicate
+    # refuses is dialogue-ambiguous, not narration (#2447 r8 BLOCKER 1), a
+    # printed `NAME: …` label line is main's `label_lines` speech
+    # (#2447 r8 BLOCKER 2), and the wrapped continuation lines of a `--`
+    # speech are part of that speech (#2447 r9 BLOCKER 1). All are routed, so
+    # the model's speaker is kept and none becomes a confident NARRATOR.
+    refused_weak = (_weak_dash_refused_ranges(source_text)
+                    if weak_dash else [])
+    label_lines = _label_line_ranges(source_text) if weak_dash else []
+    continued_weak = (_weak_dash_continuation_ranges(source_text)
+                      if weak_dash else [])
     # A line that straddles an unclosed opener with no paragraph body is still
     # "other convention", not narration: that was main's verdict, and this is a
     # contract fix, not a change to what reaches the audio. Those ranges are
@@ -1909,6 +2540,24 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
                                          for span_start, span_stop in other_speech):
                     # Outside the main quotes, inside speech marked another
                     # way: not established narration, so never voiced as it.
+                    row["dialogue_ambiguity"] = "other_convention"
+                elif not overlap and any(span_start < entry_end and entry_start < span_stop
+                                         for span_start, span_stop in refused_weak):
+                    # A `--` line this book's own per-line predicate refused:
+                    # dialogue-ambiguous, so keep the model's speaker rather
+                    # than claiming narration (#2447 r8 BLOCKER 1).
+                    row["dialogue_ambiguity"] = "weak_dash_ambiguity"
+                elif not overlap and any(span_start < entry_end and entry_start < span_stop
+                                         for span_start, span_stop in continued_weak):
+                    # A wrapped continuation line of a `--` speech, which is
+                    # not itself a dash line: keep the model's speaker rather
+                    # than claiming narration (#2447 r9 BLOCKER 1).
+                    row["dialogue_ambiguity"] = "weak_dash_ambiguity"
+                elif not overlap and any(span_start < entry_end and entry_start < span_stop
+                                         for span_start, span_stop in label_lines):
+                    # main's `label_lines` speech in the same book: route it
+                    # instead of overwriting the model with NARRATOR
+                    # (#2447 r8 BLOCKER 2).
                     row["dialogue_ambiguity"] = "other_convention"
                 else:
                     row["spoken"] = bool(overlap)
