@@ -42,23 +42,109 @@ PAIRED = [
     ("«", "»"),      # guillemets (French, Russian, Italian, ...)
     ("»", "«"),      # reversed guillemets (Danish)
 ]
-# An em dash, en dash, or ASCII double hyphen (`--`, not `---` rules) opening
-# a line, the Continental convention (#2329, #2395). Single `-` stays out so
-# list bullets and hyphenated prose never become dialogue.
-_DASH_MARK_PATTERN = r"(?:[—–]|(?<!-)--(?!-))"
-_DASH_SEPS = frozenset(("—", "–", "--"))
+# ONE table defines every dialogue dash: (text, length, strength). The regex,
+# the separator set, the length/strength lookups and the certification rule all
+# derive from it, so a fourth dash form cannot be recognised by one and
+# mis-measured by another (Rule 15, #2395 review 1 nit 1 / low 4). `strong`
+# certifies a line-dash convention on its own; `weak` needs a second dash line
+# in the same chunk (#2395 review 1 blocker 2). Single `-` stays out so list
+# bullets and hyphenated prose never become dialogue.
+DASH_MARKS = (
+    ("—", 1, "strong"),   # em dash
+    ("–", 1, "strong"),   # en dash
+    ("--", 2, "weak"),    # ASCII double hyphen (`---` rules excluded below)
+)
+
+
+def _dash_mark_pattern(mark):
+    """-> regex source for one table mark.
+
+    A hyphen-run mark gets boundary lookarounds so `--` never matches inside a
+    longer rule (`---`, `----`). Every other mark is matched literally.
+    """
+    escaped = re.escape(mark)
+    return rf"(?<!-){escaped}(?!-)" if set(mark) == {"-"} else escaped
+
+
+_DASH_MARK_PATTERN = "(?:" + "|".join(
+    _dash_mark_pattern(mark) for mark, _length, _strength in DASH_MARKS) + ")"
+_DASH_SEPS = frozenset(mark for mark, _length, _strength in DASH_MARKS)
+# Longest first, so a later `-` entry cannot shadow `--`.
+_DASH_BY_LENGTH = tuple(sorted(DASH_MARKS, key=lambda row: row[1], reverse=True))
 DASH_LINE = re.compile(rf"^[ \t]*{_DASH_MARK_PATTERN}[ \t]*(\S.*)$", re.M)
 
+# An epigraph attribution or signature line opens with the same dash as
+# dialogue (`--GERTRUDE STEIN _in conversation_`, `—_Ecclesiastes_`). A short
+# sequence of capitalised name words (initials and `de`/`van`/`of`-style
+# particles allowed), with no sentence-final punctuation and no lowercase word
+# other than a particle, is narration in BOTH dash forms (#2395 review 1
+# blocker 1, Rule 15). Lowercase words are refused, which subsumes the
+# "no lowercase verb" condition: only particles may be lowercase.
+_DASH_ATTRIBUTION_PARTICLES = frozenset(
+    ("de", "van", "von", "der", "den", "da", "di", "du", "la", "le", "del",
+     "della", "dos", "das", "of", "bin", "ibn", "al", "el", "y", "e"))
+_DASH_ITALIC_NOTE = re.compile(r"[_*][^_*\r\n]+[_*]")
+_DASH_SENTENCE_END = ".!?…。！？"
+_DASH_ATTRIBUTION_MAX_WORDS = 5
 
-def dash_mark_length(text, index):
+
+def is_dash_attribution(line):
+    """-> True when a dash-opened line's body is an attribution, not speech.
+
+    The body is the text after the dash and its padding. A fully italic body
+    (`_Ecclesiastes_`) keeps its word for the name check; an italic editorial
+    annotation after the name (`GERTRUDE STEIN _in conversation_`) is
+    decoration. Pure read, shared by every dash-line consumer.
+    """
+    body = _DASH_ITALIC_NOTE.sub(" ", line or "").strip()
+    if not body:
+        raw = (line or "").strip()
+        if len(raw) >= 2 and raw[0] in "_*" and raw[-1] == raw[0]:
+            body = raw[1:-1].strip()
+    if not body or body[-1] in _DASH_SENTENCE_END:
+        return False
+    words = body.split()
+    if not 1 <= len(words) <= _DASH_ATTRIBUTION_MAX_WORDS:
+        return False
+    named = False
+    for word in words:
+        if word in _DASH_ATTRIBUTION_PARTICLES:
+            continue
+        if not word[0].isupper():
+            return False
+        named = True
+    return named
+
+
+def iter_dash_lines(text):
+    """-> DASH_LINE matches that are dialogue, not attribution/signature lines."""
+    for match in DASH_LINE.finditer(text):
+        if not is_dash_attribution(match.group(1)):
+            yield match
+
+
+def count_dash_lines(text):
+    """-> dialogue dash lines in `text` (attributions excluded)."""
+    return sum(1 for _match in iter_dash_lines(text))
+
+
+def get_dash_mark(text, index):
+    """-> (length, strength) of a dialogue dash at `index`, or (0, None)."""
+    for mark, length, strength in _DASH_BY_LENGTH:
+        if not text.startswith(mark, index):
+            continue
+        if set(mark) == {"-"}:
+            if index > 0 and text[index - 1] == "-":
+                continue
+            if index + length < len(text) and text[index + length] == "-":
+                continue
+        return length, strength
+    return 0, None
+
+
+def get_dash_mark_length(text, index):
     """-> length of a dialogue dash at `index` (1 for —/–, 2 for `--`), or 0."""
-    if index < len(text) and text[index] in "—–":
-        return 1
-    if (text.startswith("--", index)
-            and (index == 0 or text[index - 1] != "-")
-            and (index + 2 >= len(text) or text[index + 2] != "-")):
-        return 2
-    return 0
+    return get_dash_mark(text, index)[0]
 # Closed reporting-verb list (English, Spanish, French — past and present)
 # used to recognise narrator speech tags inside a dash-opened line (#2329).
 # It is one source of truth for the dash rule only: `pass_quality`'s
@@ -269,27 +355,31 @@ LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 # a “double”-quote book, a dash-opened line, «guillemets», or an opening mark
 # the author never closed. `’` is also the apostrophe, so a ‘…’ pair closes
 # only at a `’` that no letter follows ("‘I don’t know,’ she said").
+# One self-describing `(pattern, opener, closer, kind)` table: no caller has to
+# inspect regex source to know what a pattern is (#2395 review 1 nit 2).
 # Double-guillemet directions (`«…»`, `»…«`) derive from `PAIRED` (one table,
-# Rule 15); `_other_speech_spans` refuses any match whose delimiter already
-# opens or closes a primary pair (#2399), and picks one direction for `‹…›`/`›…‹`.
+# Rule 15); `_other_speech_spans` refuses a match whose delimiter already opens
+# or closes a primary pair unless its body is a short note (#2399), and picks
+# one direction for `‹…›`/`›…‹`.
 _DOUBLE_GUILLEMET_PAIRS = tuple(
     (opener, closer) for opener, closer in PAIRED if opener in ("«", "»"))
 _SINGLE_GUILLEMET_PAIRS = (("‹", "›"), ("›", "‹"))
-OTHER_PAIRED = [
-    re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"),
-    *(re.compile(rf"{opener}([^{opener}{closer}]+){closer}")
-      for opener, closer in _DOUBLE_GUILLEMET_PAIRS),
-    *(re.compile(rf"{opener}([^{opener}{closer}\n]+){closer}")
-      for opener, closer in _SINGLE_GUILLEMET_PAIRS),
+_OTHER_PAIRED_SPECS = (
+    (re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"), "‘", "’", "single_curly"),
+    *((re.compile(rf"{opener}([^{opener}{closer}]+){closer}"), opener, closer,
+       "double_guillemet") for opener, closer in _DOUBLE_GUILLEMET_PAIRS),
+    *((re.compile(rf"{opener}([^{opener}{closer}\n]+){closer}"), opener, closer,
+       "single_guillemet") for opener, closer in _SINGLE_GUILLEMET_PAIRS),
     # Low-high single marks (‚…‘). The opener is never an apostrophe, so it
     # anchors the pair on its own; the closer is the next ‘ after it.
-    re.compile(r"‚([^‚‘\n]+)‘"),
+    (re.compile(r"‚([^‚‘\n]+)‘"), "‚", "‘", "low_high_single"),
     # German low-high is secondary speech in an otherwise non-German book; it
     # is included in PAIRED only when dense enough to be that book's convention.
     # get_other_speech_spans skips pairs already found by _paired_spans.
-    re.compile(r"„([^„“\n]+)“"),
-    re.compile(r"„([^„”\n]+)”"),
-]
+    (re.compile(r"„([^„“\n]+)“"), "„", "“", "german_low_high"),
+    (re.compile(r"„([^„”\n]+)”"), "„", "”", "polish_low_high"),
+)
+OTHER_PAIRED = [pattern for pattern, _opener, _closer, _kind in _OTHER_PAIRED_SPECS]
 # A mark here can ALSO close a different pair - `“` closes `„…“` - so a caller
 # must skip an occurrence that closes a real pair. get_other_speech_spans does.
 UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』", "„": "“"}
@@ -1121,7 +1211,7 @@ def detect_convention(text):
     """
     counts = {
         "paired_quotes": len(_paired_spans(text)),
-        "dash_lines": len(DASH_LINE.findall(text)),
+        "dash_lines": count_dash_lines(text),
         "label_lines": len(LABEL_LINE.findall(text)),
     }
     best = max(counts, key=counts.get)
@@ -1157,7 +1247,7 @@ def _dash_tag_clause_end(text, start, limit):
     """
     index = start
     while index < limit:
-        dash_len = dash_mark_length(text, index)
+        dash_len = get_dash_mark_length(text, index)
         if dash_len:
             return index + dash_len, text[index:index + dash_len]
         char = text[index]
@@ -1458,7 +1548,7 @@ def _split_dash_line_with_break(text, start, end):
             after += 1
         if after >= limit:
             break
-        if (sep in ",!?…" or sep == "...") and dash_mark_length(text, after):
+        if (sep in ",!?…" or sep == "...") and get_dash_mark_length(text, after):
             # `? —preguntó` / `, —dijo` / `, --dijo`: the dash introduces the tag.
             scan = after
             continue
@@ -1531,7 +1621,7 @@ def _split_dash_line_with_break(text, start, end):
         resume = clause_end
         while resume < limit and text[resume] in " \t":
             resume += 1
-        resume_dash = dash_mark_length(text, resume) if resume < limit else 0
+        resume_dash = get_dash_mark_length(text, resume) if resume < limit else 0
         if resume_dash:
             parts.append(("NARRATOR", after, resume))
             resume += resume_dash
@@ -1576,7 +1666,7 @@ def dash_line_unverified_prefixes(text):
     the opening speech is unambiguous: it must be SPOKEN (#2329 finding 5).
     """
     prefixes = []
-    for match in DASH_LINE.finditer(text):
+    for match in iter_dash_lines(text):
         _parts, ambiguous, first_break, _ranges = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if ambiguous and first_break is not None and first_break[0] < first_break[1]:
@@ -1595,7 +1685,7 @@ def dash_line_unverified_tails(text):
     model's label alone (#2390 review 1).
     """
     ranges = []
-    for match in DASH_LINE.finditer(text):
+    for match in iter_dash_lines(text):
         _parts, ambiguous, _break, tails = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if ambiguous:
@@ -1612,7 +1702,7 @@ def dash_line_unverified_ranges(text):
     Confident lines elsewhere in the chunk keep full region validation.
     """
     ranges = []
-    for match in DASH_LINE.finditer(text):
+    for match in iter_dash_lines(text):
         _parts, ambiguous, first_break, tails = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if not ambiguous:
@@ -1627,7 +1717,7 @@ def dash_line_unverified_ranges(text):
 def _dash_line_spans(text):
     return [
         (start, end)
-        for match in DASH_LINE.finditer(text)
+        for match in iter_dash_lines(text)
         for kind, start, end in split_dash_line(text, match.start(1), match.end(1))[0]
         if kind == "SPOKEN"
     ]
@@ -1695,6 +1785,27 @@ def _unclosed_opener_spans(text, pairs):
     return spans
 
 
+def _is_note_fragment(content):
+    """-> True when a chevron pair's body reads as an inner note, not a sentence.
+
+    A note consumed by the primary-delimiter guard (`«odd»`, `«Hallo»`,
+    `«The Times»`) is a single word or a short title-shaped phrase, with no
+    sentence-final punctuation. Narration that merely lies between two
+    reversed speeches (`He walked over.`, `Two words`) has a sentence shape
+    or a lowercase non-title word and stays unflagged (#2399).
+    """
+    body = content.strip()
+    if not body or body[-1] in _DASH_SENTENCE_END:
+        return False
+    words = body.split()
+    if not 1 <= len(words) <= _DASH_ATTRIBUTION_MAX_WORDS:
+        return False
+    if len(words) == 1:
+        return any(char.isalpha() for char in body)
+    return all(word in _DASH_ATTRIBUTION_PARTICLES or word[0].isupper()
+               for word in words)
+
+
 def _other_speech_spans(text, convention):
     """-> (spans, no_body_opener_spans) for speech marked another way.
 
@@ -1721,21 +1832,24 @@ def _other_speech_spans(text, convention):
 
     # A delimiter that already opens or closes a primary pair cannot also
     # delimit opposite-direction secondary speech across intervening narration
-    # (e.g. `»First.« narration »Second.«`, #2399).
+    # (e.g. `»First.« narration »Second.«`, #2399). A SHORT note consumed by
+    # the same ambiguity still surfaces as on main (`»... «odd» ... »`, and
+    # German `»Er sagte: «Hallo» und ging.«`), because its body is a note
+    # fragment rather than a sentence (#2395 review 1 low 1).
     primary_delimiters = {offset for begin, stop in pairs
                           for offset in (begin - 1, stop)}
     single_guillemet_opener = _chevron_direction(text, "‹", "›")[0]
     spans = []
-    for pattern in OTHER_PAIRED:
-        first_char = pattern.pattern[0]
-        if first_char in ("‹", "›") and first_char != single_guillemet_opener:
+    for pattern, opener, closer, kind in _OTHER_PAIRED_SPECS:
+        if kind == "single_guillemet" and opener != single_guillemet_opener:
             continue
         for match in pattern.finditer(text):
-            if (first_char in ("«", "»")
-                    and (match.start() in primary_delimiters
-                         or match.end() - 1 in primary_delimiters)):
-                continue
             start, end = match.start(1), match.end(1)
+            if kind == "double_guillemet" and (
+                    match.start() in primary_delimiters
+                    or match.end() - 1 in primary_delimiters
+            ) and not _is_note_fragment(text[start:end]):
+                continue
             if (BLANK_LINE.search(text, start, end) is None
                     and not inside_primary(start, end)):
                 spans.append((start, end))

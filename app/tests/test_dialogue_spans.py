@@ -21,6 +21,7 @@ from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_so
                             detect_convention, get_other_speech_spans, mark_entries,
                             speaker_labels, spoken_spans, uses_speaker_labels,
                             validate_spoken_spans)
+from pass_quality import analyze_outer_quote_regions
 
 
 def _call_with_deadline(call, label, timeout=5.0):
@@ -120,22 +121,11 @@ def _main_get_other_speech_spans(text, convention):
         index = dialogue_spans.bisect_right(starts, start) - 1
         return index >= 0 and merged[index][1] >= end
 
-    primary_delimiters = {offset for begin, stop in pairs
-                          for offset in (begin - 1, stop)}
-    single_guillemet_opener = dialogue_spans._chevron_direction(text, "‹", "›")[0]
-    spans = []
-    for pattern in dialogue_spans.OTHER_PAIRED:
-        first_char = pattern.pattern[0]
-        if first_char in ("‹", "›") and first_char != single_guillemet_opener:
-            continue
-        for match in pattern.finditer(text):
-            if (first_char in ("«", "»")
-                    and (match.start() in primary_delimiters
-                         or match.end() - 1 in primary_delimiters)):
-                continue
-            if (dialogue_spans.BLANK_LINE.search(text, match.start(1), match.end(1)) is None
-                    and not inside_primary(match.start(1), match.end(1))):
-                spans.append((match.start(1), match.end(1)))
+    spans = [(match.start(1), match.end(1))
+             for pattern in dialogue_spans.OTHER_PAIRED
+             for match in pattern.finditer(text)
+             if dialogue_spans.BLANK_LINE.search(text, match.start(1), match.end(1)) is None
+             and not inside_primary(match.start(1), match.end(1))]
     if convention != "dash_lines":
         spans += [(match.start(1), match.end(1))
                   for match in dialogue_spans.DASH_LINE.finditer(text)]
@@ -161,6 +151,24 @@ def _main_get_other_speech_spans(text, convention):
 
 def _has_paragraph_body(text, start, end):
     return _NON_WHITESPACE.search(text, start, end) is not None
+
+
+def _owns_intentional_difference(text):
+    """-> True when #2395/#2399 deliberately changed this input.
+
+    The frozen-main differentials below must compare the rest of the language
+    against main; these inputs are owned by the dedicated #2395 (ASCII `--`
+    line dashes, attribution/signature lines) and #2399 (reversed guillemets)
+    tests instead, so pinning them here would only compare head with a copy of
+    itself. The exclusion is explicit rather than inferred from a failing diff.
+    """
+    if any(mark in text for mark in "«»‹›"):
+        return True
+    for match in dialogue_spans.DASH_LINE.finditer(text):
+        if (match.group(0).lstrip().startswith("--")
+                or dialogue_spans.is_dash_attribution(match.group(1))):
+            return True
+    return False
 
 
 _NON_WHITESPACE = re.compile(r"\S")
@@ -1445,6 +1453,9 @@ class UnclosedOpenerTest(unittest.TestCase):
                  + [text for _shape, text in self._no_body_texts()])
         self.assertGreaterEqual(len(texts), 500)
         for index, text in enumerate(texts):
+            if _owns_intentional_difference(text):
+                # #2395/#2399 inputs, owned by their dedicated tests above.
+                continue
             expected = [(start, end)
                         for start, end in _main_get_other_speech_spans(text, "paired_quotes")
                         if _has_paragraph_body(text, start, end)]
@@ -2797,6 +2808,124 @@ class DashDialogueTagTests(unittest.TestCase):
             [paired[a:b] for a, b in spoken_spans(paired, "paired_quotes")],
         )
 
+    def test_dash_attribution_and_signature_lines_are_narration_for_both_forms(self):
+        """#2395 review 1 blocker 1: an epigraph attribution is not speech.
+
+        The exclusion is one predicate shared by `—`, `–` and `--` (Rule 15),
+        and restores main's map (`NARRATOR`, `spoken: False`) for the review's
+        repro and its em/en-dash equivalents.
+        """
+        for mark in ("--", "—", "–"):
+            book = ('"Line one."\n\n"Line two."\n\n"Line three."\n\n'
+                    '"Line four."\n\n"Line five."\n\n'
+                    '"Some other quoted line."\n\n'
+                    f"{mark}Author Name\n")
+            with self.subTest(mark=mark):
+                self.assertEqual("paired_quotes", detect_convention(book))
+                self.assertEqual([], get_other_speech_spans(book, "paired_quotes"))
+                mapped = apply_dialogue_map(
+                    [{"speaker": "ALICE", "text": "Author Name"}], book)
+                row = mapped["entries"][0]
+                self.assertEqual("NARRATOR", row["speaker"])
+                self.assertIs(False, row["spoken"])
+                self.assertNotIn("dialogue_ambiguity", row)
+                self.assertEqual(1, len(mapped["narration_changes"]))
+                self.assertEqual(0, mapped["ambiguous"])
+        for line, expected in (
+            ("--Author Name", True),
+            ("--GERTRUDE STEIN _in conversation_", True),
+            ("--_Ecclesiastes_", True),
+            ("--F. Scott Fitzgerald", True),
+            ("--de la Cruz", True),
+            ("--A", True),
+            ("--Author Name.", False),
+            ("--I was going to--", False),
+            ("-- Wait -- I forgot the keys.", False),
+            ("— Hola --dijo Ana--. Vamos.", False),
+            ("-- Hello there", False),
+            ("-- the author", False),
+        ):
+            with self.subTest(line=line):
+                match = dialogue_spans.DASH_LINE.match(line)
+                self.assertIsNotNone(match)
+                self.assertEqual(expected,
+                                 dialogue_spans.is_dash_attribution(match.group(1)))
+
+    def test_one_dash_table_drives_regex_separators_lengths_and_strength(self):
+        """#2395 review 1 low 4 / nit 1: the dash definition is one table."""
+        import re
+        self.assertTrue(dialogue_spans.DASH_MARKS)
+        for mark, length, strength in dialogue_spans.DASH_MARKS:
+            with self.subTest(mark=mark):
+                self.assertIsNotNone(
+                    re.fullmatch(dialogue_spans._DASH_MARK_PATTERN, mark))
+                self.assertIn(mark, dialogue_spans._DASH_SEPS)
+                self.assertEqual(length,
+                                 dialogue_spans.get_dash_mark_length(
+                                     "x" + mark + "y", 1))
+                self.assertEqual(
+                    (length, strength),
+                    dialogue_spans.get_dash_mark("x" + mark + "y", 1))
+                matches = list(dialogue_spans.DASH_LINE.finditer(
+                    f"{mark} Spoken line."))
+                self.assertEqual(1, len(matches))
+                self.assertEqual(f"{mark} Spoken line.", matches[0].group(0))
+        self.assertEqual(
+            [strength for _mark, _length, strength in dialogue_spans.DASH_MARKS],
+            ["strong", "strong", "weak"])
+        # The hyphen-run guard keeps rules out of the table's `--` entry.
+        for rules in ("x---y", "x----y", "---", "----"):
+            with self.subTest(rules=rules):
+                self.assertEqual((0, None), dialogue_spans.get_dash_mark(rules, 0))
+
+    def test_em_and_en_dash_lines_containing_ascii_dash_are_documented_and_pinned(self):
+        """#2395 review 1 low 3: `--` inside `—`/`–` lines changes segmentation.
+
+        These are the measured head results, not main's: a correct tag split,
+        a lost leading `--` on the narration, and three routings to the model.
+        The PR body states these changes instead of calling em/en lines
+        unchanged.
+        """
+        for mark in ("—", "–"):
+            with self.subTest(mark=mark):
+                line = f"{mark} Hola --dijo Ana--. Vamos."
+                match = dialogue_spans.DASH_LINE.match(line)
+                parts, ambiguous = dialogue_spans.split_dash_line(
+                    line, match.start(1), match.end(1))
+                self.assertIs(False, ambiguous)
+                self.assertEqual(
+                    [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"),
+                     ("SPOKEN", "Vamos.")],
+                    [(kind, line[a:b]) for kind, a, b in parts])
+                self.assertEqual(
+                    [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"),
+                     ("SPOKEN", "Vamos.")],
+                    [(row["type"], row["text"]) for row in
+                     analyze_outer_quote_regions(line)["regions"]])
+        for line, region_texts in (
+            ("— ¿Quién? --preguntó Ana.",
+             [("SPOKEN", "¿Quién?"), ("NARRATOR", "preguntó Ana.")]),
+            ("— Non, dit-elle. -- Jamais.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle."),
+              ("SPOKEN", "Jamais.")]),
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(
+                    region_texts,
+                    [(row["type"], row["text"]) for row in
+                     analyze_outer_quote_regions(line)["regions"]])
+        for line in (
+            "— Wait -- I forgot the keys.",
+            "— The train--late again--finally came.",
+            "— He said it -- loudly -- and left.",
+        ):
+            with self.subTest(unverified=line):
+                analysis = analyze_outer_quote_regions(line)
+                self.assertIs(True, analysis.get("unverified_dash"))
+                self.assertEqual(
+                    [(row["type"], row["text"]) for row in analysis["regions"]],
+                    [("SPOKEN", line.split("—", 1)[1].strip())])
+
 class QuoteConventionTableAndRegexTests(unittest.TestCase):
     """Cover every paired, secondary, unclosed and dash/label convention."""
 
@@ -2892,6 +3021,7 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
         # Same-paragraph variants: no padding, adjacent, single newline, unclosed trailing opener.
         for variant in (
             "»First.« He walked over. »Second.«",
+            "»First.« Two words »Second.«",
             "»First.« »Second.«",
             "»First.«\nHe walked over.\n»Second.«",
             "»First.« He walked over. »Unclosed",
@@ -2925,6 +3055,22 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
             [mixed[a:b] for a, b in get_other_speech_spans(mixed, "paired_quotes")],
         )
 
+        # A short inner note consumed by the reversed-pair guard still surfaces
+        # as on main; sentence-shaped narration between the pairs does not
+        # (#2395 review 1 low 1).
+        for text, expected in (
+            ("»First.« He called it «odd», then left. »Second.«", ["odd"]),
+            ("»Er sagte: «Hallo» und ging.«", ["Hallo"]),
+            ("»First.« She read «The Times» in the morning. »Second.«",
+             ["The Times"]),
+        ):
+            with self.subTest(note=text):
+                self.assertEqual(
+                    expected,
+                    [text[a:b] for a, b in get_other_speech_spans(
+                        text, "paired_quotes")],
+                )
+
         # Single guillemets (both `‹…›` and reversed `›…‹`): speeches only, never intervening narration.
         for text, expected in (
             ("›First.‹ He walked over. ›Second.‹", ["First.", "Second."]),
@@ -2951,6 +3097,27 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
         self.assertIs(False, result[1]["spoken"])
         self.assertNotIn("dialogue_ambiguity", result[1])
         self.assertEqual("other_convention", result[2].get("dialogue_ambiguity"))
+
+        # Documented limit: one direction per text. A mixed
+        # `›…‹`/`‹…›` text follows the majority shape, so the minority
+        # direction's `‹Hallo›` note is dropped where main flagged it
+        # (#2395 review 1 nit 4).
+        limit = "›First.‹ Note ‹Hallo› end. ›Second.‹"
+        self.assertEqual(
+            ["First.", "Second."],
+            [limit[a:b] for a, b in get_other_speech_spans(limit, "paired_quotes")],
+        )
+        limit_source = (
+            "“Pad 1.”\n\n“Pad 2.”\n\n“Pad 3.”\n\n“Pad 4.”\n\n“Pad 5.”\n\n"
+            + limit
+        )
+        limited = apply_dialogue_map(
+            [{"speaker": "A", "text": "First."},
+             {"speaker": "WRONG", "text": "Hallo"},
+             {"speaker": "B", "text": "Second."}], limit_source)["entries"]
+        self.assertEqual("NARRATOR", limited[1]["speaker"])
+        self.assertIs(False, limited[1]["spoken"])
+        self.assertNotIn("dialogue_ambiguity", limited[1])
 
     def test_every_unclosed_opener_skips_empty_closed_pairs_and_closed_partners(self):
         # Iterate the module table so a new unclosed opener is tested, and pin it
