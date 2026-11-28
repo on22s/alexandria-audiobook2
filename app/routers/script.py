@@ -622,6 +622,13 @@ class _HTMLTextExtractor(HTMLParser):
             return
         pending = self.rawdata
         self.rawdata = ''
+        # Python 3.14 buffers short trailing feeds in _pending instead of rawdata.
+        # A chunked feed can leave the RCDATA suffix there, so include it too;
+        # on older versions there is no _pending and rawdata already has it all.
+        buffered = getattr(self, '_pending', None)
+        if buffered:
+            pending += ''.join(buffered)
+            self._pending = []
         if pending:
             self.handle_data(pending)
         self.cdata_elem = None
